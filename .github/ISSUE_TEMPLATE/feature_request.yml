@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose one independently reviewable, evidence-backed change
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and found no duplicate.
+          required: true
+        - label: This request contains no private case material.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and evidence
+      description: Describe the observed limitation or sanitised counterexample, not only a desired solution.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Required outcome
+      description: State observable acceptance criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Simpler alternatives considered
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+    validations:
+      required: true
