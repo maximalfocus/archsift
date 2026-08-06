@@ -14,5 +14,7 @@ def block_outbound_network(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         raise AssertionError("tests must not use outbound network connections")
 
     monkeypatch.setattr(socket, "create_connection", blocked_connect)
+    monkeypatch.setattr(socket, "getaddrinfo", blocked_connect)
     monkeypatch.setattr(socket.socket, "connect", blocked_connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", blocked_connect)
     yield
