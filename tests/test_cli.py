@@ -3,6 +3,7 @@ from __future__ import annotations
 import socket
 import subprocess
 import sys
+import sysconfig
 from importlib.metadata import version
 from pathlib import Path
 
@@ -30,7 +31,7 @@ def test_module_entry_point_reports_installed_version() -> None:
 
 def test_console_entry_point_reports_installed_version() -> None:
     executable_name = "archsift.exe" if sys.platform == "win32" else "archsift"
-    executable = Path(sys.executable).parent / executable_name
+    executable = Path(sysconfig.get_path("scripts")) / executable_name
     assert executable.is_file()
     result = subprocess.run(
         [str(executable), "--version"],
