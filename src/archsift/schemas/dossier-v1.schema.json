@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
+  "title": "ArchSift dossier envelope version 1",
+  "description": "Minimal case identity envelope used before decision-specific sections are introduced.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "ArchSift dossier schema version.",
+      "const": 1
+    },
+    "case": {
+      "description": "Human-editable identity for this architecture decision case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable local identifier for the case.",
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "description": "Human-readable case title.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
