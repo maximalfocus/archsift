@@ -25,7 +25,10 @@ classifiers = [
   "Programming Language :: Python :: 3.14",
   "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+  "jsonschema>=4.23",
+  "PyYAML>=6.0.2",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -33,6 +36,8 @@ dev = [
   "mypy>=1.15",
   "pytest>=8.3",
   "ruff>=0.11",
+  "types-jsonschema>=4.23",
+  "types-PyYAML>=6.0.12",
 ]
 
 [project.scripts]

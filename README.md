@@ -5,7 +5,7 @@
 ArchSift is an open-source, local-first decision-support project for comparing human-owned work, process redesign, deterministic automation, fixed AI workflows, and runtime model-directed agency. It is designed to make evidence and trade-offs inspectable, and it may abstain when the available evidence cannot support a defensible decision.
 
 > [!IMPORTANT]
-> ArchSift is currently pre-alpha. This repository contains the project foundation and a version-only CLI; the dossier and assessment engine are not implemented yet.
+> ArchSift is currently pre-alpha. The CLI can create and structurally validate a minimal versioned case workspace; evidence analysis and the assessment engine are not implemented yet.
 
 ## Install for development
 
@@ -24,9 +24,14 @@ python -m pip install -e ".[dev]"
 ```bash
 archsift --version
 python -m archsift --version
+archsift init my-case
+archsift validate my-case
+archsift validate my-case --json
 ```
 
-No runtime dependency, network service, model API, or telemetry is used by the current CLI.
+`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. `validate` safely checks the versioned dossier envelope and fails closed on malformed, unsupported, unknown, or unsafe input. See the [stable exit-code contract](docs/exit-codes.md).
+
+No network service, model API, or telemetry is used by the current CLI.
 
 ## Development gate
 
