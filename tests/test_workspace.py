@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
+import pytest
 import yaml
 
 from archsift.cli import main
@@ -83,3 +85,26 @@ def test_init_quiet_suppresses_output(tmp_path: Path, capsys: object) -> None:
     captured = capsys.readouterr()  # type: ignore[attr-defined]
     assert captured.out == ""
     assert captured.err == ""
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows CI may not permit unprivileged symlinks")
+def test_init_refuses_dangling_symlink_target(tmp_path: Path) -> None:
+    target = tmp_path / "dangling"
+    target.symlink_to(tmp_path / "nowhere")
+
+    result = initialize_workspace(target)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "workspace-target-not-directory"
+
+
+def test_init_reports_uncreatable_target_cleanly(tmp_path: Path) -> None:
+    blocker = tmp_path / "blocker"
+    blocker.write_text("keep")
+    target = blocker / "case"
+
+    result = initialize_workspace(target)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "workspace-create-failed"
+    assert blocker.read_text() == "keep"

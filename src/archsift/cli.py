@@ -7,7 +7,7 @@ import json
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import NoReturn
+from typing import NoReturn, TextIO
 
 from archsift import package_version
 from archsift.diagnostics import Diagnostic, ExitCode
@@ -58,7 +58,21 @@ def _json_payload(
         "status": status,
         **details,
     }
-    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    # ensure_ascii=True keeps the payload ASCII-only by construction: only
+    # JSON-standard \uXXXX escapes appear, parseable on any stream encoding.
+    return json.dumps(payload, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
+
+
+def _print(text: str, *, stream: TextIO) -> None:
+    """Print text without crashing when the stream cannot encode it."""
+    try:
+        print(text, file=stream)
+    except UnicodeEncodeError:
+        # Backslash-escapes keep the output encodable (and valid JSON) on
+        # ASCII-only streams such as legacy Windows code pages.
+        encoding = getattr(stream, "encoding", None) or "utf-8"
+        escaped = text.encode(encoding, "backslashreplace").decode(encoding)
+        print(escaped, file=stream)
 
 
 def _emit(
@@ -74,13 +88,13 @@ def _emit(
     if quiet:
         return
     if json_output:
-        print(_json_payload(status, exit_code, diagnostics, **details))
+        _print(_json_payload(status, exit_code, diagnostics, **details), stream=sys.stdout)
         return
     if diagnostics:
         for diagnostic in diagnostics:
-            print(diagnostic.render(), file=sys.stderr)
+            _print(diagnostic.render(), stream=sys.stderr)
     else:
-        print(success_message)
+        _print(success_message, stream=sys.stdout)
 
 
 def _internal_error(error: Exception, *, json_output: bool, quiet: bool) -> int:

@@ -37,7 +37,9 @@ def _write_text(path: Path, content: str) -> None:
 def initialize_workspace(target: Path) -> InitResult:
     """Create a deterministic version-1 case workspace without overwriting files."""
     display = str(target)
-    if target.exists() and not target.is_dir():
+    if (target.exists() or target.is_symlink()) and not target.is_dir():
+        # is_symlink() also catches dangling links, which exist at the
+        # filesystem level even though Path.exists() reports False.
         return InitResult(
             ExitCode.VALIDATION_FAILED,
             target,
@@ -92,18 +94,40 @@ def initialize_workspace(target: Path) -> InitResult:
             ),
         )
 
-    target.mkdir(parents=True, exist_ok=True)
-    dossier = {
-        "schema_version": 1,
-        "case": {"id": _case_id(target.name), "title": target.name or "Architecture decision"},
-    }
-    case_yaml = yaml.safe_dump(dossier, sort_keys=False, allow_unicode=True)
-    guidance = (
-        files("archsift").joinpath("templates/workspace-README.md").read_text(encoding="utf-8")
-    )
-
-    _write_text(target / "case.yaml", case_yaml)
-    _write_text(target / "README.md", guidance)
-    (target / "evidence").mkdir()
-    (target / "output").mkdir()
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        dossier = {
+            "schema_version": 1,
+            "case": {"id": _case_id(target.name), "title": target.name or "Architecture decision"},
+        }
+        case_yaml = yaml.safe_dump(dossier, sort_keys=False, allow_unicode=True)
+        guidance = (
+            files("archsift").joinpath("templates/workspace-README.md").read_text(encoding="utf-8")
+        )
+        _write_text(target / "case.yaml", case_yaml)
+        _write_text(target / "README.md", guidance)
+        (target / "evidence").mkdir()
+        (target / "output").mkdir()
+    except OSError as error:
+        # Permission, path-shape, and race failures are workspace problems,
+        # not internal errors; exclusive-create mode ("x") still guarantees
+        # that nothing is ever overwritten. strerror keeps the message
+        # path-independent; the canonical path lives in the file field.
+        reason = error.strerror or error.__class__.__name__
+        return InitResult(
+            ExitCode.VALIDATION_FAILED,
+            target,
+            (
+                Diagnostic(
+                    id="workspace-create-failed",
+                    message=f"The ArchSift workspace could not be created: {reason}.",
+                    file=display,
+                    field="$",
+                    requirement="FR-001",
+                    remediation=(
+                        "Choose a creatable path and keep the workspace empty during creation."
+                    ),
+                ),
+            ),
+        )
     return InitResult(ExitCode.SUCCESS, target)

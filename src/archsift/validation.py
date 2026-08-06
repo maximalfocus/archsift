@@ -12,6 +12,9 @@ from typing import Any, cast
 import yaml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
+from yaml.constructor import ConstructorError
+from yaml.error import MarkedYAMLError
+from yaml.nodes import MappingNode
 
 from archsift.diagnostics import Diagnostic, ExitCode
 
@@ -42,6 +45,50 @@ class ValidationResult:
 
 
 _SCHEMA_RESOURCE = "schemas/dossier-v1.schema.json"
+
+
+class _DossierLoader(yaml.SafeLoader):
+    """SafeLoader that rejects mappings with duplicate keys."""
+
+    def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _value_node in node.value:
+            if key_node.tag in ("tag:yaml.org,2002:merge", "tag:yaml.org,2002:value"):
+                # Merge ("<<") and value ("=") keys have no registered
+                # constructor; flatten_mapping resolves them during
+                # construction, so they are never duplicate real keys.
+                continue
+            key: Any = self.construct_object(key_node, deep=False)
+            key_id: Any = key
+            try:
+                hash(key)
+            except TypeError:
+                key_id = repr(key)
+            if key_id in seen:
+                raise ConstructorError(
+                    "while constructing a mapping",
+                    node.start_mark,
+                    f"found duplicate key {key!r}",
+                    key_node.start_mark,
+                )
+            seen.add(key_id)
+        return super().construct_mapping(node, deep=deep)
+
+
+def _yaml_load_message(error: Exception) -> str:
+    """Return a stable, path-independent description of a load failure."""
+    if isinstance(error, MarkedYAMLError):
+        # PyYAML str(error) embeds the absolute stream path via its marks;
+        # context/problem text and line/column positions are stable instead.
+        detail = " ".join(part for part in (error.context or "", error.problem or "") if part)
+        mark = error.problem_mark
+        if mark is not None:
+            detail = f"{detail} (line {mark.line + 1}, column {mark.column + 1})"
+        return detail or error.__class__.__name__
+    if isinstance(error, OSError):
+        # strerror is stable; str(error) embeds the absolute file path.
+        return error.strerror or error.__class__.__name__
+    return str(error)
 
 
 def _diagnostic(
@@ -124,6 +171,21 @@ def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
                 ),
             ),
         )
+    except (OSError, RuntimeError):
+        # Symbolic-link loops and permission errors are path-boundary
+        # failures, not malformed input or internal errors.
+        return None, ValidationResult(
+            ExitCode.UNSAFE_PATH,
+            diagnostics=(
+                _diagnostic(
+                    "workspace-unresolvable",
+                    "The case workspace path cannot be resolved to a directory.",
+                    "$",
+                    "NFR-004",
+                    "Fix symlink loops or permissions so the path resolves to a real directory.",
+                ),
+            ),
+        )
     if not root.is_dir():
         return None, ValidationResult(
             ExitCode.VALIDATION_FAILED,
@@ -151,6 +213,22 @@ def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
                     "$",
                     "FR-001",
                     "Run `archsift init <case>` or add the required case.yaml file.",
+                ),
+            ),
+        )
+    except (OSError, RuntimeError):
+        # A symbolic-link loop in case.yaml is a path-boundary failure, not
+        # malformed YAML or an internal error: it fails closed without
+        # reading anything.
+        return None, ValidationResult(
+            ExitCode.UNSAFE_PATH,
+            diagnostics=(
+                _diagnostic(
+                    "case-file-unresolvable",
+                    "case.yaml cannot be resolved to a regular file.",
+                    "$",
+                    "NFR-004",
+                    "Fix symlink loops or permissions so case.yaml resolves inside the workspace.",
                 ),
             ),
         )
@@ -191,15 +269,21 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     assert case_file is not None
 
     try:
-        with case_file.open(encoding="utf-8") as stream:
-            loaded: Any = yaml.safe_load(stream)
-    except (OSError, UnicodeError, yaml.YAMLError) as error:
+        # utf-8-sig accepts plain UTF-8 and strips a leading BOM so Windows
+        # tooling output remains valid YAML.
+        with case_file.open(encoding="utf-8-sig") as stream:
+            # _DossierLoader keeps the SafeLoader constructor set while
+            # rejecting mappings with duplicate keys.
+            loaded: Any = yaml.load(stream, Loader=_DossierLoader)
+    except (OSError, UnicodeError, RecursionError, yaml.YAMLError) as error:
+        # RecursionError covers pathologically nested documents; both are
+        # malformed input, not internal failures.
         return ValidationResult(
             ExitCode.MALFORMED_INPUT,
             diagnostics=(
                 _diagnostic(
                     "malformed-yaml",
-                    f"case.yaml is not valid UTF-8 YAML: {error}.",
+                    f"case.yaml could not be loaded as UTF-8 YAML: {_yaml_load_message(error)}.",
                     "$",
                     "FR-012",
                     "Correct the YAML syntax and encoding, then run validation again.",

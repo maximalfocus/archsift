@@ -228,3 +228,108 @@ def test_json_and_quiet_are_mutually_exclusive(tmp_path: Path) -> None:
     with pytest.raises(SystemExit) as caught:
         main(["validate", str(tmp_path), "--json", "--quiet"])
     assert caught.value.code == ExitCode.USAGE
+
+
+def test_internal_error_maps_to_stable_exit_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def boom(_path: Path) -> object:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr("archsift.cli.validate_workspace", boom)
+
+    assert main(["validate", str(tmp_path)]) == ExitCode.INTERNAL_ERROR
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "internal-error" in captured.err
+
+
+def test_pathologically_nested_yaml_is_malformed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text("[" * 50_000 + "]" * 50_000)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.MALFORMED_INPUT
+    assert result.diagnostics[0].id == "malformed-yaml"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows CI may not permit unprivileged symlinks")
+def test_case_file_symlink_loop_is_unsafe_path(tmp_path: Path) -> None:
+    workspace = tmp_path / "case"
+    workspace.mkdir()
+    (workspace / "case.yaml").symlink_to("case.yaml")
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.UNSAFE_PATH
+    assert result.diagnostics[0].id == "case-file-unresolvable"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows CI may not permit unprivileged symlinks")
+def test_workspace_symlink_loop_is_unsafe_path(tmp_path: Path) -> None:
+    loop = tmp_path / "loop"
+    loop.symlink_to("loop")
+
+    result = validate_workspace(loop)
+
+    assert result.exit_code == ExitCode.UNSAFE_PATH
+    assert result.diagnostics[0].id == "workspace-unresolvable"
+
+
+def test_utf8_bom_in_case_yaml_is_accepted(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_bytes(
+        b"\xef\xbb\xbf" + b"schema_version: 1\ncase: {id: x, title: X}\n"
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.case.id == "x"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "schema_version: 2\nschema_version: 1\ncase: {id: x, title: X}\n",
+        "schema_version: 1\ncase:\n  id: a\n  id: b\n  title: X\n",
+    ],
+)
+def test_duplicate_mapping_keys_are_rejected(tmp_path: Path, content: str) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text(content)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.MALFORMED_INPUT
+    assert result.diagnostics[0].id == "malformed-yaml"
+    assert "duplicate key" in result.diagnostics[0].message
+
+
+def test_malformed_yaml_diagnostics_are_path_independent(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = _workspace(tmp_path / "one")
+    second = _workspace(tmp_path / "two")
+    content = "case: [\n"
+    (first / "case.yaml").write_text(content)
+    (second / "case.yaml").write_text(content)
+
+    result_first = validate_workspace(first)
+    result_second = validate_workspace(second)
+
+    assert result_first.exit_code == result_second.exit_code == ExitCode.MALFORMED_INPUT
+    assert [d.to_dict() for d in result_first.diagnostics] == [
+        d.to_dict() for d in result_second.diagnostics
+    ]
+    message = result_first.diagnostics[0].message
+    assert str(first) not in message
+    assert str(second) not in message
+
+    assert main(["validate", str(first), "--json"]) == ExitCode.MALFORMED_INPUT
+    first_json = capsys.readouterr().out
+    assert main(["validate", str(second), "--json"]) == ExitCode.MALFORMED_INPUT
+    second_json = capsys.readouterr().out
+    assert first_json == second_json
