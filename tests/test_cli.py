@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -96,7 +97,9 @@ def test_non_ascii_output_survives_ascii_only_stream(
 
     assert main(["init", str(target)]) == ExitCode.SUCCESS
 
-    expected = f"Created ArchSift case workspace: {target}\n"
+    # print() appends "\n", which TextIOWrapper (newline=None) translates to
+    # the platform's native line separator when writing to the buffer.
+    expected = f"Created ArchSift case workspace: {target}{os.linesep}"
     actual = stream.buffer.getvalue().decode("ascii")
     assert actual == expected.encode("ascii", "backslashreplace").decode("ascii")
 
