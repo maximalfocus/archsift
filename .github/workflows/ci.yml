@@ -63,6 +63,7 @@ jobs:
           assert wheel.name.endswith("-py3-none-any.whl"), wheel
           with ZipFile(wheel) as archive:
               names = set(archive.namelist())
+          assert "archsift/rules.py" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -84,9 +85,35 @@ jobs:
           python = bindir / ("python.exe" if os.name == "nt" else "python")
           archsift = bindir / ("archsift.exe" if os.name == "nt" else "archsift")
           subprocess.run([python, "-m", "pip", "install", wheel], check=True)
+          first_rules = subprocess.run(
+              [archsift, "rules", "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          second_rules = subprocess.run(
+              [python, "-m", "archsift", "rules", "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          assert first_rules.stdout == second_rules.stdout
+          rules_payload = json.loads(first_rules.stdout)
+          assert rules_payload["ruleset_version"] == "1.0.0"
+          assert len(rules_payload["rules"]) == 15
+          assert all(rule["effect"] == "require-evidence" for rule in rules_payload["rules"])
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
-          subprocess.run([python, "-m", "archsift", "validate", case], check=True)
+          initialized = subprocess.run(
+              [python, "-m", "archsift", "validate", case, "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          initialized_payload = json.loads(initialized.stdout)
+          assert initialized_payload["assessment_prerequisites_ready"] is False
+          assert initialized_payload["prerequisite_finding_count"] == 4
+          assert initialized_payload["ruleset_version"] == "1.0.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -221,3 +248,6 @@ jobs:
           assert payload["autonomy_permission_ready"] is True
           assert payload["hard_veto_count"] == 1
           assert payload["mandatory_human_control_count"] == 1
+          assert payload["assessment_prerequisites_ready"] is True
+          assert payload["prerequisite_finding_count"] == 0
+          assert payload["ruleset_version"] == "1.0.0"

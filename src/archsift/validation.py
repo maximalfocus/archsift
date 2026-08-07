@@ -305,6 +305,7 @@ class PrerequisiteFinding:
     requirement: str
     message: str
     remediation: str
+    evidence_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1137,6 +1138,7 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
                     "observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate from that "
                     "baseline.",
+                    baseline.evidence_ids,
                 )
             )
     return ProblemValueReadiness(not findings, tuple(findings))
@@ -1171,6 +1173,7 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                     "FR-006",
                     f"Agency question {name!r} is unanswered.",
                     "Replace unknown with yes or no when the evidence supports an answer.",
+                    question.evidence_ids,
                 )
             )
         if not any(
@@ -1183,6 +1186,7 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                     "FR-006",
                     f"Agency question {name!r} lacks observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate.",
+                    question.evidence_ids,
                 )
             )
 
@@ -1197,6 +1201,7 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                     "FR-006",
                     f"Residual case {residual.id!r} lacks observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate.",
+                    residual.evidence_ids,
                 )
             )
     return AgencyNecessityReadiness(not findings, tuple(findings))
@@ -1232,6 +1237,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     "FR-007",
                     f"Autonomy question {name!r} is unanswered.",
                     "Replace unknown with yes or no when the evidence supports an answer.",
+                    question.evidence_ids,
                 )
             )
         if not any(
@@ -1244,6 +1250,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     "FR-007",
                     f"Autonomy question {name!r} lacks observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate.",
+                    question.evidence_ids,
                 )
             )
 
@@ -1256,6 +1263,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     "FR-007",
                     f"Hard veto {veto.id!r} has unknown applicability.",
                     "Replace unknown with active or inactive when evidence establishes it.",
+                    veto.evidence_ids,
                 )
             )
         if not any(
@@ -1268,6 +1276,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     "FR-007",
                     f"Hard veto {veto.id!r} lacks observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate.",
+                    veto.evidence_ids,
                 )
             )
 
@@ -1282,6 +1291,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     "FR-007",
                     f"Mandatory human control {control.id!r} lacks observed or estimated support.",
                     "Cite at least one observed entry or method-backed estimate.",
+                    control.evidence_ids,
                 )
             )
     return AutonomyPermissionReadiness(not findings, tuple(findings))

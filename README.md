@@ -5,7 +5,7 @@
 ArchSift is an open-source, local-first decision-support project for comparing human-owned work, process redesign, deterministic automation, fixed AI workflows, and runtime model-directed agency. It is designed to make evidence and trade-offs inspectable, and it may abstain when the available evidence cannot support a defensible decision.
 
 > [!IMPORTANT]
-> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, and autonomy-permission facts and their readiness; the architecture assessment engine is not implemented yet.
+> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, and autonomy-permission facts, compose their prerequisite readiness, and inspect the packaged ruleset; candidate comparison and architecture verdicts are not implemented yet.
 
 ## Install for development
 
@@ -27,9 +27,11 @@ python -m archsift --version
 archsift init my-case
 archsift validate my-case
 archsift validate my-case --json
+archsift rules
+archsift rules --json
 ```
 
-`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, and autonomy-permission boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. See the [stable exit-code contract](docs/exit-codes.md).
+`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, and autonomy-permission boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged prerequisite rules without requiring a case workspace. Readiness is not an architecture verdict. See the [stable exit-code contract](docs/exit-codes.md).
 
 No network service, model API, or telemetry is used by the current CLI.
 

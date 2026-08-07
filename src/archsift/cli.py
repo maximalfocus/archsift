@@ -11,6 +11,11 @@ from typing import NoReturn, TextIO
 
 from archsift import package_version
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.rules import (
+    RULESET_VERSION,
+    evaluate_assessment_prerequisites,
+    list_prerequisite_rules,
+)
 from archsift.validation import (
     ValidationResult,
     evaluate_agency_necessity_readiness,
@@ -49,6 +54,9 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="validate a case workspace")
     validate_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
     _output_options(validate_parser)
+
+    rules_parser = subparsers.add_parser("rules", help="list packaged prerequisite rules")
+    _output_options(rules_parser)
     return parser
 
 
@@ -181,6 +189,10 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
             if autonomy_permission is not None
             else 0
         )
+        prerequisites = evaluate_assessment_prerequisites(result.dossier)
+        details["assessment_prerequisites_ready"] = prerequisites.ready
+        details["prerequisite_finding_count"] = len(prerequisites.findings)
+        details["ruleset_version"] = prerequisites.ruleset_version
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None
     _emit(
@@ -193,6 +205,32 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details=details,
     )
     return int(result.exit_code)
+
+
+def _run_rules(*, json_output: bool, quiet: bool) -> int:
+    rules = list_prerequisite_rules()
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _print(
+            _json_payload(
+                "ok",
+                ExitCode.SUCCESS,
+                (),
+                rules=[rule.to_dict() for rule in rules],
+                ruleset_version=RULESET_VERSION,
+            ),
+            stream=sys.stdout,
+        )
+        return int(ExitCode.SUCCESS)
+    _print(f"ArchSift prerequisite ruleset {RULESET_VERSION}", stream=sys.stdout)
+    for rule in rules:
+        _print(
+            f"{rule.id} [{rule.effect.value}; {rule.requirement}] {rule.description} "
+            f"Consequence: {rule.consequence} Rationale: {rule.source_rationale}",
+            stream=sys.stdout,
+        )
+    return int(ExitCode.SUCCESS)
 
 
 def _usage_error(parser: argparse.ArgumentParser, message: str) -> NoReturn:
@@ -213,5 +251,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_init(args.case, json_output=args.json_output, quiet=args.quiet)
     if args.command == "validate":
         return _run_validate(args.case, json_output=args.json_output, quiet=args.quiet)
+    if args.command == "rules":
+        return _run_rules(json_output=args.json_output, quiet=args.quiet)
     parser.print_help()
     return int(ExitCode.SUCCESS)
