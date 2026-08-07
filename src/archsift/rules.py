@@ -10,10 +10,11 @@ from archsift.validation import (
     PrerequisiteFinding,
     evaluate_agency_necessity_readiness,
     evaluate_autonomy_permission_readiness,
+    evaluate_candidate_comparison_readiness,
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.0.0"
+RULESET_VERSION = "1.1.0"
 
 
 class RuleEffect(StrEnum):
@@ -67,7 +68,7 @@ class AssessmentPrerequisiteFinding:
 
 @dataclass(frozen=True, slots=True)
 class AssessmentPrerequisiteEvaluation:
-    """Deterministic readiness gate before candidate comparison."""
+    """Deterministic readiness gate before architecture assessment."""
 
     ruleset_version: str
     ready: bool
@@ -75,7 +76,7 @@ class AssessmentPrerequisiteEvaluation:
 
 
 _PREREQUISITE_CONSEQUENCE = (
-    "Candidate comparison cannot proceed until this assessment prerequisite is resolved."
+    "Architecture assessment cannot proceed until this prerequisite is resolved."
 )
 
 
@@ -132,10 +133,58 @@ PREREQUISITE_RULES = tuple(
                 "Architecture selection must be anchored to a required business outcome.",
             ),
             _rule(
+                "candidate-comparison-missing",
+                "FR-008",
+                "Require the candidate-comparison fact section.",
+                "Architecture selection requires explicit alternatives and trade-offs.",
+            ),
+            _rule(
+                "candidate-constraint-test-missing",
+                "FR-008",
+                "Require every candidate to test every problem constraint.",
+                "An untested constraint leaves comparative fit undetermined.",
+            ),
+            _rule(
+                "candidate-outcome-test-missing",
+                "FR-008",
+                "Require every candidate to test every problem outcome.",
+                "An untested outcome leaves comparative fit undetermined.",
+            ),
+            _rule(
+                "candidate-problem-value-missing",
+                "FR-008",
+                "Require problem-value criteria before checking candidate coverage.",
+                "Candidate tests need the authored outcomes and constraints as their boundary.",
+            ),
+            _rule(
+                "candidate-role-incompatible",
+                "FR-008",
+                "Require candidate roles to match their ordered control classes.",
+                "Simpler and agentic designations must match their control-class boundaries.",
+            ),
+            _rule(
+                "candidate-test-result-unknown",
+                "FR-008",
+                "Require a known result for every authored candidate test.",
+                "An unknown outcome or constraint result cannot eliminate or support a class.",
+            ),
+            _rule(
                 "credible-agency-evidence-missing",
                 "FR-006",
                 "Require credible support for every agency-necessity answer.",
                 "An assumption or known gap cannot establish the need for runtime agency.",
+            ),
+            _rule(
+                "credible-candidate-test-evidence-missing",
+                "FR-008",
+                "Require credible support for every authored candidate test.",
+                "Assumptions and known gaps cannot establish candidate outcome or constraint fit.",
+            ),
+            _rule(
+                "credible-comparison-evidence-missing",
+                "FR-008",
+                "Require credible support for every pairwise trade-off dimension.",
+                "Assumptions and known gaps cannot establish a comparative advantage.",
             ),
             _rule(
                 "credible-autonomy-evidence-missing",
@@ -174,10 +223,28 @@ PREREQUISITE_RULES = tuple(
                 "An unresolved veto cannot be hidden or averaged into a recommendation.",
             ),
             _rule(
+                "comparison-result-unknown",
+                "FR-008",
+                "Require a known result for every pairwise trade-off dimension.",
+                "An unknown trade-off leaves comparative fit undetermined.",
+            ),
+            _rule(
                 "problem-value-missing",
                 "FR-005",
                 "Require the problem-value contract.",
                 "A technology choice cannot precede evidence of a worthwhile problem.",
+            ),
+            _rule(
+                "required-candidate-role-missing",
+                "FR-008",
+                "Require every applicable comparison role to be assigned exactly once.",
+                "Missing baseline, proposal, simpler, or agentic roles make comparison ambiguous.",
+            ),
+            _rule(
+                "required-comparison-missing",
+                "FR-008",
+                "Require baseline and strongest-simpler directed comparisons.",
+                "The proposed and more complex candidates must face credible simpler alternatives.",
             ),
             _rule(
                 "task-boundary-missing",
@@ -218,7 +285,7 @@ def _assessment_finding(source: PrerequisiteFinding) -> AssessmentPrerequisiteFi
 
 
 def evaluate_assessment_prerequisites(dossier: Dossier) -> AssessmentPrerequisiteEvaluation:
-    """Compose FR-003 and FR-005 through FR-007 readiness without issuing a verdict."""
+    """Compose FR-003 and FR-005 through FR-008 readiness without issuing a verdict."""
     source_findings: list[PrerequisiteFinding] = []
     if dossier.task is None:
         source_findings.append(
@@ -233,6 +300,7 @@ def evaluate_assessment_prerequisites(dossier: Dossier) -> AssessmentPrerequisit
     source_findings.extend(evaluate_problem_value_readiness(dossier).findings)
     source_findings.extend(evaluate_agency_necessity_readiness(dossier).findings)
     source_findings.extend(evaluate_autonomy_permission_readiness(dossier).findings)
+    source_findings.extend(evaluate_candidate_comparison_readiness(dossier).findings)
     findings = tuple(_assessment_finding(source) for source in source_findings)
     return AssessmentPrerequisiteEvaluation(
         ruleset_version=RULESET_VERSION,

@@ -20,6 +20,7 @@ from archsift.validation import (
     ValidationResult,
     evaluate_agency_necessity_readiness,
     evaluate_autonomy_permission_readiness,
+    evaluate_candidate_comparison_readiness,
     evaluate_problem_value_readiness,
     validate_workspace,
 )
@@ -188,6 +189,16 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
             len(autonomy_permission.mandatory_human_controls)
             if autonomy_permission is not None
             else 0
+        )
+        candidate_comparison = result.dossier.candidate_comparison
+        candidate_readiness = evaluate_candidate_comparison_readiness(result.dossier)
+        details["candidate_comparison_defined"] = candidate_comparison is not None
+        details["candidate_comparison_ready"] = candidate_readiness.ready
+        details["candidate_count"] = (
+            len(candidate_comparison.candidates) if candidate_comparison is not None else 0
+        )
+        details["comparison_count"] = (
+            len(candidate_comparison.comparisons) if candidate_comparison is not None else 0
         )
         prerequisites = evaluate_assessment_prerequisites(result.dossier)
         details["assessment_prerequisites_ready"] = prerequisites.ready

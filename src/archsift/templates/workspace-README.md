@@ -203,6 +203,72 @@ autonomy_permission:
       evidence_ids: [autonomy-control-observation]
 ```
 
+Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
+
+```yaml
+candidate_comparison:
+  candidates:
+    - id: current-review
+      name: Current human review
+      description: Reviewers execute the bounded task using the current tools.
+      control_class: human-owned-work
+      roles: [current-baseline, strongest-simpler]
+      material_deviations: []
+      outcome_tests:
+        - outcome_id: reduce-handling-time
+          result: fails
+          rationale: The current observed median exceeds the target.
+          evidence_ids: [workflow-estimate]
+      constraint_tests:
+        - constraint_id: demand-capacity
+          result: meets
+          rationale: Current capacity is recorded for comparison without a minimum threshold.
+          evidence_ids: [workflow-estimate]
+    - id: fixed-review-workflow
+      name: Fixed AI-assisted review workflow
+      description: Code fixes the path while a model assists retrieval and drafting.
+      control_class: fixed-ai-workflow
+      roles: [proposed]
+      material_deviations:
+        - Consequential release remains outside the workflow.
+      outcome_tests:
+        - outcome_id: reduce-handling-time
+          result: meets
+          rationale: The representative-case estimate meets the target.
+          evidence_ids: [workflow-estimate]
+      constraint_tests:
+        - constraint_id: demand-capacity
+          result: meets
+          rationale: Estimated capacity is recorded on the same case boundary.
+          evidence_ids: [workflow-estimate]
+  comparisons:
+    - subject_candidate_id: fixed-review-workflow
+      comparator_candidate_id: current-review
+      dimensions:
+        outcome_quality: &better
+          result: better
+          rationale: Representative cases show fewer retrieval omissions.
+          evidence_ids: [workflow-estimate]
+        difficult_case_performance: *better
+        cost: &equivalent
+          result: equivalent
+          rationale: The current estimate does not establish a material difference.
+          evidence_ids: [workflow-estimate]
+        latency: *better
+        human_effort: *better
+        integration_burden: &worse
+          result: worse
+          rationale: The workflow adds maintained integrations.
+          evidence_ids: [workflow-estimate]
+        security_exposure: *worse
+        failure_impact: *equivalent
+        operability: *worse
+        evaluation_burden: *worse
+        maintainability: *worse
+```
+
+YAML anchors above only keep the sanitised example short; each expanded dimension is validated independently and must carry its own explicit result, rationale, and evidence IDs.
+
 Validate the dossier from this directory with:
 
 ```bash

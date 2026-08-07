@@ -222,6 +222,7 @@ def test_packaged_schema_is_available() -> None:
     assert payload["properties"]["problem_value"]["$ref"] == "#/$defs/problemValue"
     assert payload["properties"]["agency_necessity"]["$ref"] == "#/$defs/agencyNecessity"
     assert payload["properties"]["autonomy_permission"]["$ref"] == "#/$defs/autonomyPermission"
+    assert payload["properties"]["candidate_comparison"]["$ref"] == ("#/$defs/candidateComparison")
     assert payload["$defs"]["evidenceEntry"]["additionalProperties"] is False
     assert payload["$defs"]["taskBoundary"]["additionalProperties"] is False
     assert payload["$defs"]["taskAction"]["additionalProperties"] is False
@@ -252,6 +253,7 @@ def test_generated_workspace_validates(tmp_path: Path) -> None:
     assert result.dossier.task is None
     assert result.dossier.agency_necessity is None
     assert result.dossier.autonomy_permission is None
+    assert result.dossier.candidate_comparison is None
 
 
 def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
@@ -266,6 +268,7 @@ def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
     assert result.dossier.task is None
     assert result.dossier.agency_necessity is None
     assert result.dossier.autonomy_permission is None
+    assert result.dossier.candidate_comparison is None
 
 
 @pytest.mark.parametrize("kind", ["observed", "assumption", "estimate", "missing"])
@@ -1259,6 +1262,10 @@ def test_validate_success_json_reports_evidence_count(
         "assessment_prerequisites_ready": False,
         "autonomy_permission_defined": False,
         "autonomy_permission_ready": False,
+        "candidate_comparison_defined": False,
+        "candidate_comparison_ready": False,
+        "candidate_count": 0,
+        "comparison_count": 0,
         "constraint_count": 0,
         "diagnostics": [],
         "evidence_count": 2,
@@ -1267,11 +1274,11 @@ def test_validate_success_json_reports_evidence_count(
         "hard_veto_count": 0,
         "mandatory_human_control_count": 0,
         "outcome_count": 0,
-        "prerequisite_finding_count": 4,
+        "prerequisite_finding_count": 5,
         "problem_value_defined": False,
         "problem_value_ready": False,
         "residual_case_count": 0,
-        "ruleset_version": "1.0.0",
+        "ruleset_version": "1.1.0",
         "schema_version": 1,
         "status": "valid",
         "task_defined": False,
@@ -1301,6 +1308,10 @@ def test_validate_success_json_reports_task_boundary_counts(
         "assessment_prerequisites_ready": False,
         "autonomy_permission_defined": False,
         "autonomy_permission_ready": False,
+        "candidate_comparison_defined": False,
+        "candidate_comparison_ready": False,
+        "candidate_count": 0,
+        "comparison_count": 0,
         "constraint_count": 0,
         "diagnostics": [],
         "evidence_count": 0,
@@ -1309,11 +1320,11 @@ def test_validate_success_json_reports_task_boundary_counts(
         "hard_veto_count": 0,
         "mandatory_human_control_count": 0,
         "outcome_count": 0,
-        "prerequisite_finding_count": 3,
+        "prerequisite_finding_count": 4,
         "problem_value_defined": False,
         "problem_value_ready": False,
         "residual_case_count": 0,
-        "ruleset_version": "1.0.0",
+        "ruleset_version": "1.1.0",
         "schema_version": 1,
         "status": "valid",
         "task_defined": True,
