@@ -99,6 +99,7 @@ def initialize_workspace(target: Path) -> InitResult:
         dossier = {
             "schema_version": 1,
             "case": {"id": _case_id(target.name), "title": target.name or "Architecture decision"},
+            "evidence": [],
         }
         case_yaml = yaml.safe_dump(dossier, sort_keys=False, allow_unicode=True)
         guidance = (

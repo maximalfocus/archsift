@@ -144,6 +144,7 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
     status = "valid" if result.exit_code == ExitCode.SUCCESS else "invalid"
     details: dict[str, object] = {"file": "case.yaml"}
     if result.dossier is not None:
+        details["evidence_count"] = len(result.dossier.evidence)
         details["schema_version"] = result.dossier.schema_version
     _emit(
         status=status,
