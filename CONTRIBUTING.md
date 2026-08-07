@@ -31,7 +31,7 @@ python -m pytest
 python -m benchmarks.large_dossier --max-seconds 2.0
 python -m ruff check .
 python -m ruff format --check .
-python -m mypy src
+python -m mypy src benchmarks tests/test_performance.py
 python -m build
 ```
 

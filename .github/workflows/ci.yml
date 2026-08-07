@@ -50,7 +50,7 @@ jobs:
         run: python -m ruff format --check .
 
       - name: Type-check
-        run: python -m mypy src
+        run: python -m mypy src benchmarks tests/test_performance.py
 
       - name: Build distribution
         run: python -m build

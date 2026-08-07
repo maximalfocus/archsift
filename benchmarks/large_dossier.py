@@ -313,9 +313,15 @@ def run_benchmark(
                 check=False,
                 capture_output=True,
                 text=True,
+                timeout=max_seconds,
             )
         except OSError as error:
             raise BenchmarkFailure(f"Validation process could not start: {error}") from error
+        except subprocess.TimeoutExpired as error:
+            raise BenchmarkFailure(
+                f"NFR-005 exceeded: validation did not complete within {max_seconds:.3f}s "
+                f"({EVIDENCE_COUNT} evidence, {CANDIDATE_COUNT} candidates)."
+            ) from error
         elapsed = time.perf_counter() - started
 
     if completed.returncode != 0:

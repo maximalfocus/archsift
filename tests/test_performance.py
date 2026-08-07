@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 
@@ -106,6 +107,42 @@ def test_benchmark_reports_process_start_failure(tmp_path: Path) -> None:
 
     with pytest.raises(BenchmarkFailure, match="could not start"):
         run_benchmark(python=str(missing_python))
+
+
+def test_benchmark_reports_nonzero_validation_exit(monkeypatch: pytest.MonkeyPatch) -> None:
+    completed = subprocess.CompletedProcess[str](
+        args=["python"], returncode=12, stdout="", stderr="invalid dossier"
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: completed)
+
+    with pytest.raises(BenchmarkFailure, match="exited 12"):
+        run_benchmark()
+
+
+@pytest.mark.parametrize(
+    ("stdout", "message"),
+    [("not-json", "valid JSON"), ("[]", "must be an object")],
+)
+def test_benchmark_rejects_malformed_or_nonobject_output(
+    monkeypatch: pytest.MonkeyPatch, stdout: str, message: str
+) -> None:
+    completed = subprocess.CompletedProcess[str](
+        args=["python"], returncode=0, stdout=stdout, stderr=""
+    )
+    monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: completed)
+
+    with pytest.raises(BenchmarkFailure, match=message):
+        run_benchmark()
+
+
+def test_benchmark_enforces_timeout_at_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd=["python"], timeout=0.01)
+
+    monkeypatch.setattr(subprocess, "run", timeout)
+
+    with pytest.raises(BenchmarkFailure, match=r"did not complete within 0\.010s"):
+        run_benchmark(max_seconds=0.01)
 
 
 def test_process_start_benchmark_meets_nfr005() -> None:
