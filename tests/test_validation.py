@@ -858,6 +858,30 @@ def test_unsupported_schema_version_has_distinct_exit(tmp_path: Path, version: o
 
 
 @pytest.mark.parametrize(
+    "content",
+    [
+        # Non-string YAML keys (int, bool, null) mixed with string keys must
+        # fail closed as unknown fields, not crash into an internal error.
+        "schema_version: 1\ncase: {id: x, title: X}\nproblem_value: {1: a, extra: b}\n",
+        "schema_version: 1\ncase: {id: x, title: X}\nproblem_value: {1: a, '1': b}\n",
+        "schema_version: 1\ncase: {id: x, title: X}\ntrue: a\nextra: b\n",
+        "schema_version: 1\ncase: {id: x, title: X, null: a, extra: b}\n",
+    ],
+)
+def test_mixed_type_unknown_keys_fail_closed_without_internal_error(
+    tmp_path: Path, content: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text(content)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert any(diagnostic.id == "unknown-field" for diagnostic in result.diagnostics)
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.VALIDATION_FAILED
+
+
+@pytest.mark.parametrize(
     ("document", "field"),
     [
         ({"schema_version": 1, "case": {"id": "x", "title": "X"}, "extra": 1}, "$.extra"),
@@ -1774,6 +1798,101 @@ def test_baseline_evidence_kind_controls_readiness(tmp_path: Path, kind: str, re
     assert [finding.id for finding in readiness.findings] == (
         [] if ready else ["credible-baseline-missing"]
     )
+
+
+@pytest.mark.parametrize(
+    ("kind", "metadata_field"),
+    [("observed", "provenance"), ("estimate", "method")],
+)
+def test_blank_credibility_metadata_cannot_make_a_baseline_ready(
+    tmp_path: Path, kind: str, metadata_field: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    baseline = _entry(kind, "baseline-observed")
+    baseline[metadata_field] = " \t "
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [baseline, _entry("assumption", "volume-assumption")],
+            "problem_value": _problem_value(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [finding.id for finding in readiness.findings] == ["credible-baseline-missing"]
+
+
+def test_baseline_with_any_observed_or_estimate_entry_is_credible(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = [
+        _entry("assumption", "volume-assumption"),
+        _entry("observed", "baseline-observed"),
+        _entry("estimate", "est"),
+    ]
+    problem = _problem_value()
+    baselines = cast(list[dict[str, object]], problem["baselines"])
+    baselines[0]["evidence_ids"] = ["volume-assumption", "baseline-observed"]
+    baselines[1]["evidence_ids"] = ["est", "volume-assumption"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence,
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is True
+    assert readiness.findings == ()
+
+
+def test_baseline_and_criterion_ids_use_separate_namespaces(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    outcome_id = cast(str, cast(list[dict[str, object]], problem["outcomes"])[0]["id"])
+    baselines = cast(list[dict[str, object]], problem["baselines"])
+    baselines[0]["id"] = outcome_id
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    outcomes[0]["baseline_id"] = outcome_id
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.diagnostics == ()
+
+
+def test_multi_document_yaml_is_malformed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text(
+        "schema_version: 1\ncase: {id: x, title: X}\n---\nschema_version: 1\n"
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.MALFORMED_INPUT
+    assert result.diagnostics[0].id == "malformed-yaml"
 
 
 def test_every_binding_outcome_requires_a_credible_baseline(tmp_path: Path) -> None:

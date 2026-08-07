@@ -343,7 +343,13 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
         error_schema = cast(Mapping[str, Any], error.schema)
         properties = cast(Mapping[str, Any], error_schema.get("properties", {}))
-        unknown = sorted(set(error.instance) - set(properties))
+        # YAML mappings may use non-string keys (1: x, true: x, null: x);
+        # Sort by type and representation to avoid incomparable key types and
+        # string-form ties such as integer 1 versus string "1".
+        unknown = sorted(
+            set(error.instance) - set(properties),
+            key=lambda value: (type(value).__qualname__, repr(value)),
+        )
         return tuple(
             _diagnostic(
                 "unknown-field",
@@ -699,7 +705,11 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
             )
             continue
         credible = any(
-            isinstance(evidence.get(identifier), (ObservedEvidence, EstimateEvidence))
+            (
+                isinstance(entry := evidence.get(identifier), ObservedEvidence)
+                and bool(entry.provenance.strip())
+            )
+            or (isinstance(entry, EstimateEvidence) and bool(entry.method.strip()))
             for identifier in baseline.evidence_ids
         )
         if not credible:
