@@ -95,6 +95,19 @@ def test_benchmark_payload_checks_fail_closed(field: str, value: object) -> None
         validate_benchmark_payload(payload)
 
 
+@pytest.mark.parametrize("budget", [0.0, -1.0, float("inf"), float("nan")])
+def test_benchmark_rejects_nonpositive_or_nonfinite_budget(budget: float) -> None:
+    with pytest.raises(ValueError, match="finite and positive"):
+        run_benchmark(max_seconds=budget)
+
+
+def test_benchmark_reports_process_start_failure(tmp_path: Path) -> None:
+    missing_python = tmp_path / "missing-python"
+
+    with pytest.raises(BenchmarkFailure, match="could not start"):
+        run_benchmark(python=str(missing_python))
+
+
 def test_process_start_benchmark_meets_nfr005() -> None:
     result = run_benchmark()
 

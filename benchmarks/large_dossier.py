@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
 import sys
 import tempfile
@@ -293,8 +294,8 @@ def run_benchmark(
     *, max_seconds: float = MAX_SECONDS, python: str = sys.executable
 ) -> BenchmarkResult:
     """Generate before timing, then measure a fresh ArchSift validation process."""
-    if max_seconds <= 0:
-        raise ValueError("max_seconds must be positive")
+    if not math.isfinite(max_seconds) or max_seconds <= 0:
+        raise ValueError("max_seconds must be finite and positive")
     with tempfile.TemporaryDirectory(prefix="archsift-nfr005-") as temporary:
         workspace = Path(temporary) / "case"
         workspace.mkdir()
@@ -306,12 +307,15 @@ def run_benchmark(
         )
 
         started = time.perf_counter()
-        completed = subprocess.run(
-            [python, "-m", "archsift", "validate", str(workspace), "--json"],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = subprocess.run(
+                [python, "-m", "archsift", "validate", str(workspace), "--json"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as error:
+            raise BenchmarkFailure(f"Validation process could not start: {error}") from error
         elapsed = time.perf_counter() - started
 
     if completed.returncode != 0:
