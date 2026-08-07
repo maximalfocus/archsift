@@ -39,6 +39,7 @@ No network service, model API, or telemetry is used by the current CLI.
 
 ```bash
 python -m pytest
+python -m benchmarks.large_dossier --max-seconds 2.0
 python -m ruff check .
 python -m ruff format --check .
 python -m mypy src
