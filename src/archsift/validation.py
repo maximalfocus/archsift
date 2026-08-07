@@ -219,6 +219,119 @@ class AutonomyPermission:
     mandatory_human_controls: tuple[MandatoryHumanControl, ...]
 
 
+class ControlClass(StrEnum):
+    """Ordered architecture control classes from least to most runtime freedom."""
+
+    HUMAN_OWNED_WORK = "human-owned-work"
+    PROCESS_REDESIGN = "process-redesign"
+    DETERMINISTIC_AUTOMATION = "deterministic-automation"
+    FIXED_AI_WORKFLOW = "fixed-ai-workflow"
+    AGENTIC_CONTROL = "agentic-control"
+
+
+class CandidateRole(StrEnum):
+    """Explicit comparison roles that never imply a recommendation."""
+
+    CURRENT_BASELINE = "current-baseline"
+    PROPOSED = "proposed"
+    STRONGEST_SIMPLER = "strongest-simpler"
+    AGENTIC_COMPARATOR = "agentic-comparator"
+
+
+class CandidateTestResult(StrEnum):
+    """Outcome or constraint result recorded for one candidate."""
+
+    MEETS = "meets"
+    FAILS = "fails"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateOutcomeTest:
+    """One candidate's evidence-backed result for a problem outcome."""
+
+    outcome_id: str
+    result: CandidateTestResult
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateConstraintTest:
+    """One candidate's evidence-backed result for a problem constraint."""
+
+    constraint_id: str
+    result: CandidateTestResult
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Candidate:
+    """One explicitly classified architecture candidate."""
+
+    id: str
+    name: str
+    description: str
+    control_class: ControlClass
+    roles: tuple[CandidateRole, ...]
+    material_deviations: tuple[str, ...]
+    outcome_tests: tuple[CandidateOutcomeTest, ...]
+    constraint_tests: tuple[CandidateConstraintTest, ...]
+
+
+class ComparisonResult(StrEnum):
+    """Directional pairwise result for one trade-off dimension."""
+
+    BETTER = "better"
+    EQUIVALENT = "equivalent"
+    WORSE = "worse"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonDimension:
+    """One evidence-backed directional trade-off observation."""
+
+    result: ComparisonResult
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonDimensions:
+    """The complete FR-008 trade-off matrix for one directed candidate pair."""
+
+    outcome_quality: ComparisonDimension
+    difficult_case_performance: ComparisonDimension
+    cost: ComparisonDimension
+    latency: ComparisonDimension
+    human_effort: ComparisonDimension
+    integration_burden: ComparisonDimension
+    security_exposure: ComparisonDimension
+    failure_impact: ComparisonDimension
+    operability: ComparisonDimension
+    evaluation_burden: ComparisonDimension
+    maintainability: ComparisonDimension
+
+
+@dataclass(frozen=True, slots=True)
+class CandidatePairComparison:
+    """Directional comparison of one candidate against another."""
+
+    subject_candidate_id: str
+    comparator_candidate_id: str
+    dimensions: ComparisonDimensions
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateComparison:
+    """Candidate roles, tests, and pairwise trade-offs for FR-008."""
+
+    candidates: tuple[Candidate, ...]
+    comparisons: tuple[CandidatePairComparison, ...]
+
+
 class EvidenceKind(StrEnum):
     """Supported evidence states."""
 
@@ -294,6 +407,7 @@ class Dossier:
     problem_value: ProblemValue | None = None
     agency_necessity: AgencyNecessity | None = None
     autonomy_permission: AutonomyPermission | None = None
+    candidate_comparison: CandidateComparison | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,6 +447,14 @@ class AutonomyPermissionReadiness:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateComparisonReadiness:
+    """Deterministic advisory readiness for FR-008."""
+
+    ready: bool
+    findings: tuple[PrerequisiteFinding, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationResult:
     """Typed validation result, independent of terminal rendering."""
 
@@ -362,6 +484,20 @@ _AUTONOMY_QUESTION_FIELDS = (
     "timely_human_intervention_available",
     "safe_degradation_available",
 )
+_COMPARISON_DIMENSION_FIELDS = (
+    "outcome_quality",
+    "difficult_case_performance",
+    "cost",
+    "latency",
+    "human_effort",
+    "integration_burden",
+    "security_exposure",
+    "failure_impact",
+    "operability",
+    "evaluation_burden",
+    "maintainability",
+)
+_CONTROL_CLASS_ORDER = tuple(ControlClass)
 
 
 class _DossierLoader(yaml.SafeLoader):
@@ -490,6 +626,8 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-006"
     elif base_field.startswith("$.autonomy_permission"):
         requirement = "FR-007"
+    elif base_field.startswith("$.candidate_comparison"):
+        requirement = "FR-008"
     else:
         requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
@@ -855,6 +993,226 @@ def _autonomy_permission_semantic_diagnostics(
     return tuple(diagnostics)
 
 
+def _candidate_comparison_semantic_diagnostics(
+    comparison: Mapping[str, Any] | None,
+    problem: Mapping[str, Any] | None,
+    evidence: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    if comparison is None:
+        return ()
+
+    diagnostics: list[Diagnostic] = []
+    candidates = cast(Sequence[Mapping[str, Any]], comparison["candidates"])
+    comparisons = cast(Sequence[Mapping[str, Any]], comparison["comparisons"])
+    first_candidate: dict[str, int] = {}
+    first_role: dict[str, str] = {}
+    evidence_references: list[tuple[str, str]] = []
+
+    outcome_ids = (
+        {
+            cast(str, outcome["id"])
+            for outcome in cast(Sequence[Mapping[str, Any]], problem["outcomes"])
+        }
+        if problem is not None
+        else set()
+    )
+    constraint_ids = (
+        {
+            cast(str, constraint["id"])
+            for constraint in cast(Sequence[Mapping[str, Any]], problem["constraints"])
+        }
+        if problem is not None
+        else set()
+    )
+
+    for candidate_index, candidate in enumerate(candidates):
+        identifier = cast(str, candidate["id"])
+        first_index = first_candidate.setdefault(identifier, candidate_index)
+        if first_index != candidate_index:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-candidate-id",
+                    f"Candidate ID {identifier!r} duplicates the candidate at "
+                    f"$.candidate_comparison.candidates[{first_index}].id.",
+                    f"$.candidate_comparison.candidates[{candidate_index}].id",
+                    "FR-008",
+                    "Give every candidate a unique stable ID and update comparison references.",
+                )
+            )
+
+        local_roles: dict[str, int] = {}
+        for role_index, role in enumerate(cast(Sequence[str], candidate["roles"])):
+            role_path = f"$.candidate_comparison.candidates[{candidate_index}].roles[{role_index}]"
+            local_first = local_roles.setdefault(role, role_index)
+            if local_first != role_index:
+                diagnostics.append(
+                    _diagnostic(
+                        "duplicate-candidate-role",
+                        f"Candidate role {role!r} duplicates "
+                        f"$.candidate_comparison.candidates[{candidate_index}]."
+                        f"roles[{local_first}].",
+                        role_path,
+                        "FR-008",
+                        "List each role at most once for a candidate.",
+                    )
+                )
+            global_first = first_role.setdefault(role, role_path)
+            if global_first != role_path and local_first == role_index:
+                diagnostics.append(
+                    _diagnostic(
+                        "conflicting-candidate-role",
+                        f"Candidate role {role!r} is already assigned at {global_first}.",
+                        role_path,
+                        "FR-008",
+                        "Assign each comparison role to at most one candidate.",
+                    )
+                )
+
+        for collection, reference_field, expected_ids, other_ids in (
+            ("outcome_tests", "outcome_id", outcome_ids, constraint_ids),
+            ("constraint_tests", "constraint_id", constraint_ids, outcome_ids),
+        ):
+            tests = cast(Sequence[Mapping[str, Any]], candidate[collection])
+            first_test: dict[str, int] = {}
+            for test_index, test in enumerate(tests):
+                criterion_id = cast(str, test[reference_field])
+                reference_path = (
+                    f"$.candidate_comparison.candidates[{candidate_index}]."
+                    f"{collection}[{test_index}].{reference_field}"
+                )
+                first_test_index = first_test.setdefault(criterion_id, test_index)
+                if first_test_index != test_index:
+                    diagnostics.append(
+                        _diagnostic(
+                            "duplicate-candidate-test-id",
+                            f"Candidate test ID {criterion_id!r} duplicates the test at "
+                            f"$.candidate_comparison.candidates[{candidate_index}]."
+                            f"{collection}[{first_test_index}].{reference_field}.",
+                            reference_path,
+                            "FR-008",
+                            f"Test each {reference_field.removesuffix('_id')} at most once per "
+                            "candidate.",
+                        )
+                    )
+                if criterion_id not in expected_ids:
+                    if criterion_id in other_ids:
+                        diagnostics.append(
+                            _diagnostic(
+                                "candidate-test-kind-mismatch",
+                                f"Problem criterion ID {criterion_id!r} belongs to the other "
+                                "problem-value collection.",
+                                reference_path,
+                                "FR-008",
+                                f"Move the test to the correct collection or reference an "
+                                f"existing {reference_field.removesuffix('_id')} ID.",
+                            )
+                        )
+                    else:
+                        diagnostics.append(
+                            _diagnostic(
+                                "missing-candidate-criterion-reference",
+                                f"Problem criterion ID {criterion_id!r} does not exist in the "
+                                "referenced problem-value collection.",
+                                reference_path,
+                                "FR-008",
+                                "Add the referenced problem criterion or use an existing ID.",
+                            )
+                        )
+                for evidence_index, evidence_id in enumerate(
+                    cast(Sequence[str], test["evidence_ids"])
+                ):
+                    evidence_references.append(
+                        (
+                            f"$.candidate_comparison.candidates[{candidate_index}]."
+                            f"{collection}[{test_index}].evidence_ids[{evidence_index}]",
+                            evidence_id,
+                        )
+                    )
+
+    candidate_ids = set(first_candidate)
+    first_pair: dict[tuple[str, str], int] = {}
+    for comparison_index, pair in enumerate(comparisons):
+        subject_id = cast(str, pair["subject_candidate_id"])
+        comparator_id = cast(str, pair["comparator_candidate_id"])
+        for field, identifier in (
+            ("subject_candidate_id", subject_id),
+            ("comparator_candidate_id", comparator_id),
+        ):
+            if identifier not in candidate_ids:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing-comparison-candidate-reference",
+                        f"Candidate ID {identifier!r} does not exist in candidates.",
+                        f"$.candidate_comparison.comparisons[{comparison_index}].{field}",
+                        "FR-008",
+                        "Add the referenced candidate or use an existing candidate ID.",
+                    )
+                )
+        if subject_id == comparator_id:
+            diagnostics.append(
+                _diagnostic(
+                    "self-candidate-comparison",
+                    f"Candidate {subject_id!r} cannot be compared with itself.",
+                    f"$.candidate_comparison.comparisons[{comparison_index}]."
+                    "comparator_candidate_id",
+                    "FR-008",
+                    "Set subject_candidate_id and comparator_candidate_id to distinct IDs.",
+                )
+            )
+        pair_key = (subject_id, comparator_id)
+        first_pair_index = first_pair.setdefault(pair_key, comparison_index)
+        if first_pair_index != comparison_index:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-candidate-comparison",
+                    f"Directed comparison {subject_id!r} versus {comparator_id!r} duplicates "
+                    f"$.candidate_comparison.comparisons[{first_pair_index}].",
+                    f"$.candidate_comparison.comparisons[{comparison_index}].subject_candidate_id",
+                    "FR-008",
+                    "Keep at most one comparison for each directed candidate pair.",
+                )
+            )
+        dimensions = cast(Mapping[str, Any], pair["dimensions"])
+        for dimension_name in _COMPARISON_DIMENSION_FIELDS:
+            dimension = cast(Mapping[str, Any], dimensions[dimension_name])
+            for evidence_index, evidence_id in enumerate(
+                cast(Sequence[str], dimension["evidence_ids"])
+            ):
+                evidence_references.append(
+                    (
+                        f"$.candidate_comparison.comparisons[{comparison_index}]."
+                        f"dimensions.{dimension_name}.evidence_ids[{evidence_index}]",
+                        evidence_id,
+                    )
+                )
+
+    evidence_by_id = {cast(str, entry["id"]): entry for entry in evidence}
+    for path, identifier in evidence_references:
+        referenced_entry = evidence_by_id.get(identifier)
+        if referenced_entry is None:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-comparative-evidence-reference",
+                    f"Evidence ID {identifier!r} does not exist in the evidence ledger.",
+                    path,
+                    "FR-008",
+                    "Add the evidence entry or use an existing evidence ID.",
+                )
+            )
+        elif "comparative-fit" not in cast(Sequence[str], referenced_entry["affects"]):
+            diagnostics.append(
+                _diagnostic(
+                    "comparative-evidence-area-mismatch",
+                    f"Evidence ID {identifier!r} is not classified for comparative-fit.",
+                    path,
+                    "FR-008",
+                    "Add comparative-fit to that evidence entry's affects list or cite "
+                    "relevant evidence.",
+                )
+            )
+    return tuple(diagnostics)
+
+
 def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
     if task is None:
         return None
@@ -1017,6 +1375,65 @@ def _typed_autonomy_permission(
         hard_vetoes=hard_vetoes,
         mandatory_human_controls=human_controls,
     )
+
+
+def _typed_candidate_comparison(
+    comparison: Mapping[str, Any] | None,
+) -> CandidateComparison | None:
+    if comparison is None:
+        return None
+
+    candidates = tuple(
+        Candidate(
+            id=cast(str, raw["id"]),
+            name=cast(str, raw["name"]),
+            description=cast(str, raw["description"]),
+            control_class=ControlClass(cast(str, raw["control_class"])),
+            roles=tuple(CandidateRole(value) for value in cast(Sequence[str], raw["roles"])),
+            material_deviations=tuple(cast(Sequence[str], raw["material_deviations"])),
+            outcome_tests=tuple(
+                CandidateOutcomeTest(
+                    outcome_id=cast(str, test["outcome_id"]),
+                    result=CandidateTestResult(cast(str, test["result"])),
+                    rationale=cast(str, test["rationale"]),
+                    evidence_ids=tuple(cast(Sequence[str], test["evidence_ids"])),
+                )
+                for test in cast(Sequence[Mapping[str, Any]], raw["outcome_tests"])
+            ),
+            constraint_tests=tuple(
+                CandidateConstraintTest(
+                    constraint_id=cast(str, test["constraint_id"]),
+                    result=CandidateTestResult(cast(str, test["result"])),
+                    rationale=cast(str, test["rationale"]),
+                    evidence_ids=tuple(cast(Sequence[str], test["evidence_ids"])),
+                )
+                for test in cast(Sequence[Mapping[str, Any]], raw["constraint_tests"])
+            ),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], comparison["candidates"])
+    )
+
+    def typed_dimension(raw: Mapping[str, Any]) -> ComparisonDimension:
+        return ComparisonDimension(
+            result=ComparisonResult(cast(str, raw["result"])),
+            rationale=cast(str, raw["rationale"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+
+    comparisons = tuple(
+        CandidatePairComparison(
+            subject_candidate_id=cast(str, raw["subject_candidate_id"]),
+            comparator_candidate_id=cast(str, raw["comparator_candidate_id"]),
+            dimensions=ComparisonDimensions(
+                **{
+                    name: typed_dimension(cast(Mapping[str, Any], raw["dimensions"][name]))
+                    for name in _COMPARISON_DIMENSION_FIELDS
+                }
+            ),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], comparison["comparisons"])
+    )
+    return CandidateComparison(candidates=candidates, comparisons=comparisons)
 
 
 def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...]:
@@ -1297,6 +1714,238 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
     return AutonomyPermissionReadiness(not findings, tuple(findings))
 
 
+def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateComparisonReadiness:
+    """Evaluate FR-008 comparison readiness without selecting or ranking a candidate."""
+    comparison = dossier.candidate_comparison
+    if comparison is None:
+        return CandidateComparisonReadiness(
+            False,
+            (
+                PrerequisiteFinding(
+                    "candidate-comparison-missing",
+                    "$.candidate_comparison",
+                    "FR-008",
+                    "The dossier does not define candidate-comparison facts.",
+                    "Add candidates, roles, tests, and directional trade-off comparisons.",
+                ),
+            ),
+        )
+
+    findings: list[PrerequisiteFinding] = []
+    evidence = {entry.id: entry for entry in dossier.evidence}
+    role_candidates: dict[CandidateRole, tuple[int, Candidate]] = {}
+    role_paths: dict[CandidateRole, str] = {}
+    for candidate_index, candidate in enumerate(comparison.candidates):
+        for role_index, role in enumerate(candidate.roles):
+            role_candidates.setdefault(role, (candidate_index, candidate))
+            role_paths.setdefault(
+                role,
+                f"$.candidate_comparison.candidates[{candidate_index}].roles[{role_index}]",
+            )
+
+    def require_role(role: CandidateRole) -> tuple[int, Candidate] | None:
+        assigned = role_candidates.get(role)
+        if assigned is None:
+            findings.append(
+                PrerequisiteFinding(
+                    "required-candidate-role-missing",
+                    "$.candidate_comparison.candidates",
+                    "FR-008",
+                    f"No candidate has the required role {role.value!r}.",
+                    f"Assign {role.value!r} to exactly one applicable candidate.",
+                )
+            )
+        return assigned
+
+    current = require_role(CandidateRole.CURRENT_BASELINE)
+    proposed = require_role(CandidateRole.PROPOSED)
+    strongest = role_candidates.get(CandidateRole.STRONGEST_SIMPLER)
+    agentic = role_candidates.get(CandidateRole.AGENTIC_COMPARATOR)
+
+    if proposed is not None:
+        proposed_rank = _CONTROL_CLASS_ORDER.index(proposed[1].control_class)
+        if proposed_rank > 0:
+            if strongest is None:
+                require_role(CandidateRole.STRONGEST_SIMPLER)
+            elif _CONTROL_CLASS_ORDER.index(strongest[1].control_class) >= proposed_rank:
+                findings.append(
+                    PrerequisiteFinding(
+                        "candidate-role-incompatible",
+                        role_paths[CandidateRole.STRONGEST_SIMPLER],
+                        "FR-008",
+                        f"Candidate {strongest[1].id!r} is not strictly simpler than proposed "
+                        f"candidate {proposed[1].id!r}.",
+                        "Assign strongest-simpler to a candidate with a lower control class.",
+                    )
+                )
+        elif strongest is not None:
+            findings.append(
+                PrerequisiteFinding(
+                    "candidate-role-incompatible",
+                    role_paths[CandidateRole.STRONGEST_SIMPLER],
+                    "FR-008",
+                    "A human-owned-work proposal has no simpler control class.",
+                    "Remove the strongest-simpler role for this proposal.",
+                )
+            )
+
+    agentic_candidates = [
+        candidate
+        for candidate in comparison.candidates
+        if candidate.control_class is ControlClass.AGENTIC_CONTROL
+    ]
+    if agentic_candidates and agentic is None:
+        require_role(CandidateRole.AGENTIC_COMPARATOR)
+    if agentic is not None and agentic[1].control_class is not ControlClass.AGENTIC_CONTROL:
+        findings.append(
+            PrerequisiteFinding(
+                "candidate-role-incompatible",
+                role_paths[CandidateRole.AGENTIC_COMPARATOR],
+                "FR-008",
+                f"Candidate {agentic[1].id!r} is not an agentic-control candidate.",
+                "Assign agentic-comparator to an agentic-control candidate.",
+            )
+        )
+
+    problem = dossier.problem_value
+    if problem is None:
+        findings.append(
+            PrerequisiteFinding(
+                "candidate-problem-value-missing",
+                "$.problem_value",
+                "FR-008",
+                "Candidate coverage cannot be checked without the problem-value contract.",
+                "Add problem-value outcomes and constraints before completing comparisons.",
+            )
+        )
+    else:
+        for candidate_index, candidate in enumerate(comparison.candidates):
+            tested_outcomes = {test.outcome_id for test in candidate.outcome_tests}
+            for outcome in problem.outcomes:
+                if outcome.id not in tested_outcomes:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "candidate-outcome-test-missing",
+                            f"$.candidate_comparison.candidates[{candidate_index}].outcome_tests",
+                            "FR-008",
+                            f"Candidate {candidate.id!r} does not test outcome {outcome.id!r}.",
+                            "Add exactly one test for every problem-value outcome.",
+                        )
+                    )
+            tested_constraints = {test.constraint_id for test in candidate.constraint_tests}
+            for constraint in problem.constraints:
+                if constraint.id not in tested_constraints:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "candidate-constraint-test-missing",
+                            f"$.candidate_comparison.candidates[{candidate_index}]."
+                            "constraint_tests",
+                            "FR-008",
+                            f"Candidate {candidate.id!r} does not test constraint "
+                            f"{constraint.id!r}.",
+                            "Add exactly one test for every problem-value constraint.",
+                        )
+                    )
+
+    for candidate_index, candidate in enumerate(comparison.candidates):
+        test_groups: tuple[
+            tuple[str, Sequence[CandidateOutcomeTest | CandidateConstraintTest]], ...
+        ] = (
+            ("outcome_tests", candidate.outcome_tests),
+            ("constraint_tests", candidate.constraint_tests),
+        )
+        for collection, tests in test_groups:
+            for test_index, test in enumerate(tests):
+                if test.result is CandidateTestResult.UNKNOWN:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "candidate-test-result-unknown",
+                            f"$.candidate_comparison.candidates[{candidate_index}]."
+                            f"{collection}[{test_index}].result",
+                            "FR-008",
+                            f"Candidate {candidate.id!r} has an unknown {collection} result.",
+                            "Replace unknown with meets or fails when evidence supports it.",
+                            test.evidence_ids,
+                        )
+                    )
+                if not any(
+                    _is_credible_support(evidence.get(identifier))
+                    for identifier in test.evidence_ids
+                ):
+                    findings.append(
+                        PrerequisiteFinding(
+                            "credible-candidate-test-evidence-missing",
+                            f"$.candidate_comparison.candidates[{candidate_index}]."
+                            f"{collection}[{test_index}].evidence_ids",
+                            "FR-008",
+                            f"Candidate {candidate.id!r} has a test without observed or "
+                            "estimated support.",
+                            "Cite at least one observed entry or method-backed estimate.",
+                            test.evidence_ids,
+                        )
+                    )
+
+    authored_pairs = {
+        (pair.subject_candidate_id, pair.comparator_candidate_id) for pair in comparison.comparisons
+    }
+    required_pairs: list[tuple[str, str]] = []
+    if current is not None:
+        current_id = current[1].id
+        required_pairs.extend(
+            (candidate.id, current_id)
+            for candidate in comparison.candidates
+            if candidate.id != current_id
+        )
+    if proposed is not None and strongest is not None and proposed[1].id != strongest[1].id:
+        required_pairs.append((proposed[1].id, strongest[1].id))
+    for subject_id, comparator_id in dict.fromkeys(required_pairs):
+        if (subject_id, comparator_id) not in authored_pairs:
+            findings.append(
+                PrerequisiteFinding(
+                    "required-comparison-missing",
+                    "$.candidate_comparison.comparisons",
+                    "FR-008",
+                    f"Required directed comparison {subject_id!r} versus "
+                    f"{comparator_id!r} is missing.",
+                    "Add the directed pair with all 11 trade-off dimensions.",
+                )
+            )
+
+    for comparison_index, pair in enumerate(comparison.comparisons):
+        for dimension_name in _COMPARISON_DIMENSION_FIELDS:
+            dimension = cast(ComparisonDimension, getattr(pair.dimensions, dimension_name))
+            if dimension.result is ComparisonResult.UNKNOWN:
+                findings.append(
+                    PrerequisiteFinding(
+                        "comparison-result-unknown",
+                        f"$.candidate_comparison.comparisons[{comparison_index}]."
+                        f"dimensions.{dimension_name}.result",
+                        "FR-008",
+                        f"Comparison dimension {dimension_name!r} is unknown for "
+                        f"{pair.subject_candidate_id!r} versus {pair.comparator_candidate_id!r}.",
+                        "Replace unknown with better, equivalent, or worse when supported.",
+                        dimension.evidence_ids,
+                    )
+                )
+            if not any(
+                _is_credible_support(evidence.get(identifier))
+                for identifier in dimension.evidence_ids
+            ):
+                findings.append(
+                    PrerequisiteFinding(
+                        "credible-comparison-evidence-missing",
+                        f"$.candidate_comparison.comparisons[{comparison_index}]."
+                        f"dimensions.{dimension_name}.evidence_ids",
+                        "FR-008",
+                        f"Comparison dimension {dimension_name!r} lacks observed or estimated "
+                        "support.",
+                        "Cite at least one observed entry or method-backed estimate.",
+                        dimension.evidence_ids,
+                    )
+                )
+    return CandidateComparisonReadiness(not findings, tuple(findings))
+
+
 def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
     try:
         root = workspace.resolve(strict=True)
@@ -1490,6 +2139,7 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     raw_problem_value = cast(Mapping[str, Any] | None, loaded.get("problem_value"))
     raw_agency_necessity = cast(Mapping[str, Any] | None, loaded.get("agency_necessity"))
     raw_autonomy_permission = cast(Mapping[str, Any] | None, loaded.get("autonomy_permission"))
+    raw_candidate_comparison = cast(Mapping[str, Any] | None, loaded.get("candidate_comparison"))
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
@@ -1498,6 +2148,9 @@ def validate_workspace(workspace: Path) -> ValidationResult:
             *_agency_necessity_semantic_diagnostics(raw_agency_necessity, raw_evidence),
             *_autonomy_permission_semantic_diagnostics(
                 raw_autonomy_permission, raw_task, raw_evidence
+            ),
+            *_candidate_comparison_semantic_diagnostics(
+                raw_candidate_comparison, raw_problem_value, raw_evidence
             ),
         ),
         key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
@@ -1518,5 +2171,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         problem_value=_typed_problem_value(raw_problem_value),
         agency_necessity=_typed_agency_necessity(raw_agency_necessity),
         autonomy_permission=_typed_autonomy_permission(raw_autonomy_permission),
+        candidate_comparison=_typed_candidate_comparison(raw_candidate_comparison),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)

@@ -173,9 +173,9 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.0.0"
+    assert RULESET_VERSION == "1.1.0"
     assert ids == sorted(ids)
-    assert len(ids) == len(set(ids)) == 15
+    assert len(ids) == len(set(ids)) == 26
     assert set(ids) == {
         "agency-answer-unknown",
         "agency-necessity-missing",
@@ -183,14 +183,25 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         "autonomy-permission-missing",
         "baseline-reference-unresolved",
         "binding-outcome-missing",
+        "candidate-comparison-missing",
+        "candidate-constraint-test-missing",
+        "candidate-outcome-test-missing",
+        "candidate-problem-value-missing",
+        "candidate-role-incompatible",
+        "candidate-test-result-unknown",
         "credible-agency-evidence-missing",
+        "credible-candidate-test-evidence-missing",
+        "credible-comparison-evidence-missing",
         "credible-autonomy-evidence-missing",
         "credible-baseline-missing",
         "credible-hard-veto-evidence-missing",
         "credible-human-control-evidence-missing",
         "credible-residual-case-evidence-missing",
         "hard-veto-status-unknown",
+        "comparison-result-unknown",
         "problem-value-missing",
+        "required-candidate-role-missing",
+        "required-comparison-missing",
         "task-boundary-missing",
     }
     assert all(rule.effect is RuleEffect.REQUIRE_EVIDENCE for rule in rules)
@@ -261,18 +272,19 @@ def test_absent_sections_produce_stable_area_order_without_invented_evidence() -
         ("problem-value-missing", "$.problem_value"),
         ("agency-necessity-missing", "$.agency_necessity"),
         ("autonomy-permission-missing", "$.autonomy_permission"),
+        ("candidate-comparison-missing", "$.candidate_comparison"),
     ]
     assert all(finding.evidence_ids == () for finding in first.findings)
     assert all(finding.consequence and finding.remediation for finding in first.findings)
 
 
-def test_ready_adverse_facts_and_active_veto_do_not_create_prerequisite_findings() -> None:
+def test_ready_adverse_facts_and_active_veto_only_leave_candidate_gap() -> None:
     dossier = _ready_dossier()
 
     evaluation = evaluate_assessment_prerequisites(dossier)
 
-    assert evaluation.ready is True
-    assert evaluation.findings == ()
+    assert evaluation.ready is False
+    assert [finding.rule_id for finding in evaluation.findings] == ["candidate-comparison-missing"]
     assert dossier.agency_necessity is not None
     assert dossier.agency_necessity.runtime_tool_choice_required.answer is AgencyAnswer.NO
     assert dossier.autonomy_permission is not None

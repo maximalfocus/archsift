@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
   "title": "ArchSift dossier version 1",
-  "description": "Case identity, task, problem-value, agency-necessity, autonomy-permission, and evidence contracts for an architecture decision.",
+  "description": "Case identity, task, problem-value, agency-necessity, autonomy-permission, candidate-comparison, and evidence contracts for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -50,6 +50,10 @@
     "autonomy_permission": {
       "description": "Evidence-backed facts and boundaries needed to judge permissible autonomy.",
       "$ref": "#/$defs/autonomyPermission"
+    },
+    "candidate_comparison": {
+      "description": "Evidence-backed candidate roles, tests, and directional trade-offs.",
+      "$ref": "#/$defs/candidateComparison"
     },
     "evidence": {
       "description": "Material claims classified by evidence state.",
@@ -463,6 +467,160 @@
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/nonBlankString" }
+    },
+    "candidateComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidates", "comparisons"],
+      "properties": {
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/candidate" }
+        },
+        "comparisons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/candidatePairComparison" }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "control_class",
+        "roles",
+        "material_deviations",
+        "outcome_tests",
+        "constraint_tests"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "name": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "control_class": {
+          "type": "string",
+          "enum": [
+            "human-owned-work",
+            "process-redesign",
+            "deterministic-automation",
+            "fixed-ai-workflow",
+            "agentic-control"
+          ]
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "enum": [
+              "current-baseline",
+              "proposed",
+              "strongest-simpler",
+              "agentic-comparator"
+            ]
+          }
+        },
+        "material_deviations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "outcome_tests": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidateOutcomeTest" }
+        },
+        "constraint_tests": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidateConstraintTest" }
+        }
+      }
+    },
+    "candidateOutcomeTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome_id", "result", "rationale", "evidence_ids"],
+      "properties": {
+        "outcome_id": { "$ref": "#/$defs/nonBlankString" },
+        "result": { "$ref": "#/$defs/candidateTestResult" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidateConstraintTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["constraint_id", "result", "rationale", "evidence_ids"],
+      "properties": {
+        "constraint_id": { "$ref": "#/$defs/nonBlankString" },
+        "result": { "$ref": "#/$defs/candidateTestResult" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidateTestResult": {
+      "type": "string",
+      "enum": ["meets", "fails", "unknown"]
+    },
+    "candidatePairComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_candidate_id",
+        "comparator_candidate_id",
+        "dimensions"
+      ],
+      "properties": {
+        "subject_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "comparator_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome_quality",
+            "difficult_case_performance",
+            "cost",
+            "latency",
+            "human_effort",
+            "integration_burden",
+            "security_exposure",
+            "failure_impact",
+            "operability",
+            "evaluation_burden",
+            "maintainability"
+          ],
+          "properties": {
+            "outcome_quality": { "$ref": "#/$defs/comparisonDimension" },
+            "difficult_case_performance": { "$ref": "#/$defs/comparisonDimension" },
+            "cost": { "$ref": "#/$defs/comparisonDimension" },
+            "latency": { "$ref": "#/$defs/comparisonDimension" },
+            "human_effort": { "$ref": "#/$defs/comparisonDimension" },
+            "integration_burden": { "$ref": "#/$defs/comparisonDimension" },
+            "security_exposure": { "$ref": "#/$defs/comparisonDimension" },
+            "failure_impact": { "$ref": "#/$defs/comparisonDimension" },
+            "operability": { "$ref": "#/$defs/comparisonDimension" },
+            "evaluation_burden": { "$ref": "#/$defs/comparisonDimension" },
+            "maintainability": { "$ref": "#/$defs/comparisonDimension" }
+          }
+        }
+      }
+    },
+    "comparisonDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "rationale", "evidence_ids"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["better", "equivalent", "worse", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
     },
     "decisionArea": {
       "type": "string",
