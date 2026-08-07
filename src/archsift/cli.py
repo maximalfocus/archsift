@@ -14,6 +14,7 @@ from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.validation import (
     ValidationResult,
     evaluate_agency_necessity_readiness,
+    evaluate_autonomy_permission_readiness,
     evaluate_problem_value_readiness,
     validate_workspace,
 )
@@ -167,6 +168,18 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details["agency_necessity_ready"] = agency_readiness.ready
         details["residual_case_count"] = (
             len(agency_necessity.residual_cases) if agency_necessity is not None else 0
+        )
+        autonomy_permission = result.dossier.autonomy_permission
+        autonomy_readiness = evaluate_autonomy_permission_readiness(result.dossier)
+        details["autonomy_permission_defined"] = autonomy_permission is not None
+        details["autonomy_permission_ready"] = autonomy_readiness.ready
+        details["hard_veto_count"] = (
+            len(autonomy_permission.hard_vetoes) if autonomy_permission is not None else 0
+        )
+        details["mandatory_human_control_count"] = (
+            len(autonomy_permission.mandatory_human_controls)
+            if autonomy_permission is not None
+            else 0
         )
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None

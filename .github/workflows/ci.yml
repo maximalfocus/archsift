@@ -93,9 +93,31 @@ jobs:
               "evidence_ids": ["agency-estimate"],
           }
           agency_no = {**agency_yes, "answer": "no"}
+          autonomy_yes = {
+              "answer": "yes",
+              "rationale": "A sanitised evidence-backed autonomy fact.",
+              "evidence_ids": ["autonomy-observed"],
+          }
+          autonomy_no = {**autonomy_yes, "answer": "no"}
           dossier = {
               "schema_version": 1,
               "case": {"id": "installed", "title": "Installed wheel smoke"},
+              "task": {
+                  "operation": "Review one installed-wheel smoke case.",
+                  "starts_when": "A smoke case is available.",
+                  "completes_when": "The disposition is recorded.",
+                  "accountable_owner": "Test owner",
+                  "actors": ["Reviewer", "Approver"],
+                  "systems_and_tools": [],
+                  "information_read": ["Smoke case"],
+                  "actions": [{
+                      "id": "release-disposition",
+                      "description": "Release the approved disposition.",
+                      "consequential": True,
+                      "approval_boundary": "An approver must approve before release.",
+                  }],
+                  "exclusions": ["Changing policy"],
+              },
               "evidence": [{
                   "id": "baseline",
                   "kind": "observed",
@@ -111,6 +133,14 @@ jobs:
                   "owner": "Engineering lead",
                   "affects": ["agency-necessity"],
                   "method": "Sanitised installed-wheel smoke fixture.",
+              }, {
+                  "id": "autonomy-observed",
+                  "kind": "observed",
+                  "claim": "Consequential release requires approval.",
+                  "owner": "Risk reviewer",
+                  "affects": ["autonomy-permission"],
+                  "provenance": "sanitised control review",
+                  "observed_at": "2026-08-07",
               }],
               "problem_value": {
                   "outcomes": [{
@@ -146,6 +176,32 @@ jobs:
                   "fixed_workflow_sufficient": agency_yes,
                   "residual_cases": [],
               },
+              "autonomy_permission": {
+                  "actions_reversible": autonomy_no,
+                  "failure_blast_radius_bounded": autonomy_yes,
+                  "regulatory_automation_permitted": autonomy_no,
+                  "data_confidence_sufficient": autonomy_yes,
+                  "accountable_owner_assigned": autonomy_yes,
+                  "decision_path_auditable": autonomy_yes,
+                  "timely_human_intervention_available": autonomy_yes,
+                  "safe_degradation_available": autonomy_yes,
+                  "hard_vetoes": [{
+                      "id": "no-autonomous-release",
+                      "status": "active",
+                      "condition": "Release would occur without approval.",
+                      "consequence": "Autonomous release is prohibited.",
+                      "action_ids": ["release-disposition"],
+                      "evidence_ids": ["autonomy-observed"],
+                  }],
+                  "mandatory_human_controls": [{
+                      "id": "approve-release",
+                      "description": "Approve before release.",
+                      "control_point": "Immediately before release.",
+                      "responsible_role": "Approver",
+                      "action_ids": ["release-disposition"],
+                      "evidence_ids": ["autonomy-observed"],
+                  }],
+              },
           }
           (case / "case.yaml").write_text(json.dumps(dossier), encoding="utf-8")
           completed = subprocess.run(
@@ -161,3 +217,7 @@ jobs:
           assert payload["agency_necessity_defined"] is True
           assert payload["agency_necessity_ready"] is True
           assert payload["residual_case_count"] == 0
+          assert payload["autonomy_permission_defined"] is True
+          assert payload["autonomy_permission_ready"] is True
+          assert payload["hard_veto_count"] == 1
+          assert payload["mandatory_human_control_count"] == 1

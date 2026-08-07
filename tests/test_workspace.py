@@ -38,6 +38,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "agency_necessity:" in guidance
     assert "fixed_workflow_sufficient:" in guidance
     assert "residual_cases:" in guidance
+    assert "autonomy_permission:" in guidance
+    assert "hard_vetoes:" in guidance
+    assert "mandatory_human_controls:" in guidance
     assert (target / "evidence").is_dir()
     assert (target / "output").is_dir()
 

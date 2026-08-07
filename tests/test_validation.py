@@ -221,6 +221,7 @@ def test_packaged_schema_is_available() -> None:
     assert payload["properties"]["task"]["$ref"] == "#/$defs/taskBoundary"
     assert payload["properties"]["problem_value"]["$ref"] == "#/$defs/problemValue"
     assert payload["properties"]["agency_necessity"]["$ref"] == "#/$defs/agencyNecessity"
+    assert payload["properties"]["autonomy_permission"]["$ref"] == "#/$defs/autonomyPermission"
     assert payload["$defs"]["evidenceEntry"]["additionalProperties"] is False
     assert payload["$defs"]["taskBoundary"]["additionalProperties"] is False
     assert payload["$defs"]["taskAction"]["additionalProperties"] is False
@@ -231,6 +232,10 @@ def test_packaged_schema_is_available() -> None:
     assert payload["$defs"]["agencyNecessity"]["additionalProperties"] is False
     assert payload["$defs"]["agencyQuestion"]["additionalProperties"] is False
     assert payload["$defs"]["residualCase"]["additionalProperties"] is False
+    assert payload["$defs"]["autonomyPermission"]["additionalProperties"] is False
+    assert payload["$defs"]["autonomyQuestion"]["additionalProperties"] is False
+    assert payload["$defs"]["hardVeto"]["additionalProperties"] is False
+    assert payload["$defs"]["mandatoryHumanControl"]["additionalProperties"] is False
 
 
 def test_generated_workspace_validates(tmp_path: Path) -> None:
@@ -246,6 +251,7 @@ def test_generated_workspace_validates(tmp_path: Path) -> None:
     assert result.dossier.evidence == ()
     assert result.dossier.task is None
     assert result.dossier.agency_necessity is None
+    assert result.dossier.autonomy_permission is None
 
 
 def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
@@ -259,6 +265,7 @@ def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
     assert result.dossier.evidence == ()
     assert result.dossier.task is None
     assert result.dossier.agency_necessity is None
+    assert result.dossier.autonomy_permission is None
 
 
 @pytest.mark.parametrize("kind", ["observed", "assumption", "estimate", "missing"])
@@ -1249,11 +1256,15 @@ def test_validate_success_json_reports_evidence_count(
         "action_count": 0,
         "agency_necessity_defined": False,
         "agency_necessity_ready": False,
+        "autonomy_permission_defined": False,
+        "autonomy_permission_ready": False,
         "constraint_count": 0,
         "diagnostics": [],
         "evidence_count": 2,
         "exit_code": 0,
         "file": "case.yaml",
+        "hard_veto_count": 0,
+        "mandatory_human_control_count": 0,
         "outcome_count": 0,
         "problem_value_defined": False,
         "problem_value_ready": False,
@@ -1284,11 +1295,15 @@ def test_validate_success_json_reports_task_boundary_counts(
         "action_count": 2,
         "agency_necessity_defined": False,
         "agency_necessity_ready": False,
+        "autonomy_permission_defined": False,
+        "autonomy_permission_ready": False,
         "constraint_count": 0,
         "diagnostics": [],
         "evidence_count": 0,
         "exit_code": 0,
         "file": "case.yaml",
+        "hard_veto_count": 0,
+        "mandatory_human_control_count": 0,
         "outcome_count": 0,
         "problem_value_defined": False,
         "problem_value_ready": False,

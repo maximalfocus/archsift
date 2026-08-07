@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
   "title": "ArchSift dossier version 1",
-  "description": "Case identity, task, problem-value, agency-necessity, and evidence contracts for an architecture decision.",
+  "description": "Case identity, task, problem-value, agency-necessity, autonomy-permission, and evidence contracts for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -46,6 +46,10 @@
     "agency_necessity": {
       "description": "Evidence-backed facts needed to judge runtime model-directed control.",
       "$ref": "#/$defs/agencyNecessity"
+    },
+    "autonomy_permission": {
+      "description": "Evidence-backed facts and boundaries needed to judge permissible autonomy.",
+      "$ref": "#/$defs/autonomyPermission"
     },
     "evidence": {
       "description": "Material claims classified by evidence state.",
@@ -370,6 +374,95 @@
         "fixed_workflow_failure": { "$ref": "#/$defs/nonBlankString" },
         "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
       }
+    },
+    "autonomyPermission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actions_reversible",
+        "failure_blast_radius_bounded",
+        "regulatory_automation_permitted",
+        "data_confidence_sufficient",
+        "accountable_owner_assigned",
+        "decision_path_auditable",
+        "timely_human_intervention_available",
+        "safe_degradation_available",
+        "hard_vetoes",
+        "mandatory_human_controls"
+      ],
+      "properties": {
+        "actions_reversible": { "$ref": "#/$defs/autonomyQuestion" },
+        "failure_blast_radius_bounded": { "$ref": "#/$defs/autonomyQuestion" },
+        "regulatory_automation_permitted": { "$ref": "#/$defs/autonomyQuestion" },
+        "data_confidence_sufficient": { "$ref": "#/$defs/autonomyQuestion" },
+        "accountable_owner_assigned": { "$ref": "#/$defs/autonomyQuestion" },
+        "decision_path_auditable": { "$ref": "#/$defs/autonomyQuestion" },
+        "timely_human_intervention_available": { "$ref": "#/$defs/autonomyQuestion" },
+        "safe_degradation_available": { "$ref": "#/$defs/autonomyQuestion" },
+        "hard_vetoes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hardVeto" }
+        },
+        "mandatory_human_controls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mandatoryHumanControl" }
+        }
+      }
+    },
+    "autonomyQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "rationale", "evidence_ids"],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "enum": ["yes", "no", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "hardVeto": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "condition", "consequence", "action_ids", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive", "unknown"]
+        },
+        "condition": { "$ref": "#/$defs/nonBlankString" },
+        "consequence": { "$ref": "#/$defs/nonBlankString" },
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "mandatoryHumanControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "control_point",
+        "responsible_role",
+        "action_ids",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "control_point": { "$ref": "#/$defs/nonBlankString" },
+        "responsible_role": { "$ref": "#/$defs/nonBlankString" },
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "actionIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonBlankString" }
     },
     "decisionArea": {
       "type": "string",

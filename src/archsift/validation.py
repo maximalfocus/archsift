@@ -154,6 +154,71 @@ class AgencyNecessity:
     residual_cases: tuple[ResidualCase, ...]
 
 
+class AutonomyAnswer(StrEnum):
+    """Explicit answer state for one autonomy-permission question."""
+
+    YES = "yes"
+    NO = "no"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class AutonomyQuestion:
+    """One evidence-backed fact used by later autonomy rules."""
+
+    answer: AutonomyAnswer
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+class HardVetoStatus(StrEnum):
+    """Evidence state for whether a hard veto applies."""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class HardVeto:
+    """An explicit non-scoring boundary that later rules must preserve."""
+
+    id: str
+    status: HardVetoStatus
+    condition: str
+    consequence: str
+    action_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MandatoryHumanControl:
+    """A required human-control boundary for one or more task actions."""
+
+    id: str
+    description: str
+    control_point: str
+    responsible_role: str
+    action_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AutonomyPermission:
+    """Facts and boundaries needed to evaluate permissible autonomy."""
+
+    actions_reversible: AutonomyQuestion
+    failure_blast_radius_bounded: AutonomyQuestion
+    regulatory_automation_permitted: AutonomyQuestion
+    data_confidence_sufficient: AutonomyQuestion
+    accountable_owner_assigned: AutonomyQuestion
+    decision_path_auditable: AutonomyQuestion
+    timely_human_intervention_available: AutonomyQuestion
+    safe_degradation_available: AutonomyQuestion
+    hard_vetoes: tuple[HardVeto, ...]
+    mandatory_human_controls: tuple[MandatoryHumanControl, ...]
+
+
 class EvidenceKind(StrEnum):
     """Supported evidence states."""
 
@@ -228,6 +293,7 @@ class Dossier:
     task: TaskBoundary | None = None
     problem_value: ProblemValue | None = None
     agency_necessity: AgencyNecessity | None = None
+    autonomy_permission: AutonomyPermission | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,6 +324,14 @@ class AgencyNecessityReadiness:
 
 
 @dataclass(frozen=True, slots=True)
+class AutonomyPermissionReadiness:
+    """Deterministic advisory readiness for FR-007."""
+
+    ready: bool
+    findings: tuple[PrerequisiteFinding, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationResult:
     """Typed validation result, independent of terminal rendering."""
 
@@ -276,6 +350,16 @@ _AGENCY_QUESTION_FIELDS = (
     "completion_independently_verifiable",
     "effects_independently_verifiable",
     "fixed_workflow_sufficient",
+)
+_AUTONOMY_QUESTION_FIELDS = (
+    "actions_reversible",
+    "failure_blast_radius_bounded",
+    "regulatory_automation_permitted",
+    "data_confidence_sufficient",
+    "accountable_owner_assigned",
+    "decision_path_auditable",
+    "timely_human_intervention_available",
+    "safe_degradation_available",
 )
 
 
@@ -403,6 +487,8 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-005"
     elif base_field.startswith("$.agency_necessity"):
         requirement = "FR-006"
+    elif base_field.startswith("$.autonomy_permission"):
+        requirement = "FR-007"
     else:
         requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
@@ -658,6 +744,116 @@ def _agency_necessity_semantic_diagnostics(
     return tuple(diagnostics)
 
 
+def _autonomy_permission_semantic_diagnostics(
+    autonomy: Mapping[str, Any] | None,
+    task: Mapping[str, Any] | None,
+    evidence: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    if autonomy is None:
+        return ()
+
+    diagnostics: list[Diagnostic] = []
+    hard_vetoes = cast(Sequence[Mapping[str, Any]], autonomy["hard_vetoes"])
+    human_controls = cast(Sequence[Mapping[str, Any]], autonomy["mandatory_human_controls"])
+
+    for collection, entries, label, diagnostic_id in (
+        ("hard_vetoes", hard_vetoes, "Hard veto", "duplicate-hard-veto-id"),
+        (
+            "mandatory_human_controls",
+            human_controls,
+            "Mandatory human control",
+            "duplicate-human-control-id",
+        ),
+    ):
+        first_by_id: dict[str, int] = {}
+        for index, entry in enumerate(entries):
+            identifier = cast(str, entry["id"])
+            first = first_by_id.setdefault(identifier, index)
+            if first != index:
+                diagnostics.append(
+                    _diagnostic(
+                        diagnostic_id,
+                        f"{label} ID {identifier!r} duplicates the entry at "
+                        f"$.autonomy_permission.{collection}[{first}].id.",
+                        f"$.autonomy_permission.{collection}[{index}].id",
+                        "FR-007",
+                        f"Give every {label.lower()} a unique stable ID.",
+                    )
+                )
+
+    evidence_references: list[tuple[str, str]] = []
+    for name in _AUTONOMY_QUESTION_FIELDS:
+        question = cast(Mapping[str, Any], autonomy[name])
+        for reference_index, identifier in enumerate(cast(Sequence[str], question["evidence_ids"])):
+            evidence_references.append(
+                (f"$.autonomy_permission.{name}.evidence_ids[{reference_index}]", identifier)
+            )
+    for collection, entries in (
+        ("hard_vetoes", hard_vetoes),
+        ("mandatory_human_controls", human_controls),
+    ):
+        for entry_index, entry in enumerate(entries):
+            for reference_index, identifier in enumerate(
+                cast(Sequence[str], entry["evidence_ids"])
+            ):
+                evidence_references.append(
+                    (
+                        f"$.autonomy_permission.{collection}[{entry_index}]."
+                        f"evidence_ids[{reference_index}]",
+                        identifier,
+                    )
+                )
+
+    evidence_by_id = {cast(str, entry["id"]): entry for entry in evidence}
+    for path, identifier in evidence_references:
+        referenced_entry = evidence_by_id.get(identifier)
+        if referenced_entry is None:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-autonomy-evidence-reference",
+                    f"Evidence ID {identifier!r} does not exist in the evidence ledger.",
+                    path,
+                    "FR-007",
+                    "Add the evidence entry or use an existing evidence ID.",
+                )
+            )
+        elif "autonomy-permission" not in cast(Sequence[str], referenced_entry["affects"]):
+            diagnostics.append(
+                _diagnostic(
+                    "autonomy-evidence-area-mismatch",
+                    f"Evidence ID {identifier!r} is not classified for autonomy-permission.",
+                    path,
+                    "FR-007",
+                    "Add autonomy-permission to that evidence entry's affects list or cite "
+                    "relevant evidence.",
+                )
+            )
+
+    task_action_ids = (
+        {cast(str, action["id"]) for action in cast(Sequence[Mapping[str, Any]], task["actions"])}
+        if task is not None
+        else set()
+    )
+    for collection, entries in (
+        ("hard_vetoes", hard_vetoes),
+        ("mandatory_human_controls", human_controls),
+    ):
+        for entry_index, entry in enumerate(entries):
+            for reference_index, identifier in enumerate(cast(Sequence[str], entry["action_ids"])):
+                if identifier not in task_action_ids:
+                    diagnostics.append(
+                        _diagnostic(
+                            "missing-autonomy-task-action-reference",
+                            f"Task action ID {identifier!r} does not exist in task.actions.",
+                            f"$.autonomy_permission.{collection}[{entry_index}]."
+                            f"action_ids[{reference_index}]",
+                            "FR-007",
+                            "Add the referenced task action or use an existing task action ID.",
+                        )
+                    )
+    return tuple(diagnostics)
+
+
 def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
     if task is None:
         return None
@@ -769,6 +965,56 @@ def _typed_agency_necessity(agency: Mapping[str, Any] | None) -> AgencyNecessity
         effects_independently_verifiable=question("effects_independently_verifiable"),
         fixed_workflow_sufficient=question("fixed_workflow_sufficient"),
         residual_cases=residual_cases,
+    )
+
+
+def _typed_autonomy_permission(
+    autonomy: Mapping[str, Any] | None,
+) -> AutonomyPermission | None:
+    if autonomy is None:
+        return None
+
+    def question(name: str) -> AutonomyQuestion:
+        raw = cast(Mapping[str, Any], autonomy[name])
+        return AutonomyQuestion(
+            answer=AutonomyAnswer(cast(str, raw["answer"])),
+            rationale=cast(str, raw["rationale"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+
+    hard_vetoes = tuple(
+        HardVeto(
+            id=cast(str, raw["id"]),
+            status=HardVetoStatus(cast(str, raw["status"])),
+            condition=cast(str, raw["condition"]),
+            consequence=cast(str, raw["consequence"]),
+            action_ids=tuple(cast(Sequence[str], raw["action_ids"])),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], autonomy["hard_vetoes"])
+    )
+    human_controls = tuple(
+        MandatoryHumanControl(
+            id=cast(str, raw["id"]),
+            description=cast(str, raw["description"]),
+            control_point=cast(str, raw["control_point"]),
+            responsible_role=cast(str, raw["responsible_role"]),
+            action_ids=tuple(cast(Sequence[str], raw["action_ids"])),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], autonomy["mandatory_human_controls"])
+    )
+    return AutonomyPermission(
+        actions_reversible=question("actions_reversible"),
+        failure_blast_radius_bounded=question("failure_blast_radius_bounded"),
+        regulatory_automation_permitted=question("regulatory_automation_permitted"),
+        data_confidence_sufficient=question("data_confidence_sufficient"),
+        accountable_owner_assigned=question("accountable_owner_assigned"),
+        decision_path_auditable=question("decision_path_auditable"),
+        timely_human_intervention_available=question("timely_human_intervention_available"),
+        safe_degradation_available=question("safe_degradation_available"),
+        hard_vetoes=hard_vetoes,
+        mandatory_human_controls=human_controls,
     )
 
 
@@ -954,6 +1200,91 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                 )
             )
     return AgencyNecessityReadiness(not findings, tuple(findings))
+
+
+def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissionReadiness:
+    """Evaluate FR-007 fact readiness without deciding whether autonomy is permitted."""
+    autonomy = dossier.autonomy_permission
+    if autonomy is None:
+        return AutonomyPermissionReadiness(
+            False,
+            (
+                PrerequisiteFinding(
+                    "autonomy-permission-missing",
+                    "$.autonomy_permission",
+                    "FR-007",
+                    "The dossier does not define its autonomy-permission facts.",
+                    "Answer all eight autonomy questions and record hard vetoes and human "
+                    "controls explicitly.",
+                ),
+            ),
+        )
+
+    findings: list[PrerequisiteFinding] = []
+    evidence = {entry.id: entry for entry in dossier.evidence}
+    for name in _AUTONOMY_QUESTION_FIELDS:
+        question = cast(AutonomyQuestion, getattr(autonomy, name))
+        if question.answer is AutonomyAnswer.UNKNOWN:
+            findings.append(
+                PrerequisiteFinding(
+                    "autonomy-answer-unknown",
+                    f"$.autonomy_permission.{name}.answer",
+                    "FR-007",
+                    f"Autonomy question {name!r} is unanswered.",
+                    "Replace unknown with yes or no when the evidence supports an answer.",
+                )
+            )
+        if not any(
+            _is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
+        ):
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-autonomy-evidence-missing",
+                    f"$.autonomy_permission.{name}.evidence_ids",
+                    "FR-007",
+                    f"Autonomy question {name!r} lacks observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate.",
+                )
+            )
+
+    for index, veto in enumerate(autonomy.hard_vetoes):
+        if veto.status is HardVetoStatus.UNKNOWN:
+            findings.append(
+                PrerequisiteFinding(
+                    "hard-veto-status-unknown",
+                    f"$.autonomy_permission.hard_vetoes[{index}].status",
+                    "FR-007",
+                    f"Hard veto {veto.id!r} has unknown applicability.",
+                    "Replace unknown with active or inactive when evidence establishes it.",
+                )
+            )
+        if not any(
+            _is_credible_support(evidence.get(identifier)) for identifier in veto.evidence_ids
+        ):
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-hard-veto-evidence-missing",
+                    f"$.autonomy_permission.hard_vetoes[{index}].evidence_ids",
+                    "FR-007",
+                    f"Hard veto {veto.id!r} lacks observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate.",
+                )
+            )
+
+    for index, control in enumerate(autonomy.mandatory_human_controls):
+        if not any(
+            _is_credible_support(evidence.get(identifier)) for identifier in control.evidence_ids
+        ):
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-human-control-evidence-missing",
+                    f"$.autonomy_permission.mandatory_human_controls[{index}].evidence_ids",
+                    "FR-007",
+                    f"Mandatory human control {control.id!r} lacks observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate.",
+                )
+            )
+    return AutonomyPermissionReadiness(not findings, tuple(findings))
 
 
 def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
@@ -1148,12 +1479,16 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     raw_task = cast(Mapping[str, Any] | None, loaded.get("task"))
     raw_problem_value = cast(Mapping[str, Any] | None, loaded.get("problem_value"))
     raw_agency_necessity = cast(Mapping[str, Any] | None, loaded.get("agency_necessity"))
+    raw_autonomy_permission = cast(Mapping[str, Any] | None, loaded.get("autonomy_permission"))
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
             *_duplicate_task_action_diagnostics(raw_task),
             *_problem_value_semantic_diagnostics(raw_problem_value, raw_evidence),
             *_agency_necessity_semantic_diagnostics(raw_agency_necessity, raw_evidence),
+            *_autonomy_permission_semantic_diagnostics(
+                raw_autonomy_permission, raw_task, raw_evidence
+            ),
         ),
         key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
     )
@@ -1172,5 +1507,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         task=_typed_task(raw_task),
         problem_value=_typed_problem_value(raw_problem_value),
         agency_necessity=_typed_agency_necessity(raw_agency_necessity),
+        autonomy_permission=_typed_autonomy_permission(raw_autonomy_permission),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)
