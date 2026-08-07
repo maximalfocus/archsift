@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from enum import IntEnum
+from unicodedata import category
 
 
 class ExitCode(IntEnum):
@@ -34,8 +35,21 @@ class Diagnostic:
         return asdict(self)
 
     def render(self) -> str:
-        """Render a concise human-readable diagnostic."""
-        return (
+        """Render a concise diagnostic without terminal control characters."""
+        rendered = (
             f"{self.id} [{self.requirement}] {self.file}:{self.field}: {self.message} "
             f"Remediation: {self.remediation}"
         )
+        return "".join(_escaped_control(character) for character in rendered)
+
+
+def _escaped_control(character: str) -> str:
+    """Escape C0/C1 and Unicode format controls while preserving visible text."""
+    if category(character) not in {"Cc", "Cf"}:
+        return character
+    codepoint = ord(character)
+    if codepoint <= 0xFF:
+        return f"\\x{codepoint:02x}"
+    if codepoint <= 0xFFFF:
+        return f"\\u{codepoint:04x}"
+    return f"\\U{codepoint:08x}"

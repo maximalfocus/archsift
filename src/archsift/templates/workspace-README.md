@@ -60,6 +60,13 @@ evidence:
     owner: Operations lead
     affects: [agency-necessity]
     resolved_by: Measure exception frequency over a representative month.
+  - id: autonomy-control-observation
+    kind: observed
+    claim: Consequential releases require recorded quality approval.
+    owner: Risk reviewer
+    affects: [autonomy-permission]
+    provenance: evidence/sanitised-control-review.txt
+    observed_at: 2026-08-07
 ```
 
 Describe the value gate before comparing technologies. Every outcome and constraint explicitly says whether it is binding, and every claim cites the evidence ledger. A binding outcome is ready for later assessment only when its baseline cites an observation or method-backed estimate.
@@ -142,6 +149,58 @@ agency_necessity:
       description: A submitted record introduces an unanticipated evidence gap.
       fixed_workflow_failure: The next approved retrieval step cannot be selected in advance.
       evidence_ids: [workflow-estimate]
+```
+
+Record autonomy facts separately from agency necessity and from any permission conclusion. Readiness means the facts and boundaries have credible evidence; it does not mean autonomy is permitted. Hard vetoes and mandatory human controls remain explicit and are never averaged into a score.
+
+```yaml
+autonomy_permission:
+  actions_reversible:
+    answer: "no"
+    rationale: A released disposition cannot be withdrawn without a corrective process.
+    evidence_ids: [autonomy-control-observation]
+  failure_blast_radius_bounded:
+    answer: "yes"
+    rationale: Each disposition affects one submitted application.
+    evidence_ids: [autonomy-control-observation]
+  regulatory_automation_permitted:
+    answer: "no"
+    rationale: Consequential release requires an accountable human decision.
+    evidence_ids: [autonomy-control-observation]
+  data_confidence_sufficient:
+    answer: "yes"
+    rationale: Completeness is checked before the bounded review begins.
+    evidence_ids: [autonomy-control-observation]
+  accountable_owner_assigned:
+    answer: "yes"
+    rationale: The review operations lead remains accountable.
+    evidence_ids: [autonomy-control-observation]
+  decision_path_auditable:
+    answer: "yes"
+    rationale: The disposition, rationale, and approval are recorded.
+    evidence_ids: [autonomy-control-observation]
+  timely_human_intervention_available:
+    answer: "yes"
+    rationale: A quality approver can stop release before the external effect.
+    evidence_ids: [autonomy-control-observation]
+  safe_degradation_available:
+    answer: "yes"
+    rationale: The task can stop after drafting and queue human review.
+    evidence_ids: [autonomy-control-observation]
+  hard_vetoes:
+    - id: no-autonomous-release
+      status: active
+      condition: A disposition would be released without quality approval.
+      consequence: Autonomous release is prohibited.
+      action_ids: [release-disposition]
+      evidence_ids: [autonomy-control-observation]
+  mandatory_human_controls:
+    - id: approve-release
+      description: Approve the disposition before external release.
+      control_point: Immediately before release-disposition.
+      responsible_role: Quality approver
+      action_ids: [release-disposition]
+      evidence_ids: [autonomy-control-observation]
 ```
 
 Validate the dossier from this directory with:
