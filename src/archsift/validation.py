@@ -30,6 +30,31 @@ class CaseIdentity:
     title: str
 
 
+@dataclass(frozen=True, slots=True)
+class TaskAction:
+    """One output or effect produced by the bounded task."""
+
+    id: str
+    description: str
+    consequential: bool
+    approval_boundary: str
+
+
+@dataclass(frozen=True, slots=True)
+class TaskBoundary:
+    """The operational unit of analysis for an architecture decision."""
+
+    operation: str
+    starts_when: str
+    completes_when: str
+    accountable_owner: str
+    actors: tuple[str, ...]
+    systems_and_tools: tuple[str, ...]
+    information_read: tuple[str, ...]
+    actions: tuple[TaskAction, ...]
+    exclusions: tuple[str, ...]
+
+
 class EvidenceKind(StrEnum):
     """Supported evidence states."""
 
@@ -101,6 +126,7 @@ class Dossier:
     schema_version: int
     case: CaseIdentity
     evidence: tuple[Evidence, ...] = ()
+    task: TaskBoundary | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,7 +241,12 @@ def _remediation(error: ValidationError, field: str) -> str:
 
 def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
     base_field = _field_path(list(error.absolute_path))
-    requirement = "FR-004" if base_field.startswith("$.evidence") else "FR-002"
+    if base_field.startswith("$.evidence"):
+        requirement = "FR-004"
+    elif base_field.startswith("$.task"):
+        requirement = "FR-003"
+    else:
+        requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
         error_schema = cast(Mapping[str, Any], error.schema)
         properties = cast(Mapping[str, Any], error_schema.get("properties", {}))
@@ -258,6 +289,54 @@ def _duplicate_evidence_diagnostics(entries: Sequence[Mapping[str, Any]]) -> tup
                 )
             )
     return tuple(diagnostics)
+
+
+def _duplicate_task_action_diagnostics(task: Mapping[str, Any] | None) -> tuple[Diagnostic, ...]:
+    if task is None:
+        return ()
+    actions = cast(Sequence[Mapping[str, Any]], task["actions"])
+    first_by_id: dict[str, int] = {}
+    diagnostics: list[Diagnostic] = []
+    for index, action in enumerate(actions):
+        identifier = cast(str, action["id"])
+        first = first_by_id.setdefault(identifier, index)
+        if first != index:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-task-action-id",
+                    f"Task action ID {identifier!r} duplicates the action at "
+                    f"$.task.actions[{first}].id.",
+                    f"$.task.actions[{index}].id",
+                    "FR-003",
+                    "Give every task action a unique stable ID and update later references.",
+                )
+            )
+    return tuple(diagnostics)
+
+
+def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
+    if task is None:
+        return None
+    actions = tuple(
+        TaskAction(
+            id=cast(str, action["id"]),
+            description=cast(str, action["description"]),
+            consequential=cast(bool, action["consequential"]),
+            approval_boundary=cast(str, action["approval_boundary"]),
+        )
+        for action in cast(Sequence[Mapping[str, Any]], task["actions"])
+    )
+    return TaskBoundary(
+        operation=cast(str, task["operation"]),
+        starts_when=cast(str, task["starts_when"]),
+        completes_when=cast(str, task["completes_when"]),
+        accountable_owner=cast(str, task["accountable_owner"]),
+        actors=tuple(cast(Sequence[str], task["actors"])),
+        systems_and_tools=tuple(cast(Sequence[str], task["systems_and_tools"])),
+        information_read=tuple(cast(Sequence[str], task["information_read"])),
+        actions=actions,
+        exclusions=tuple(cast(Sequence[str], task["exclusions"])),
+    )
 
 
 def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...]:
@@ -501,9 +580,19 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         return ValidationResult(ExitCode.VALIDATION_FAILED, diagnostics=diagnostics)
 
     raw_evidence = cast(Sequence[Mapping[str, Any]], loaded.get("evidence", ()))
-    duplicate_diagnostics = _duplicate_evidence_diagnostics(raw_evidence)
-    if duplicate_diagnostics:
-        return ValidationResult(ExitCode.VALIDATION_FAILED, diagnostics=duplicate_diagnostics)
+    raw_task = cast(Mapping[str, Any] | None, loaded.get("task"))
+    semantic_diagnostics = sorted(
+        (
+            *_duplicate_evidence_diagnostics(raw_evidence),
+            *_duplicate_task_action_diagnostics(raw_task),
+        ),
+        key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
+    )
+    if semantic_diagnostics:
+        return ValidationResult(
+            ExitCode.VALIDATION_FAILED,
+            diagnostics=tuple(semantic_diagnostics),
+        )
 
     case = loaded["case"]
     assert isinstance(case, Mapping)
@@ -511,5 +600,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         schema_version=1,
         case=CaseIdentity(id=str(case["id"]), title=str(case["title"])),
         evidence=_typed_evidence(raw_evidence),
+        task=_typed_task(raw_task),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)

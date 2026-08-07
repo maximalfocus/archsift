@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import FrozenInstanceError
 from datetime import date
 from importlib.resources import files
 from pathlib import Path
+from typing import cast
 
 import pytest
 import yaml
@@ -19,6 +21,8 @@ from archsift.validation import (
     EvidenceKind,
     MissingEvidence,
     ObservedEvidence,
+    TaskAction,
+    TaskBoundary,
     validate_workspace,
 )
 from archsift.workspace import initialize_workspace
@@ -32,6 +36,33 @@ def _workspace(tmp_path: Path) -> Path:
 
 def _write_case(workspace: Path, content: object) -> None:
     (workspace / "case.yaml").write_text(yaml.safe_dump(content, sort_keys=False))
+
+
+def _task() -> dict[str, object]:
+    return {
+        "operation": "Review one submitted application and produce a disposition.",
+        "starts_when": "A complete application enters the review queue.",
+        "completes_when": "The disposition and rationale are recorded.",
+        "accountable_owner": "Review operations lead",
+        "actors": ["Case reviewer", "Quality approver"],
+        "systems_and_tools": ["Application register", "Policy search"],
+        "information_read": ["Submitted application", "Current policy"],
+        "actions": [
+            {
+                "id": "draft-disposition",
+                "description": "Draft a disposition and rationale.",
+                "consequential": False,
+                "approval_boundary": "A reviewer may draft; no external release occurs.",
+            },
+            {
+                "id": "release-disposition",
+                "description": "Release the approved disposition.",
+                "consequential": True,
+                "approval_boundary": "A quality approver must approve before release.",
+            },
+        ],
+        "exclusions": ["Changing policy", "Executing downstream enforcement"],
+    }
 
 
 def _entry(kind: str, identifier: str = "evidence-1") -> dict[str, object]:
@@ -61,7 +92,10 @@ def test_packaged_schema_is_available() -> None:
     assert payload["additionalProperties"] is False
     assert payload["properties"]["case"]["additionalProperties"] is False
     assert payload["properties"]["evidence"]["type"] == "array"
+    assert payload["properties"]["task"]["$ref"] == "#/$defs/taskBoundary"
     assert payload["$defs"]["evidenceEntry"]["additionalProperties"] is False
+    assert payload["$defs"]["taskBoundary"]["additionalProperties"] is False
+    assert payload["$defs"]["taskAction"]["additionalProperties"] is False
 
 
 def test_generated_workspace_validates(tmp_path: Path) -> None:
@@ -75,6 +109,7 @@ def test_generated_workspace_validates(tmp_path: Path) -> None:
     assert result.dossier.schema_version == 1
     assert result.dossier.case.id == "case"
     assert result.dossier.evidence == ()
+    assert result.dossier.task is None
 
 
 def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
@@ -86,6 +121,7 @@ def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
     assert result.exit_code == ExitCode.SUCCESS
     assert result.dossier is not None
     assert result.dossier.evidence == ()
+    assert result.dossier.task is None
 
 
 @pytest.mark.parametrize("kind", ["observed", "assumption", "estimate", "missing"])
@@ -140,6 +176,289 @@ def test_evidence_author_order_and_affects_order_are_preserved(tmp_path: Path) -
         DecisionArea.COMPARATIVE_FIT,
         DecisionArea.AGENCY_NECESSITY,
     )
+
+
+def test_complete_task_boundary_validates_as_immutable_typed_objects(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "task": task,
+            "evidence": [],
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    boundary = result.dossier.task
+    assert isinstance(boundary, TaskBoundary)
+    assert boundary.operation == task["operation"]
+    assert boundary.actors == ("Case reviewer", "Quality approver")
+    assert boundary.systems_and_tools == ("Application register", "Policy search")
+    assert boundary.information_read == ("Submitted application", "Current policy")
+    assert [action.id for action in boundary.actions] == [
+        "draft-disposition",
+        "release-disposition",
+    ]
+    assert all(isinstance(action, TaskAction) for action in boundary.actions)
+    assert boundary.exclusions == ("Changing policy", "Executing downstream enforcement")
+    with pytest.raises(FrozenInstanceError):
+        boundary.operation = "Changed"  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        boundary.actions[0].description = "Changed"  # type: ignore[misc]
+
+
+def test_explicit_empty_systems_and_information_are_valid(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    task["systems_and_tools"] = []
+    task["information_read"] = []
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.task is not None
+    assert result.dossier.task.systems_and_tools == ()
+    assert result.dossier.task.information_read == ()
+
+
+def test_broad_programme_label_alone_is_not_a_task_boundary(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "task": {"operation": "Modernise review"},
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert len(result.diagnostics) == 8
+    assert all(diagnostic.field == "$.task" for diagnostic in result.diagnostics)
+    assert all(diagnostic.requirement == "FR-003" for diagnostic in result.diagnostics)
+    assert all(
+        diagnostic.remediation.startswith("Add the required field")
+        for diagnostic in result.diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "operation",
+        "starts_when",
+        "completes_when",
+        "accountable_owner",
+        "actors",
+        "systems_and_tools",
+        "information_read",
+        "actions",
+        "exclusions",
+    ],
+)
+def test_every_task_boundary_field_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    del task[missing_field]
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.task"
+    assert result.diagnostics[0].requirement == "FR-003"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("operation", ""),
+        ("starts_when", ""),
+        ("completes_when", ""),
+        ("accountable_owner", ""),
+        ("actors", []),
+        ("actors", ["Reviewer", "Reviewer"]),
+        ("systems_and_tools", [""]),
+        ("systems_and_tools", ["Register", "Register"]),
+        ("information_read", [""]),
+        ("information_read", ["Policy", "Policy"]),
+        ("actions", []),
+        ("exclusions", []),
+        ("exclusions", ["Policy change", "Policy change"]),
+    ],
+)
+def test_task_boundary_values_fail_closed(tmp_path: Path, field: str, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    task[field] = value
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics
+    assert all(diagnostic.requirement == "FR-003" for diagnostic in result.diagnostics)
+    assert all(diagnostic.remediation for diagnostic in result.diagnostics)
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    ["id", "description", "consequential", "approval_boundary"],
+)
+def test_every_task_action_field_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    actions = cast(list[dict[str, object]], task["actions"])
+    del actions[0][missing_field]
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    diagnostic = result.diagnostics[0]
+    assert diagnostic.field == "$.task.actions[0]"
+    assert diagnostic.requirement == "FR-003"
+    assert missing_field in diagnostic.remediation
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", ""),
+        ("description", ""),
+        ("consequential", "yes"),
+        ("approval_boundary", ""),
+    ],
+)
+def test_task_action_contract_fails_closed(tmp_path: Path, field: str, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    actions = cast(list[dict[str, object]], task["actions"])
+    actions[0][field] = value
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field.startswith("$.task.actions[0].")
+    assert result.diagnostics[0].requirement == "FR-003"
+
+
+def test_unknown_task_and_action_fields_fail_with_fr003(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    task["unknown_task"] = True
+    actions = cast(list[dict[str, object]], task["actions"])
+    actions[0]["unknown_action"] = True
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert [
+        (diagnostic.id, diagnostic.field, diagnostic.requirement)
+        for diagnostic in result.diagnostics
+    ] == [
+        ("unknown-field", "$.task.unknown_task", "FR-003"),
+        ("unknown-field", "$.task.actions[0].unknown_action", "FR-003"),
+    ]
+
+
+def test_duplicate_task_action_ids_identify_first_and_later_actions(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    actions = cast(list[dict[str, object]], task["actions"])
+    actions[1]["id"] = actions[0]["id"]
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert len(result.diagnostics) == 1
+    diagnostic = result.diagnostics[0]
+    assert diagnostic.id == "duplicate-task-action-id"
+    assert diagnostic.field == "$.task.actions[1].id"
+    assert diagnostic.requirement == "FR-003"
+    assert "$.task.actions[0].id" in diagnostic.message
+    assert diagnostic.remediation
+
+
+def test_duplicate_task_action_json_and_quiet_modes_are_stable(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    actions = cast(list[dict[str, object]], task["actions"])
+    actions[1]["id"] = actions[0]["id"]
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.VALIDATION_FAILED
+    first = capsys.readouterr()
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.VALIDATION_FAILED
+    second = capsys.readouterr()
+    assert first == second
+    payload = json.loads(first.out)
+    assert payload["diagnostics"][0]["id"] == "duplicate-task-action-id"
+    assert payload["diagnostics"][0]["requirement"] == "FR-003"
+
+    assert main(["validate", str(workspace), "--quiet"]) == ExitCode.VALIDATION_FAILED
+    quiet = capsys.readouterr()
+    assert quiet.out == quiet.err == ""
+
+
+def test_task_text_is_inert_and_does_not_open_named_paths(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    task = _task()
+    outside = tmp_path / "does-not-exist" / "outside.txt"
+    task["systems_and_tools"] = [str(outside)]
+    task["information_read"] = [str(outside)]
+    _write_case(
+        workspace,
+        {"schema_version": 1, "case": {"id": "x", "title": "X"}, "task": task},
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.task is not None
+    assert result.dossier.task.systems_and_tools == (str(outside),)
+    assert not outside.exists()
 
 
 def test_missing_workspace_fails_closed(tmp_path: Path) -> None:
@@ -552,12 +871,42 @@ def test_validate_success_json_reports_evidence_count(
     captured = capsys.readouterr()
     assert captured.err == ""
     assert json.loads(captured.out) == {
+        "action_count": 0,
         "diagnostics": [],
         "evidence_count": 2,
         "exit_code": 0,
         "file": "case.yaml",
         "schema_version": 1,
         "status": "valid",
+        "task_defined": False,
+    }
+
+
+def test_validate_success_json_reports_task_boundary_counts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "task": _task(),
+        },
+    )
+
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.SUCCESS
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "action_count": 2,
+        "diagnostics": [],
+        "evidence_count": 0,
+        "exit_code": 0,
+        "file": "case.yaml",
+        "schema_version": 1,
+        "status": "valid",
+        "task_defined": True,
     }
 
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
   "title": "ArchSift dossier version 1",
-  "description": "Case identity and typed evidence ledger for an architecture decision.",
+  "description": "Case identity, operational task boundary, and typed evidence ledger for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -35,6 +35,10 @@
         }
       }
     },
+    "task": {
+      "description": "Operational task and action boundary under architecture review.",
+      "$ref": "#/$defs/taskBoundary"
+    },
     "evidence": {
       "description": "Material claims classified by evidence state.",
       "type": "array",
@@ -44,6 +48,120 @@
     }
   },
   "$defs": {
+    "taskBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "starts_when",
+        "completes_when",
+        "accountable_owner",
+        "actors",
+        "systems_and_tools",
+        "information_read",
+        "actions",
+        "exclusions"
+      ],
+      "properties": {
+        "operation": {
+          "description": "One bounded operational task, phrased as an action.",
+          "type": "string",
+          "minLength": 1
+        },
+        "starts_when": {
+          "description": "Observable condition that starts this task.",
+          "type": "string",
+          "minLength": 1
+        },
+        "completes_when": {
+          "description": "Observable condition that completes this task.",
+          "type": "string",
+          "minLength": 1
+        },
+        "accountable_owner": {
+          "description": "Person or role accountable for the task outcome.",
+          "type": "string",
+          "minLength": 1
+        },
+        "actors": {
+          "description": "People, roles, or systems participating in the task.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "systems_and_tools": {
+          "description": "Systems and tools involved; an empty array explicitly records none.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "information_read": {
+          "description": "Information consumed; an empty array explicitly records none.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "actions": {
+          "description": "Outputs or effects produced by the task.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/taskAction"
+          }
+        },
+        "exclusions": {
+          "description": "Related work explicitly outside this decision boundary.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "taskAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "consequential",
+        "approval_boundary"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable identifier for this produced action.",
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "description": "Output or effect produced by the task.",
+          "type": "string",
+          "minLength": 1
+        },
+        "consequential": {
+          "description": "Whether an error could materially affect people, rights, money, safety, or operations.",
+          "type": "boolean"
+        },
+        "approval_boundary": {
+          "description": "Who may approve or release this action, and at what point.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
     "decisionArea": {
       "type": "string",
       "enum": [

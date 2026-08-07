@@ -6,6 +6,31 @@ This directory contains one local architecture-decision case.
 - `evidence/` is reserved for local evidence artefacts; ledger provenance is inert metadata and validation does not open it.
 - `output/` is reserved for generated decision records and is safe to recreate.
 
+Add one operational `task` only after its boundary is known. A programme name is not enough: record observable start and completion conditions, participants, inputs, produced actions, approval boundaries, and explicit exclusions.
+
+```yaml
+task:
+  operation: Review one submitted application and produce a disposition.
+  starts_when: A complete application enters the review queue.
+  completes_when: The disposition and rationale are recorded for the applicant.
+  accountable_owner: Review operations lead
+  actors: [Case reviewer, Quality approver]
+  systems_and_tools: [Application register, Policy search]
+  information_read: [Submitted application, Current policy, Prior decisions]
+  actions:
+    - id: draft-disposition
+      description: Draft a disposition and supporting rationale.
+      consequential: false
+      approval_boundary: A case reviewer may draft; no external release occurs.
+    - id: release-disposition
+      description: Release the approved disposition to the applicant.
+      consequential: true
+      approval_boundary: A quality approver must approve before release.
+  exclusions:
+    - Changing policy
+    - Executing downstream enforcement
+```
+
 The `evidence` ledger keeps observed facts distinct from assumptions, estimates, and known gaps. Every entry needs a stable ID, owner, claim, and affected decision area. Use only the metadata required by its kind:
 
 ```yaml
