@@ -25,6 +25,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     }
     guidance = (target / "README.md").read_text()
     assert guidance.startswith("# ArchSift case workspace\n")
+    assert "task:" in guidance
+    assert "operation:" in guidance
+    assert "approval_boundary:" in guidance
     assert "kind: observed" in guidance
     assert "kind: assumption" in guidance
     assert "kind: estimate" in guidance
