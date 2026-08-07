@@ -66,22 +66,26 @@
         "operation": {
           "description": "One bounded operational task, phrased as an action.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "starts_when": {
           "description": "Observable condition that starts this task.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "completes_when": {
           "description": "Observable condition that completes this task.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "accountable_owner": {
           "description": "Person or role accountable for the task outcome.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "actors": {
           "description": "People, roles, or systems participating in the task.",
@@ -90,7 +94,8 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           }
         },
         "systems_and_tools": {
@@ -99,7 +104,8 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           }
         },
         "information_read": {
@@ -108,7 +114,8 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           }
         },
         "actions": {
@@ -126,7 +133,8 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1
+            "minLength": 1,
+            "pattern": "\\S"
           }
         }
       }
@@ -144,12 +152,14 @@
         "id": {
           "description": "Stable identifier for this produced action.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "description": {
           "description": "Output or effect produced by the task.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         },
         "consequential": {
           "description": "Whether an error could materially affect people, rights, money, safety, or operations.",
@@ -158,7 +168,8 @@
         "approval_boundary": {
           "description": "Who may approve or release this action, and at what point.",
           "type": "string",
-          "minLength": 1
+          "minLength": 1,
+          "pattern": "\\S"
         }
       }
     },

@@ -142,12 +142,19 @@ _SCHEMA_RESOURCE = "schemas/dossier-v1.schema.json"
 
 
 class _DossierLoader(yaml.SafeLoader):
-    """SafeLoader that rejects duplicate keys and leaves dates as strings."""
+    """SafeLoader that rejects duplicate keys and keeps scalar types explicit."""
 
     # JSON Schema owns scalar interpretation. PyYAML otherwise turns an
-    # unquoted YYYY-MM-DD value into datetime.date before format validation.
+    # unquoted YYYY-MM-DD value into datetime.date before format validation
+    # and resolves unquoted yes/no/on/off into booleans; both would bypass
+    # the schema's type checks. Only YAML's true/false forms stay booleans.
     yaml_implicit_resolvers: dict[str, list[tuple[str, re.Pattern[str]]]] = {  # noqa: RUF012
-        key: [(tag, pattern) for tag, pattern in resolvers if tag != "tag:yaml.org,2002:timestamp"]
+        key: [
+            (tag, pattern)
+            for tag, pattern in resolvers
+            if tag != "tag:yaml.org,2002:timestamp"
+            and not (tag == "tag:yaml.org,2002:bool" and key in ("y", "Y", "n", "N", "o", "O"))
+        ]
         for key, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
     }
 
@@ -219,13 +226,20 @@ def _remediation(error: ValidationError, field: str) -> str:
         required = cast(Sequence[str], error.validator_value)
         instance = cast(Mapping[str, object], error.instance)
         missing = sorted(set(required) - set(instance))
-        return f"Add the required field {field}.{missing[0]} using the documented schema."
+        named = re.fullmatch(r"'([^']+)' is a required property", error.message)
+        if named is not None and named.group(1) in missing:
+            missing = [named.group(1)]
+        names = ", ".join(f"{field}.{name}" for name in missing)
+        label = "field" if len(missing) == 1 else "fields"
+        return f"Add the required {label} {names} using the documented schema."
     if error.validator == "additionalProperties":
         return "Remove the unknown field or use a supported schema version that defines it."
     if error.validator == "type":
         return f"Set {field} to a value of type {error.validator_value}."
     if error.validator in {"minItems", "minLength"}:
         return f"Set {field} to a non-empty value."
+    if error.validator == "pattern":
+        return f"Set {field} to a value containing at least one non-whitespace character."
     if error.validator == "uniqueItems":
         return f"Remove duplicate values from {field}."
     if error.validator == "enum":
