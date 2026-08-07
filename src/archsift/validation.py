@@ -55,6 +55,63 @@ class TaskBoundary:
     exclusions: tuple[str, ...]
 
 
+@dataclass(frozen=True, slots=True)
+class EvidencedStatement:
+    """One problem-value statement linked to classified evidence."""
+
+    statement: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProblemOutcome:
+    """A measurable desired outcome and the baseline it changes."""
+
+    id: str
+    description: str
+    measure: str
+    target: str
+    baseline_id: str
+    binding: bool
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProblemBaseline:
+    """A current-state measurement used by desired outcomes."""
+
+    id: str
+    description: str
+    measure: str
+    value: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProblemConstraint:
+    """A candidate test whose binding state is explicit."""
+
+    id: str
+    description: str
+    test: str
+    required_result: str
+    binding: bool
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProblemValue:
+    """The business-value contract that precedes architecture selection."""
+
+    outcomes: tuple[ProblemOutcome, ...]
+    baselines: tuple[ProblemBaseline, ...]
+    constraints: tuple[ProblemConstraint, ...]
+    affected_volume: EvidencedStatement
+    material_pain: EvidencedStatement
+    error_cost: EvidencedStatement
+    technology_limitation: EvidencedStatement
+
+
 class EvidenceKind(StrEnum):
     """Supported evidence states."""
 
@@ -127,6 +184,26 @@ class Dossier:
     case: CaseIdentity
     evidence: tuple[Evidence, ...] = ()
     task: TaskBoundary | None = None
+    problem_value: ProblemValue | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PrerequisiteFinding:
+    """One unmet, non-scoring prerequisite for a later assessment."""
+
+    id: str
+    field: str
+    requirement: str
+    message: str
+    remediation: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProblemValueReadiness:
+    """Deterministic advisory readiness for FR-005."""
+
+    ready: bool
+    findings: tuple[PrerequisiteFinding, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +336,8 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-004"
     elif base_field.startswith("$.task"):
         requirement = "FR-003"
+    elif base_field.startswith("$.problem_value"):
+        requirement = "FR-005"
     else:
         requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
@@ -328,6 +407,117 @@ def _duplicate_task_action_diagnostics(task: Mapping[str, Any] | None) -> tuple[
     return tuple(diagnostics)
 
 
+def _problem_value_semantic_diagnostics(
+    problem: Mapping[str, Any] | None,
+    evidence: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    if problem is None:
+        return ()
+
+    diagnostics: list[Diagnostic] = []
+    outcomes = cast(Sequence[Mapping[str, Any]], problem["outcomes"])
+    baselines = cast(Sequence[Mapping[str, Any]], problem["baselines"])
+    constraints = cast(Sequence[Mapping[str, Any]], problem["constraints"])
+
+    first_criterion: dict[str, str] = {}
+    for collection, entries in (("outcomes", outcomes), ("constraints", constraints)):
+        for index, entry in enumerate(entries):
+            identifier = cast(str, entry["id"])
+            path = f"$.problem_value.{collection}[{index}].id"
+            first = first_criterion.setdefault(identifier, path)
+            if first != path:
+                diagnostics.append(
+                    _diagnostic(
+                        "duplicate-problem-criterion-id",
+                        f"Problem criterion ID {identifier!r} duplicates {first}.",
+                        path,
+                        "FR-005",
+                        "Give every outcome and constraint a unique stable ID.",
+                    )
+                )
+
+    first_baseline: dict[str, str] = {}
+    for index, baseline in enumerate(baselines):
+        identifier = cast(str, baseline["id"])
+        path = f"$.problem_value.baselines[{index}].id"
+        first = first_baseline.setdefault(identifier, path)
+        if first != path:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-problem-baseline-id",
+                    f"Problem baseline ID {identifier!r} duplicates {first}.",
+                    path,
+                    "FR-005",
+                    "Give every baseline a unique stable ID and update outcome references.",
+                )
+            )
+
+    baseline_ids = set(first_baseline)
+    for index, outcome in enumerate(outcomes):
+        baseline_id = cast(str, outcome["baseline_id"])
+        if baseline_id not in baseline_ids:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-problem-baseline-reference",
+                    f"Baseline ID {baseline_id!r} does not exist in problem_value.baselines.",
+                    f"$.problem_value.outcomes[{index}].baseline_id",
+                    "FR-005",
+                    "Add the referenced baseline or use an existing baseline ID.",
+                )
+            )
+
+    references: list[tuple[str, str]] = []
+    for collection, entries in (
+        ("outcomes", outcomes),
+        ("baselines", baselines),
+        ("constraints", constraints),
+    ):
+        for entry_index, entry in enumerate(entries):
+            for reference_index, identifier in enumerate(
+                cast(Sequence[str], entry["evidence_ids"])
+            ):
+                references.append(
+                    (
+                        f"$.problem_value.{collection}[{entry_index}].evidence_ids[{reference_index}]",
+                        identifier,
+                    )
+                )
+    for name in ("affected_volume", "material_pain", "error_cost", "technology_limitation"):
+        statement = cast(Mapping[str, Any], problem[name])
+        for reference_index, identifier in enumerate(
+            cast(Sequence[str], statement["evidence_ids"])
+        ):
+            references.append(
+                (f"$.problem_value.{name}.evidence_ids[{reference_index}]", identifier)
+            )
+
+    evidence_by_id = {cast(str, entry["id"]): entry for entry in evidence}
+    for path, identifier in references:
+        referenced_entry = evidence_by_id.get(identifier)
+        if referenced_entry is None:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-problem-value-evidence-reference",
+                    f"Evidence ID {identifier!r} does not exist in the evidence ledger.",
+                    path,
+                    "FR-005",
+                    "Add the evidence entry or use an existing evidence ID.",
+                )
+            )
+        elif "problem-value" not in cast(Sequence[str], referenced_entry["affects"]):
+            diagnostics.append(
+                _diagnostic(
+                    "problem-value-evidence-area-mismatch",
+                    f"Evidence ID {identifier!r} is not classified for problem-value.",
+                    path,
+                    "FR-005",
+                    "Add problem-value to that evidence entry's affects list or cite "
+                    "relevant evidence.",
+                )
+            )
+    return tuple(diagnostics)
+
+
 def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
     if task is None:
         return None
@@ -350,6 +540,61 @@ def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
         information_read=tuple(cast(Sequence[str], task["information_read"])),
         actions=actions,
         exclusions=tuple(cast(Sequence[str], task["exclusions"])),
+    )
+
+
+def _typed_problem_value(problem: Mapping[str, Any] | None) -> ProblemValue | None:
+    if problem is None:
+        return None
+
+    def statement(name: str) -> EvidencedStatement:
+        raw = cast(Mapping[str, Any], problem[name])
+        return EvidencedStatement(
+            statement=cast(str, raw["statement"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+
+    outcomes = tuple(
+        ProblemOutcome(
+            id=cast(str, raw["id"]),
+            description=cast(str, raw["description"]),
+            measure=cast(str, raw["measure"]),
+            target=cast(str, raw["target"]),
+            baseline_id=cast(str, raw["baseline_id"]),
+            binding=cast(bool, raw["binding"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], problem["outcomes"])
+    )
+    baselines = tuple(
+        ProblemBaseline(
+            id=cast(str, raw["id"]),
+            description=cast(str, raw["description"]),
+            measure=cast(str, raw["measure"]),
+            value=cast(str, raw["value"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], problem["baselines"])
+    )
+    constraints = tuple(
+        ProblemConstraint(
+            id=cast(str, raw["id"]),
+            description=cast(str, raw["description"]),
+            test=cast(str, raw["test"]),
+            required_result=cast(str, raw["required_result"]),
+            binding=cast(bool, raw["binding"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], problem["constraints"])
+    )
+    return ProblemValue(
+        outcomes=outcomes,
+        baselines=baselines,
+        constraints=constraints,
+        affected_volume=statement("affected_volume"),
+        material_pain=statement("material_pain"),
+        error_cost=statement("error_cost"),
+        technology_limitation=statement("technology_limitation"),
     )
 
 
@@ -403,6 +648,73 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                 )
             )
     return tuple(typed)
+
+
+def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
+    """Evaluate FR-005 prerequisites without selecting or scoring an architecture."""
+    problem = dossier.problem_value
+    if problem is None:
+        return ProblemValueReadiness(
+            False,
+            (
+                PrerequisiteFinding(
+                    "problem-value-missing",
+                    "$.problem_value",
+                    "FR-005",
+                    "The dossier does not define its problem-value contract.",
+                    "Add measurable outcomes, baselines, constraints, and the four required "
+                    "statements.",
+                ),
+            ),
+        )
+
+    findings: list[PrerequisiteFinding] = []
+    binding_outcomes = [
+        (index, outcome) for index, outcome in enumerate(problem.outcomes) if outcome.binding
+    ]
+    if not binding_outcomes:
+        findings.append(
+            PrerequisiteFinding(
+                "binding-outcome-missing",
+                "$.problem_value.outcomes",
+                "FR-005",
+                "No measurable outcome is marked as binding.",
+                "Mark at least one required outcome as binding or add one.",
+            )
+        )
+
+    baselines = {baseline.id: baseline for baseline in problem.baselines}
+    evidence = {entry.id: entry for entry in dossier.evidence}
+    for index, outcome in binding_outcomes:
+        baseline = baselines.get(outcome.baseline_id)
+        if baseline is None:
+            findings.append(
+                PrerequisiteFinding(
+                    "baseline-reference-unresolved",
+                    f"$.problem_value.outcomes[{index}].baseline_id",
+                    "FR-005",
+                    f"Binding outcome {outcome.id!r} has no resolved baseline.",
+                    "Validate the dossier and reference an existing baseline.",
+                )
+            )
+            continue
+        credible = any(
+            isinstance(evidence.get(identifier), (ObservedEvidence, EstimateEvidence))
+            for identifier in baseline.evidence_ids
+        )
+        if not credible:
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-baseline-missing",
+                    f"$.problem_value.outcomes[{index}].baseline_id",
+                    "FR-005",
+                    f"Binding outcome {outcome.id!r} uses baseline {baseline.id!r} without "
+                    "observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate from that "
+                    "baseline.",
+                )
+            )
+    return ProblemValueReadiness(not findings, tuple(findings))
 
 
 def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
@@ -595,10 +907,12 @@ def validate_workspace(workspace: Path) -> ValidationResult:
 
     raw_evidence = cast(Sequence[Mapping[str, Any]], loaded.get("evidence", ()))
     raw_task = cast(Mapping[str, Any] | None, loaded.get("task"))
+    raw_problem_value = cast(Mapping[str, Any] | None, loaded.get("problem_value"))
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
             *_duplicate_task_action_diagnostics(raw_task),
+            *_problem_value_semantic_diagnostics(raw_problem_value, raw_evidence),
         ),
         key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
     )
@@ -615,5 +929,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         case=CaseIdentity(id=str(case["id"]), title=str(case["title"])),
         evidence=_typed_evidence(raw_evidence),
         task=_typed_task(raw_task),
+        problem_value=_typed_problem_value(raw_problem_value),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)

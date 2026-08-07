@@ -11,7 +11,11 @@ from typing import NoReturn, TextIO
 
 from archsift import package_version
 from archsift.diagnostics import Diagnostic, ExitCode
-from archsift.validation import ValidationResult, validate_workspace
+from archsift.validation import (
+    ValidationResult,
+    evaluate_problem_value_readiness,
+    validate_workspace,
+)
 from archsift.workspace import InitResult, initialize_workspace
 
 
@@ -148,6 +152,14 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
             len(result.dossier.task.actions) if result.dossier.task is not None else 0
         )
         details["evidence_count"] = len(result.dossier.evidence)
+        problem_value = result.dossier.problem_value
+        readiness = evaluate_problem_value_readiness(result.dossier)
+        details["problem_value_defined"] = problem_value is not None
+        details["outcome_count"] = len(problem_value.outcomes) if problem_value is not None else 0
+        details["constraint_count"] = (
+            len(problem_value.constraints) if problem_value is not None else 0
+        )
+        details["problem_value_ready"] = readiness.ready
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None
     _emit(

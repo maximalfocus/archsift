@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
   "title": "ArchSift dossier version 1",
-  "description": "Case identity, operational task boundary, and typed evidence ledger for an architecture decision.",
+  "description": "Case identity, task boundary, problem-value contract, and typed evidence ledger for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -38,6 +38,10 @@
     "task": {
       "description": "Operational task and action boundary under architecture review.",
       "$ref": "#/$defs/taskBoundary"
+    },
+    "problem_value": {
+      "description": "Business-value prerequisites for later architecture assessment.",
+      "$ref": "#/$defs/problemValue"
     },
     "evidence": {
       "description": "Material claims classified by evidence state.",
@@ -172,6 +176,113 @@
           "pattern": "\\S"
         }
       }
+    },
+    "problemValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcomes",
+        "baselines",
+        "constraints",
+        "affected_volume",
+        "material_pain",
+        "error_cost",
+        "technology_limitation"
+      ],
+      "properties": {
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/problemOutcome" }
+        },
+        "baselines": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/problemBaseline" }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/problemConstraint" }
+        },
+        "affected_volume": { "$ref": "#/$defs/evidencedStatement" },
+        "material_pain": { "$ref": "#/$defs/evidencedStatement" },
+        "error_cost": { "$ref": "#/$defs/evidencedStatement" },
+        "technology_limitation": { "$ref": "#/$defs/evidencedStatement" }
+      }
+    },
+    "problemOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "measure",
+        "target",
+        "baseline_id",
+        "binding",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "measure": { "$ref": "#/$defs/nonBlankString" },
+        "target": { "$ref": "#/$defs/nonBlankString" },
+        "baseline_id": { "$ref": "#/$defs/nonBlankString" },
+        "binding": { "type": "boolean" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "problemBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "measure", "value", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "measure": { "$ref": "#/$defs/nonBlankString" },
+        "value": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "problemConstraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "test",
+        "required_result",
+        "binding",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "test": { "$ref": "#/$defs/nonBlankString" },
+        "required_result": { "$ref": "#/$defs/nonBlankString" },
+        "binding": { "type": "boolean" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "evidencedStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "evidence_ids"],
+      "properties": {
+        "statement": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "evidenceIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonBlankString" }
+    },
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
     },
     "decisionArea": {
       "type": "string",

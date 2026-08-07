@@ -29,7 +29,7 @@ archsift validate my-case
 archsift validate my-case --json
 ```
 
-`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures an optional operational task boundary and distinguishes observations, assumptions, estimates, and known gaps without opening task or provenance metadata. `validate` safely checks the versioned dossier and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. See the [stable exit-code contract](docs/exit-codes.md).
+`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task and problem-value boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic problem-value readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. See the [stable exit-code contract](docs/exit-codes.md).
 
 No network service, model API, or telemetry is used by the current CLI.
 
