@@ -21,8 +21,14 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert yaml.safe_load((target / "case.yaml").read_text()) == {
         "schema_version": 1,
         "case": {"id": "my-first-case", "title": "My First Case"},
+        "evidence": [],
     }
-    assert (target / "README.md").read_text().startswith("# ArchSift case workspace\n")
+    guidance = (target / "README.md").read_text()
+    assert guidance.startswith("# ArchSift case workspace\n")
+    assert "kind: observed" in guidance
+    assert "kind: assumption" in guidance
+    assert "kind: estimate" in guidance
+    assert "kind: missing" in guidance
     assert (target / "evidence").is_dir()
     assert (target / "output").is_dir()
 

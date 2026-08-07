@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
-  "title": "ArchSift dossier envelope version 1",
-  "description": "Minimal case identity envelope used before decision-specific sections are introduced.",
+  "title": "ArchSift dossier version 1",
+  "description": "Case identity and typed evidence ledger for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -34,6 +34,197 @@
           "minLength": 1
         }
       }
+    },
+    "evidence": {
+      "description": "Material claims classified by evidence state.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceEntry"
+      }
+    }
+  },
+  "$defs": {
+    "decisionArea": {
+      "type": "string",
+      "enum": [
+        "problem-value",
+        "agency-necessity",
+        "autonomy-permission",
+        "comparative-fit"
+      ]
+    },
+    "evidenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "claim",
+        "owner",
+        "affects"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable identifier used by decision findings.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "assumption",
+            "estimate",
+            "missing"
+          ]
+        },
+        "claim": {
+          "description": "The material fact, belief, forecast, or known gap.",
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "description": "Person or role accountable for this entry.",
+          "type": "string",
+          "minLength": 1
+        },
+        "affects": {
+          "description": "Decision areas affected by this entry.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/decisionArea"
+          }
+        },
+        "provenance": {
+          "description": "Named artefact or measurement supporting an observation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "description": "Observation or retrieval date.",
+          "type": "string",
+          "format": "date"
+        },
+        "falsified_by": {
+          "description": "Observation that would disprove the assumption.",
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "description": "Method used to produce the estimate.",
+          "type": "string",
+          "minLength": 1
+        },
+        "resolved_by": {
+          "description": "Observation that would resolve the evidence gap.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "observed"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "provenance",
+              "observed_at"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["falsified_by"] },
+                { "required": ["method"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "assumption"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "falsified_by"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["method"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "estimate"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "method"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["falsified_by"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "missing"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "resolved_by"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["falsified_by"] },
+                { "required": ["method"] }
+              ]
+            }
+          }
+        }
+      ]
     }
   }
 }
