@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://archsift.dev/schemas/dossier-v1.schema.json",
   "title": "ArchSift dossier version 1",
-  "description": "Case identity, task boundary, problem-value contract, and typed evidence ledger for an architecture decision.",
+  "description": "Case identity, task, problem-value, agency-necessity, and evidence contracts for an architecture decision.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -42,6 +42,10 @@
     "problem_value": {
       "description": "Business-value prerequisites for later architecture assessment.",
       "$ref": "#/$defs/problemValue"
+    },
+    "agency_necessity": {
+      "description": "Evidence-backed facts needed to judge runtime model-directed control.",
+      "$ref": "#/$defs/agencyNecessity"
     },
     "evidence": {
       "description": "Material claims classified by evidence state.",
@@ -283,6 +287,89 @@
       "type": "string",
       "minLength": 1,
       "pattern": "\\S"
+    },
+    "agencyNecessity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_steps_predefinable",
+        "step_count_or_order_predictable",
+        "runtime_tool_choice_required",
+        "runtime_replanning_required",
+        "environmental_feedback_available",
+        "completion_independently_verifiable",
+        "effects_independently_verifiable",
+        "fixed_workflow_sufficient",
+        "residual_cases"
+      ],
+      "properties": {
+        "execution_steps_predefinable": { "$ref": "#/$defs/agencyQuestion" },
+        "step_count_or_order_predictable": { "$ref": "#/$defs/agencyQuestion" },
+        "runtime_tool_choice_required": { "$ref": "#/$defs/agencyQuestion" },
+        "runtime_replanning_required": { "$ref": "#/$defs/agencyQuestion" },
+        "environmental_feedback_available": { "$ref": "#/$defs/agencyQuestion" },
+        "completion_independently_verifiable": { "$ref": "#/$defs/agencyQuestion" },
+        "effects_independently_verifiable": { "$ref": "#/$defs/agencyQuestion" },
+        "fixed_workflow_sufficient": { "$ref": "#/$defs/agencyQuestion" },
+        "residual_cases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/residualCase" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "fixed_workflow_sufficient": {
+                "properties": { "answer": { "const": "no" } },
+                "required": ["answer"]
+              }
+            },
+            "required": ["fixed_workflow_sufficient"]
+          },
+          "then": {
+            "properties": { "residual_cases": { "minItems": 1 } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "fixed_workflow_sufficient": {
+                "properties": { "answer": { "const": "yes" } },
+                "required": ["answer"]
+              }
+            },
+            "required": ["fixed_workflow_sufficient"]
+          },
+          "then": {
+            "properties": { "residual_cases": { "maxItems": 0 } }
+          }
+        }
+      ]
+    },
+    "agencyQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "rationale", "evidence_ids"],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "enum": ["yes", "no", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "residualCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "fixed_workflow_failure", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "fixed_workflow_failure": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
     },
     "decisionArea": {
       "type": "string",

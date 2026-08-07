@@ -87,6 +87,12 @@ jobs:
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           subprocess.run([python, "-m", "archsift", "validate", case], check=True)
+          agency_yes = {
+              "answer": "yes",
+              "rationale": "A sanitised evidence-backed answer.",
+              "evidence_ids": ["agency-estimate"],
+          }
+          agency_no = {**agency_yes, "answer": "no"}
           dossier = {
               "schema_version": 1,
               "case": {"id": "installed", "title": "Installed wheel smoke"},
@@ -98,6 +104,13 @@ jobs:
                   "affects": ["problem-value"],
                   "provenance": "sanitised measurement",
                   "observed_at": "2026-08-07",
+              }, {
+                  "id": "agency-estimate",
+                  "kind": "estimate",
+                  "claim": "A fixed workflow handles the bounded smoke case.",
+                  "owner": "Engineering lead",
+                  "affects": ["agency-necessity"],
+                  "method": "Sanitised installed-wheel smoke fixture.",
               }],
               "problem_value": {
                   "outcomes": [{
@@ -122,6 +135,17 @@ jobs:
                   "error_cost": {"statement": "Rework cost.", "evidence_ids": ["baseline"]},
                   "technology_limitation": {"statement": "Search delay.", "evidence_ids": ["baseline"]},
               },
+              "agency_necessity": {
+                  "execution_steps_predefinable": agency_yes,
+                  "step_count_or_order_predictable": agency_yes,
+                  "runtime_tool_choice_required": agency_no,
+                  "runtime_replanning_required": agency_no,
+                  "environmental_feedback_available": agency_yes,
+                  "completion_independently_verifiable": agency_yes,
+                  "effects_independently_verifiable": agency_yes,
+                  "fixed_workflow_sufficient": agency_yes,
+                  "residual_cases": [],
+              },
           }
           (case / "case.yaml").write_text(json.dumps(dossier), encoding="utf-8")
           completed = subprocess.run(
@@ -134,3 +158,6 @@ jobs:
           assert payload["problem_value_defined"] is True
           assert payload["problem_value_ready"] is True
           assert payload["outcome_count"] == 1
+          assert payload["agency_necessity_defined"] is True
+          assert payload["agency_necessity_ready"] is True
+          assert payload["residual_case_count"] == 0

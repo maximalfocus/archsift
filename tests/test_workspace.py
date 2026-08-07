@@ -35,6 +35,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "problem_value:" in guidance
     assert "baseline_id:" in guidance
     assert "technology_limitation:" in guidance
+    assert "agency_necessity:" in guidance
+    assert "fixed_workflow_sufficient:" in guidance
+    assert "residual_cases:" in guidance
     assert (target / "evidence").is_dir()
     assert (target / "output").is_dir()
 
