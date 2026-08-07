@@ -554,6 +554,22 @@ def test_text_is_inert_and_does_not_open_named_paths(tmp_path: Path) -> None:
     assert not outside.exists()
 
 
+def test_unknown_autonomy_field_cannot_emit_terminal_controls(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    autonomy = _autonomy()
+    autonomy["unsafe\x1b[31m\u202e"] = True
+    _write_case(workspace, _dossier(autonomy=autonomy))
+
+    assert main(["validate", str(workspace)]) == ExitCode.VALIDATION_FAILED
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "\x1b" not in captured.err
+    assert "\u202e" not in captured.err
+    assert "\\x1b[31m\\u202e" in captured.err
+
+
 def test_json_reports_readiness_without_permission_conclusion(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
