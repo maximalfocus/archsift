@@ -112,6 +112,48 @@ class ProblemValue:
     technology_limitation: EvidencedStatement
 
 
+class AgencyAnswer(StrEnum):
+    """Explicit answer state for one agency-necessity question."""
+
+    YES = "yes"
+    NO = "no"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class AgencyQuestion:
+    """One evidence-backed fact used by later agency rules."""
+
+    answer: AgencyAnswer
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ResidualCase:
+    """A case that a fixed workflow is asserted not to handle."""
+
+    id: str
+    description: str
+    fixed_workflow_failure: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AgencyNecessity:
+    """Facts needed to evaluate runtime model-directed control."""
+
+    execution_steps_predefinable: AgencyQuestion
+    step_count_or_order_predictable: AgencyQuestion
+    runtime_tool_choice_required: AgencyQuestion
+    runtime_replanning_required: AgencyQuestion
+    environmental_feedback_available: AgencyQuestion
+    completion_independently_verifiable: AgencyQuestion
+    effects_independently_verifiable: AgencyQuestion
+    fixed_workflow_sufficient: AgencyQuestion
+    residual_cases: tuple[ResidualCase, ...]
+
+
 class EvidenceKind(StrEnum):
     """Supported evidence states."""
 
@@ -185,6 +227,7 @@ class Dossier:
     evidence: tuple[Evidence, ...] = ()
     task: TaskBoundary | None = None
     problem_value: ProblemValue | None = None
+    agency_necessity: AgencyNecessity | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +250,14 @@ class ProblemValueReadiness:
 
 
 @dataclass(frozen=True, slots=True)
+class AgencyNecessityReadiness:
+    """Deterministic advisory readiness for FR-006."""
+
+    ready: bool
+    findings: tuple[PrerequisiteFinding, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ValidationResult:
     """Typed validation result, independent of terminal rendering."""
 
@@ -216,6 +267,16 @@ class ValidationResult:
 
 
 _SCHEMA_RESOURCE = "schemas/dossier-v1.schema.json"
+_AGENCY_QUESTION_FIELDS = (
+    "execution_steps_predefinable",
+    "step_count_or_order_predictable",
+    "runtime_tool_choice_required",
+    "runtime_replanning_required",
+    "environmental_feedback_available",
+    "completion_independently_verifiable",
+    "effects_independently_verifiable",
+    "fixed_workflow_sufficient",
+)
 
 
 class _DossierLoader(yaml.SafeLoader):
@@ -315,6 +376,8 @@ def _remediation(error: ValidationError, field: str) -> str:
         return f"Set {field} to a value of type {error.validator_value}."
     if error.validator in {"minItems", "minLength"}:
         return f"Set {field} to a non-empty value."
+    if error.validator == "maxItems" and error.validator_value == 0:
+        return f"Set {field} to an empty array."
     if error.validator == "pattern":
         return f"Set {field} to a value containing at least one non-whitespace character."
     if error.validator == "uniqueItems":
@@ -338,6 +401,8 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-003"
     elif base_field.startswith("$.problem_value"):
         requirement = "FR-005"
+    elif base_field.startswith("$.agency_necessity"):
+        requirement = "FR-006"
     else:
         requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
@@ -524,6 +589,75 @@ def _problem_value_semantic_diagnostics(
     return tuple(diagnostics)
 
 
+def _agency_necessity_semantic_diagnostics(
+    agency: Mapping[str, Any] | None,
+    evidence: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    if agency is None:
+        return ()
+
+    diagnostics: list[Diagnostic] = []
+    residual_cases = cast(Sequence[Mapping[str, Any]], agency["residual_cases"])
+    first_by_id: dict[str, int] = {}
+    for index, residual in enumerate(residual_cases):
+        identifier = cast(str, residual["id"])
+        first = first_by_id.setdefault(identifier, index)
+        if first != index:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-residual-case-id",
+                    f"Residual case ID {identifier!r} duplicates the case at "
+                    f"$.agency_necessity.residual_cases[{first}].id.",
+                    f"$.agency_necessity.residual_cases[{index}].id",
+                    "FR-006",
+                    "Give every residual case a unique stable ID.",
+                )
+            )
+
+    references: list[tuple[str, str]] = []
+    for name in _AGENCY_QUESTION_FIELDS:
+        question = cast(Mapping[str, Any], agency[name])
+        for reference_index, identifier in enumerate(cast(Sequence[str], question["evidence_ids"])):
+            references.append(
+                (f"$.agency_necessity.{name}.evidence_ids[{reference_index}]", identifier)
+            )
+    for case_index, residual in enumerate(residual_cases):
+        for reference_index, identifier in enumerate(cast(Sequence[str], residual["evidence_ids"])):
+            references.append(
+                (
+                    f"$.agency_necessity.residual_cases[{case_index}]."
+                    f"evidence_ids[{reference_index}]",
+                    identifier,
+                )
+            )
+
+    evidence_by_id = {cast(str, entry["id"]): entry for entry in evidence}
+    for path, identifier in references:
+        referenced_entry = evidence_by_id.get(identifier)
+        if referenced_entry is None:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-agency-evidence-reference",
+                    f"Evidence ID {identifier!r} does not exist in the evidence ledger.",
+                    path,
+                    "FR-006",
+                    "Add the evidence entry or use an existing evidence ID.",
+                )
+            )
+        elif "agency-necessity" not in cast(Sequence[str], referenced_entry["affects"]):
+            diagnostics.append(
+                _diagnostic(
+                    "agency-evidence-area-mismatch",
+                    f"Evidence ID {identifier!r} is not classified for agency-necessity.",
+                    path,
+                    "FR-006",
+                    "Add agency-necessity to that evidence entry's affects list or cite "
+                    "relevant evidence.",
+                )
+            )
+    return tuple(diagnostics)
+
+
 def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
     if task is None:
         return None
@@ -604,6 +738,40 @@ def _typed_problem_value(problem: Mapping[str, Any] | None) -> ProblemValue | No
     )
 
 
+def _typed_agency_necessity(agency: Mapping[str, Any] | None) -> AgencyNecessity | None:
+    if agency is None:
+        return None
+
+    def question(name: str) -> AgencyQuestion:
+        raw = cast(Mapping[str, Any], agency[name])
+        return AgencyQuestion(
+            answer=AgencyAnswer(cast(str, raw["answer"])),
+            rationale=cast(str, raw["rationale"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+
+    residual_cases = tuple(
+        ResidualCase(
+            id=cast(str, raw["id"]),
+            description=cast(str, raw["description"]),
+            fixed_workflow_failure=cast(str, raw["fixed_workflow_failure"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in cast(Sequence[Mapping[str, Any]], agency["residual_cases"])
+    )
+    return AgencyNecessity(
+        execution_steps_predefinable=question("execution_steps_predefinable"),
+        step_count_or_order_predictable=question("step_count_or_order_predictable"),
+        runtime_tool_choice_required=question("runtime_tool_choice_required"),
+        runtime_replanning_required=question("runtime_replanning_required"),
+        environmental_feedback_available=question("environmental_feedback_available"),
+        completion_independently_verifiable=question("completion_independently_verifiable"),
+        effects_independently_verifiable=question("effects_independently_verifiable"),
+        fixed_workflow_sufficient=question("fixed_workflow_sufficient"),
+        residual_cases=residual_cases,
+    )
+
+
 def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...]:
     typed: list[Evidence] = []
     for entry in entries:
@@ -656,6 +824,12 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
     return tuple(typed)
 
 
+def _is_credible_support(entry: Evidence | None) -> bool:
+    return (isinstance(entry, ObservedEvidence) and bool(entry.provenance.strip())) or (
+        isinstance(entry, EstimateEvidence) and bool(entry.method.strip())
+    )
+
+
 def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
     """Evaluate FR-005 prerequisites without selecting or scoring an architecture."""
     problem = dossier.problem_value
@@ -705,12 +879,7 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
             )
             continue
         credible = any(
-            (
-                isinstance(entry := evidence.get(identifier), ObservedEvidence)
-                and bool(entry.provenance.strip())
-            )
-            or (isinstance(entry, EstimateEvidence) and bool(entry.method.strip()))
-            for identifier in baseline.evidence_ids
+            _is_credible_support(evidence.get(identifier)) for identifier in baseline.evidence_ids
         )
         if not credible:
             findings.append(
@@ -725,6 +894,66 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
                 )
             )
     return ProblemValueReadiness(not findings, tuple(findings))
+
+
+def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityReadiness:
+    """Evaluate FR-006 fact readiness without deciding whether agency is necessary."""
+    agency = dossier.agency_necessity
+    if agency is None:
+        return AgencyNecessityReadiness(
+            False,
+            (
+                PrerequisiteFinding(
+                    "agency-necessity-missing",
+                    "$.agency_necessity",
+                    "FR-006",
+                    "The dossier does not define its agency-necessity facts.",
+                    "Answer all eight agency questions and record residual cases explicitly.",
+                ),
+            ),
+        )
+
+    findings: list[PrerequisiteFinding] = []
+    evidence = {entry.id: entry for entry in dossier.evidence}
+    for name in _AGENCY_QUESTION_FIELDS:
+        question = cast(AgencyQuestion, getattr(agency, name))
+        if question.answer is AgencyAnswer.UNKNOWN:
+            findings.append(
+                PrerequisiteFinding(
+                    "agency-answer-unknown",
+                    f"$.agency_necessity.{name}.answer",
+                    "FR-006",
+                    f"Agency question {name!r} is unanswered.",
+                    "Replace unknown with yes or no when the evidence supports an answer.",
+                )
+            )
+        if not any(
+            _is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
+        ):
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-agency-evidence-missing",
+                    f"$.agency_necessity.{name}.evidence_ids",
+                    "FR-006",
+                    f"Agency question {name!r} lacks observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate.",
+                )
+            )
+
+    for index, residual in enumerate(agency.residual_cases):
+        if not any(
+            _is_credible_support(evidence.get(identifier)) for identifier in residual.evidence_ids
+        ):
+            findings.append(
+                PrerequisiteFinding(
+                    "credible-residual-case-evidence-missing",
+                    f"$.agency_necessity.residual_cases[{index}].evidence_ids",
+                    "FR-006",
+                    f"Residual case {residual.id!r} lacks observed or estimated support.",
+                    "Cite at least one observed entry or method-backed estimate.",
+                )
+            )
+    return AgencyNecessityReadiness(not findings, tuple(findings))
 
 
 def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:
@@ -918,11 +1147,13 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     raw_evidence = cast(Sequence[Mapping[str, Any]], loaded.get("evidence", ()))
     raw_task = cast(Mapping[str, Any] | None, loaded.get("task"))
     raw_problem_value = cast(Mapping[str, Any] | None, loaded.get("problem_value"))
+    raw_agency_necessity = cast(Mapping[str, Any] | None, loaded.get("agency_necessity"))
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
             *_duplicate_task_action_diagnostics(raw_task),
             *_problem_value_semantic_diagnostics(raw_problem_value, raw_evidence),
+            *_agency_necessity_semantic_diagnostics(raw_agency_necessity, raw_evidence),
         ),
         key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
     )
@@ -940,5 +1171,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         evidence=_typed_evidence(raw_evidence),
         task=_typed_task(raw_task),
         problem_value=_typed_problem_value(raw_problem_value),
+        agency_necessity=_typed_agency_necessity(raw_agency_necessity),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)

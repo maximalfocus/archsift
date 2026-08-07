@@ -13,6 +13,7 @@ from archsift import package_version
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.validation import (
     ValidationResult,
+    evaluate_agency_necessity_readiness,
     evaluate_problem_value_readiness,
     validate_workspace,
 )
@@ -160,6 +161,13 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
             len(problem_value.constraints) if problem_value is not None else 0
         )
         details["problem_value_ready"] = readiness.ready
+        agency_necessity = result.dossier.agency_necessity
+        agency_readiness = evaluate_agency_necessity_readiness(result.dossier)
+        details["agency_necessity_defined"] = agency_necessity is not None
+        details["agency_necessity_ready"] = agency_readiness.ready
+        details["residual_case_count"] = (
+            len(agency_necessity.residual_cases) if agency_necessity is not None else 0
+        )
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None
     _emit(

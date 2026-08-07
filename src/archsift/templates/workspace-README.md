@@ -101,6 +101,49 @@ problem_value:
     evidence_ids: [volume-assumption]
 ```
 
+Record agency facts separately from any agency conclusion. Readiness means the questions have credible evidence; it does not mean runtime model-directed control is necessary. Documents, many steps, legacy systems, exceptions, or an LLM are not substitutes for these facts.
+
+```yaml
+agency_necessity:
+  execution_steps_predefinable:
+    answer: "no"
+    rationale: The next review step depends on the latest case evidence.
+    evidence_ids: [workflow-estimate]
+  step_count_or_order_predictable:
+    answer: "no"
+    rationale: The number and order of follow-up checks vary by case.
+    evidence_ids: [workflow-estimate]
+  runtime_tool_choice_required:
+    answer: "yes"
+    rationale: Different evidence gaps require different approved retrieval tools.
+    evidence_ids: [workflow-estimate]
+  runtime_replanning_required:
+    answer: "yes"
+    rationale: New evidence can invalidate the current review plan.
+    evidence_ids: [workflow-estimate]
+  environmental_feedback_available:
+    answer: "yes"
+    rationale: Each approved tool returns a typed success or failure result.
+    evidence_ids: [workflow-estimate]
+  completion_independently_verifiable:
+    answer: "yes"
+    rationale: Required checks and a draft disposition can be verified separately.
+    evidence_ids: [workflow-estimate]
+  effects_independently_verifiable:
+    answer: "yes"
+    rationale: No external release occurs inside the bounded task.
+    evidence_ids: [workflow-estimate]
+  fixed_workflow_sufficient:
+    answer: "no"
+    rationale: A fixed path cannot choose the next check for the residual case.
+    evidence_ids: [workflow-estimate]
+  residual_cases:
+    - id: evidence-dependent-follow-up
+      description: A submitted record introduces an unanticipated evidence gap.
+      fixed_workflow_failure: The next approved retrieval step cannot be selected in advance.
+      evidence_ids: [workflow-estimate]
+```
+
 Validate the dossier from this directory with:
 
 ```bash

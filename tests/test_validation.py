@@ -15,6 +15,9 @@ from jsonschema import Draft202012Validator
 from archsift.cli import main
 from archsift.diagnostics import ExitCode
 from archsift.validation import (
+    AgencyAnswer,
+    AgencyNecessity,
+    AgencyQuestion,
     AssumptionEvidence,
     DecisionArea,
     EstimateEvidence,
@@ -25,8 +28,10 @@ from archsift.validation import (
     ProblemConstraint,
     ProblemOutcome,
     ProblemValue,
+    ResidualCase,
     TaskAction,
     TaskBoundary,
+    evaluate_agency_necessity_readiness,
     evaluate_problem_value_readiness,
     validate_workspace,
 )
@@ -68,6 +73,48 @@ def _task() -> dict[str, object]:
         ],
         "exclusions": ["Changing policy", "Executing downstream enforcement"],
     }
+
+
+def _agency_question(
+    answer: str = "yes", evidence_id: str = "agency-observed"
+) -> dict[str, object]:
+    return {
+        "answer": answer,
+        "rationale": "A sanitised evidence-backed agency fact.",
+        "evidence_ids": [evidence_id],
+    }
+
+
+def _agency_necessity(fixed_workflow_answer: str = "no") -> dict[str, object]:
+    residual_cases: list[dict[str, object]] = []
+    if fixed_workflow_answer != "yes":
+        residual_cases.append(
+            {
+                "id": "evidence-dependent-follow-up",
+                "description": "An unanticipated evidence gap changes the next check.",
+                "fixed_workflow_failure": "The next approved retrieval step is not predefined.",
+                "evidence_ids": ["agency-observed"],
+            }
+        )
+    return {
+        "execution_steps_predefinable": _agency_question("no"),
+        "step_count_or_order_predictable": _agency_question("no"),
+        "runtime_tool_choice_required": _agency_question("yes"),
+        "runtime_replanning_required": _agency_question("yes"),
+        "environmental_feedback_available": _agency_question("yes"),
+        "completion_independently_verifiable": _agency_question("yes"),
+        "effects_independently_verifiable": _agency_question("yes"),
+        "fixed_workflow_sufficient": _agency_question(fixed_workflow_answer),
+        "residual_cases": residual_cases,
+    }
+
+
+def _agency_evidence(
+    kind: str = "observed", identifier: str = "agency-observed"
+) -> dict[str, object]:
+    entry = _entry(kind, identifier)
+    entry["affects"] = ["agency-necessity"]
+    return entry
 
 
 def _problem_value() -> dict[str, object]:
@@ -173,6 +220,7 @@ def test_packaged_schema_is_available() -> None:
     assert payload["properties"]["evidence"]["type"] == "array"
     assert payload["properties"]["task"]["$ref"] == "#/$defs/taskBoundary"
     assert payload["properties"]["problem_value"]["$ref"] == "#/$defs/problemValue"
+    assert payload["properties"]["agency_necessity"]["$ref"] == "#/$defs/agencyNecessity"
     assert payload["$defs"]["evidenceEntry"]["additionalProperties"] is False
     assert payload["$defs"]["taskBoundary"]["additionalProperties"] is False
     assert payload["$defs"]["taskAction"]["additionalProperties"] is False
@@ -180,6 +228,9 @@ def test_packaged_schema_is_available() -> None:
     assert payload["$defs"]["problemOutcome"]["additionalProperties"] is False
     assert payload["$defs"]["problemBaseline"]["additionalProperties"] is False
     assert payload["$defs"]["problemConstraint"]["additionalProperties"] is False
+    assert payload["$defs"]["agencyNecessity"]["additionalProperties"] is False
+    assert payload["$defs"]["agencyQuestion"]["additionalProperties"] is False
+    assert payload["$defs"]["residualCase"]["additionalProperties"] is False
 
 
 def test_generated_workspace_validates(tmp_path: Path) -> None:
@@ -194,6 +245,7 @@ def test_generated_workspace_validates(tmp_path: Path) -> None:
     assert result.dossier.case.id == "case"
     assert result.dossier.evidence == ()
     assert result.dossier.task is None
+    assert result.dossier.agency_necessity is None
 
 
 def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
@@ -206,6 +258,7 @@ def test_minimal_version_one_dossier_remains_valid(tmp_path: Path) -> None:
     assert result.dossier is not None
     assert result.dossier.evidence == ()
     assert result.dossier.task is None
+    assert result.dossier.agency_necessity is None
 
 
 @pytest.mark.parametrize("kind", ["observed", "assumption", "estimate", "missing"])
@@ -1194,14 +1247,17 @@ def test_validate_success_json_reports_evidence_count(
     assert captured.err == ""
     assert json.loads(captured.out) == {
         "action_count": 0,
-        "diagnostics": [],
+        "agency_necessity_defined": False,
+        "agency_necessity_ready": False,
         "constraint_count": 0,
+        "diagnostics": [],
         "evidence_count": 2,
         "exit_code": 0,
         "file": "case.yaml",
         "outcome_count": 0,
         "problem_value_defined": False,
         "problem_value_ready": False,
+        "residual_case_count": 0,
         "schema_version": 1,
         "status": "valid",
         "task_defined": False,
@@ -1226,14 +1282,17 @@ def test_validate_success_json_reports_task_boundary_counts(
     assert captured.err == ""
     assert json.loads(captured.out) == {
         "action_count": 2,
-        "diagnostics": [],
+        "agency_necessity_defined": False,
+        "agency_necessity_ready": False,
         "constraint_count": 0,
+        "diagnostics": [],
         "evidence_count": 0,
         "exit_code": 0,
         "file": "case.yaml",
         "outcome_count": 0,
         "problem_value_defined": False,
         "problem_value_ready": False,
+        "residual_case_count": 0,
         "schema_version": 1,
         "status": "valid",
         "task_defined": True,
@@ -1990,3 +2049,591 @@ def test_template_problem_value_example_is_valid_and_ready(tmp_path: Path) -> No
     assert result.exit_code == ExitCode.SUCCESS
     assert result.dossier is not None
     assert evaluate_problem_value_readiness(result.dossier).ready is True
+
+
+@pytest.mark.parametrize("value", [None, [], "agency", 42])
+def test_agency_necessity_must_be_an_object_when_supplied(tmp_path: Path, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "agency_necessity": value,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-006"
+
+
+def test_raw_unquoted_yes_no_agency_answers_remain_strings(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    payload = {
+        "schema_version": 1,
+        "case": {"id": "x", "title": "X"},
+        "evidence": [_agency_evidence()],
+        "agency_necessity": _agency_necessity(),
+    }
+    content = yaml.safe_dump(payload, sort_keys=False)
+    content = content.replace("answer: 'yes'", "answer: yes").replace("answer: 'no'", "answer: no")
+    (workspace / "case.yaml").write_text(content)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.agency_necessity is not None
+    assert result.dossier.agency_necessity.runtime_tool_choice_required.answer is AgencyAnswer.YES
+    assert result.dossier.agency_necessity.execution_steps_predefinable.answer is AgencyAnswer.NO
+
+
+def test_agency_text_is_inert_and_does_not_open_named_paths(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    outside = tmp_path / "does-not-exist" / "tool-result.txt"
+    agency = _agency_necessity()
+    cast(dict[str, object], agency["runtime_replanning_required"])["rationale"] = str(outside)
+    residual = cast(list[dict[str, object]], agency["residual_cases"])[0]
+    residual["fixed_workflow_failure"] = str(outside)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.agency_necessity is not None
+    assert result.dossier.agency_necessity.runtime_replanning_required.rationale == str(outside)
+    assert not outside.exists()
+
+
+def test_complete_agency_necessity_validates_as_typed_immutable_objects(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    residuals = cast(list[dict[str, object]], agency["residual_cases"])
+    residuals.append(
+        {
+            "id": "new-feedback",
+            "description": "A tool result changes the remaining checks.",
+            "fixed_workflow_failure": "The later check order cannot be selected in advance.",
+            "evidence_ids": ["agency-observed"],
+        }
+    )
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    facts = result.dossier.agency_necessity
+    assert isinstance(facts, AgencyNecessity)
+    assert isinstance(facts.execution_steps_predefinable, AgencyQuestion)
+    assert facts.execution_steps_predefinable.answer is AgencyAnswer.NO
+    assert [case.id for case in facts.residual_cases] == [
+        "evidence-dependent-follow-up",
+        "new-feedback",
+    ]
+    assert all(isinstance(case, ResidualCase) for case in facts.residual_cases)
+    assert evaluate_agency_necessity_readiness(result.dossier).ready is True
+    with pytest.raises(FrozenInstanceError):
+        facts.runtime_replanning_required.rationale = "Changed"  # type: ignore[misc]
+
+
+def test_absent_agency_necessity_is_valid_but_not_ready(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_agency_necessity_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [finding.id for finding in readiness.findings] == ["agency-necessity-missing"]
+    assert readiness.findings[0].field == "$.agency_necessity"
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "execution_steps_predefinable",
+        "step_count_or_order_predictable",
+        "runtime_tool_choice_required",
+        "runtime_replanning_required",
+        "environmental_feedback_available",
+        "completion_independently_verifiable",
+        "effects_independently_verifiable",
+        "fixed_workflow_sufficient",
+        "residual_cases",
+    ],
+)
+def test_every_agency_necessity_field_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    del agency[missing_field]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-006"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize("missing_field", ["answer", "rationale", "evidence_ids"])
+def test_every_agency_question_field_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    question = cast(dict[str, object], agency["runtime_replanning_required"])
+    del question[missing_field]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-006"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize(
+    "missing_field", ["id", "description", "fixed_workflow_failure", "evidence_ids"]
+)
+def test_every_residual_case_field_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    residual = cast(list[dict[str, object]], agency["residual_cases"])[0]
+    del residual[missing_field]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-006"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize(
+    ("target", "value"),
+    [
+        ("answer", "maybe"),
+        ("rationale", " \t "),
+        ("question_evidence", [" \t "]),
+        ("residual_id", " \t "),
+        ("residual_description", " \t "),
+        ("residual_failure", " \t "),
+        ("residual_evidence", [" \t "]),
+        ("duplicate_question_evidence", ["agency-observed", "agency-observed"]),
+        ("duplicate_residual_evidence", ["agency-observed", "agency-observed"]),
+    ],
+)
+def test_agency_values_fail_closed(tmp_path: Path, target: str, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    question = cast(dict[str, object], agency["runtime_replanning_required"])
+    residual = cast(list[dict[str, object]], agency["residual_cases"])[0]
+    locations = {
+        "answer": (question, "answer"),
+        "rationale": (question, "rationale"),
+        "question_evidence": (question, "evidence_ids"),
+        "residual_id": (residual, "id"),
+        "residual_description": (residual, "description"),
+        "residual_failure": (residual, "fixed_workflow_failure"),
+        "residual_evidence": (residual, "evidence_ids"),
+        "duplicate_question_evidence": (question, "evidence_ids"),
+        "duplicate_residual_evidence": (residual, "evidence_ids"),
+    }
+    record, field = locations[target]
+    record[field] = value
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-006"
+    assert result.diagnostics[0].remediation
+
+
+def test_agency_proxy_and_unknown_nested_fields_fail_closed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    agency["agent_needed"] = True
+    agency["documents"] = True
+    question = cast(dict[str, object], agency["runtime_tool_choice_required"])
+    question["many_steps"] = True
+    residual = cast(list[dict[str, object]], agency["residual_cases"])[0]
+    residual["legacy_system"] = True
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert [(item.id, item.field, item.requirement) for item in result.diagnostics] == [
+        ("unknown-field", "$.agency_necessity.agent_needed", "FR-006"),
+        ("unknown-field", "$.agency_necessity.documents", "FR-006"),
+        (
+            "unknown-field",
+            "$.agency_necessity.residual_cases[0].legacy_system",
+            "FR-006",
+        ),
+        (
+            "unknown-field",
+            "$.agency_necessity.runtime_tool_choice_required.many_steps",
+            "FR-006",
+        ),
+    ]
+
+
+def test_fixed_workflow_no_requires_a_residual_case(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    agency["residual_cases"] = []
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.agency_necessity.residual_cases"
+    assert result.diagnostics[0].requirement == "FR-006"
+
+
+def test_fixed_workflow_yes_requires_no_residual_cases(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity("yes")
+    agency["residual_cases"] = _agency_necessity("no")["residual_cases"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.agency_necessity.residual_cases"
+    assert result.diagnostics[0].requirement == "FR-006"
+    assert "empty" in result.diagnostics[0].remediation
+
+
+def test_unknown_fixed_workflow_may_preserve_residual_cases_but_is_not_ready(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity("unknown")
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_agency_necessity_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [(item.id, item.field) for item in readiness.findings] == [
+        ("agency-answer-unknown", "$.agency_necessity.fixed_workflow_sufficient.answer")
+    ]
+
+
+def test_duplicate_residual_case_ids_identify_every_later_case(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    residuals = cast(list[dict[str, object]], agency["residual_cases"])
+    residuals.extend([dict(residuals[0]), dict(residuals[0])])
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert [item.field for item in result.diagnostics] == [
+        "$.agency_necessity.residual_cases[1].id",
+        "$.agency_necessity.residual_cases[2].id",
+    ]
+    assert all(item.id == "duplicate-residual-case-id" for item in result.diagnostics)
+    assert all("residual_cases[0].id" in item.message for item in result.diagnostics)
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_path"),
+    [
+        (
+            "question",
+            "$.agency_necessity.runtime_replanning_required.evidence_ids[0]",
+        ),
+        ("residual", "$.agency_necessity.residual_cases[0].evidence_ids[0]"),
+    ],
+)
+def test_missing_agency_evidence_references_are_exact(
+    tmp_path: Path, target: str, expected_path: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    if target == "question":
+        cast(dict[str, object], agency["runtime_replanning_required"])["evidence_ids"] = ["absent"]
+    else:
+        cast(list[dict[str, object]], agency["residual_cases"])[0]["evidence_ids"] = ["absent"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    matches = [
+        item for item in result.diagnostics if item.id == "missing-agency-evidence-reference"
+    ]
+    assert len(matches) == 1
+    assert matches[0].field == expected_path
+    assert matches[0].requirement == "FR-006"
+
+
+def test_agency_evidence_must_be_classified_for_agency_necessity(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = _agency_evidence()
+    evidence["affects"] = ["comparative-fit"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [evidence],
+            "agency_necessity": _agency_necessity(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    mismatches = [item for item in result.diagnostics if item.id == "agency-evidence-area-mismatch"]
+    assert len(mismatches) == 9
+    assert all(item.requirement == "FR-006" for item in mismatches)
+    assert (
+        mismatches[0].field
+        == "$.agency_necessity.completion_independently_verifiable.evidence_ids[0]"
+    )
+    assert (
+        mismatches[-1].field == "$.agency_necessity.step_count_or_order_predictable.evidence_ids[0]"
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "ready"),
+    [("observed", True), ("estimate", True), ("assumption", False), ("missing", False)],
+)
+def test_agency_evidence_kind_controls_readiness(tmp_path: Path, kind: str, ready: bool) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence(kind)],
+            "agency_necessity": _agency_necessity(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_agency_necessity_readiness(result.dossier)
+    assert readiness.ready is ready
+    if ready:
+        assert readiness.findings == ()
+    else:
+        assert len(readiness.findings) == 9
+        assert all("credible" in finding.id for finding in readiness.findings)
+
+
+@pytest.mark.parametrize(
+    ("kind", "metadata_field"),
+    [("observed", "provenance"), ("estimate", "method")],
+)
+def test_blank_agency_credibility_metadata_cannot_make_readiness_true(
+    tmp_path: Path, kind: str, metadata_field: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = _agency_evidence(kind)
+    evidence[metadata_field] = " \t "
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [evidence],
+            "agency_necessity": _agency_necessity(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert evaluate_agency_necessity_readiness(result.dossier).ready is False
+
+
+def test_unknown_question_and_uncertain_evidence_produce_ordered_findings(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    agency = _agency_necessity()
+    cast(dict[str, object], agency["runtime_replanning_required"])["answer"] = "unknown"
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence("assumption")],
+            "agency_necessity": agency,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    first = evaluate_agency_necessity_readiness(result.dossier)
+    second = evaluate_agency_necessity_readiness(result.dossier)
+    assert first == second
+    assert first.ready is False
+    replanning = [
+        (finding.id, finding.field)
+        for finding in first.findings
+        if ".runtime_replanning_required." in finding.field
+    ]
+    assert replanning == [
+        ("agency-answer-unknown", "$.agency_necessity.runtime_replanning_required.answer"),
+        (
+            "credible-agency-evidence-missing",
+            "$.agency_necessity.runtime_replanning_required.evidence_ids",
+        ),
+    ]
+
+
+def test_validate_json_reports_agency_necessity_readiness(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [_agency_evidence()],
+            "agency_necessity": _agency_necessity(),
+        },
+    )
+
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.SUCCESS
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["agency_necessity_defined"] is True
+    assert payload["agency_necessity_ready"] is True
+    assert payload["residual_case_count"] == 1
+    assert "agent_needed" not in payload
+    assert "verdict" not in payload
+
+
+def test_template_agency_example_is_valid_and_ready(tmp_path: Path) -> None:
+    guidance = (
+        files("archsift").joinpath("templates/workspace-README.md").read_text(encoding="utf-8")
+    )
+    blocks = guidance.split("```yaml")
+    evidence_example = yaml.safe_load(blocks[2].split("```", 1)[0])
+    agency_example = yaml.safe_load(blocks[4].split("```", 1)[0])
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence_example["evidence"],
+            "agency_necessity": agency_example["agency_necessity"],
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert evaluate_agency_necessity_readiness(result.dossier).ready is True
