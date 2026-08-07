@@ -70,6 +70,7 @@ jobs:
       - name: Smoke-test installed wheel
         shell: python
         run: |
+          import json
           import os
           import subprocess
           import tempfile
@@ -86,3 +87,50 @@ jobs:
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           subprocess.run([python, "-m", "archsift", "validate", case], check=True)
+          dossier = {
+              "schema_version": 1,
+              "case": {"id": "installed", "title": "Installed wheel smoke"},
+              "evidence": [{
+                  "id": "baseline",
+                  "kind": "observed",
+                  "claim": "Current median handling time is 12 minutes.",
+                  "owner": "Process analyst",
+                  "affects": ["problem-value"],
+                  "provenance": "sanitised measurement",
+                  "observed_at": "2026-08-07",
+              }],
+              "problem_value": {
+                  "outcomes": [{
+                      "id": "reduce-time",
+                      "description": "Reduce handling time.",
+                      "measure": "Median minutes per case",
+                      "target": "At most 8 minutes",
+                      "baseline_id": "current-time",
+                      "binding": True,
+                      "evidence_ids": ["baseline"],
+                  }],
+                  "baselines": [{
+                      "id": "current-time",
+                      "description": "Current handling time.",
+                      "measure": "Median minutes per case",
+                      "value": "12 minutes",
+                      "evidence_ids": ["baseline"],
+                  }],
+                  "constraints": [],
+                  "affected_volume": {"statement": "Material volume.", "evidence_ids": ["baseline"]},
+                  "material_pain": {"statement": "Manual delay.", "evidence_ids": ["baseline"]},
+                  "error_cost": {"statement": "Rework cost.", "evidence_ids": ["baseline"]},
+                  "technology_limitation": {"statement": "Search delay.", "evidence_ids": ["baseline"]},
+              },
+          }
+          (case / "case.yaml").write_text(json.dumps(dossier), encoding="utf-8")
+          completed = subprocess.run(
+              [python, "-m", "archsift", "validate", case, "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          payload = json.loads(completed.stdout)
+          assert payload["problem_value_defined"] is True
+          assert payload["problem_value_ready"] is True
+          assert payload["outcome_count"] == 1

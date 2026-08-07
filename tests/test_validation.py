@@ -21,8 +21,13 @@ from archsift.validation import (
     EvidenceKind,
     MissingEvidence,
     ObservedEvidence,
+    ProblemBaseline,
+    ProblemConstraint,
+    ProblemOutcome,
+    ProblemValue,
     TaskAction,
     TaskBoundary,
+    evaluate_problem_value_readiness,
     validate_workspace,
 )
 from archsift.workspace import initialize_workspace
@@ -65,6 +70,80 @@ def _task() -> dict[str, object]:
     }
 
 
+def _problem_value() -> dict[str, object]:
+    return {
+        "outcomes": [
+            {
+                "id": "reduce-time",
+                "description": "Reduce handling time.",
+                "measure": "Median minutes per case",
+                "target": "At most 8 minutes",
+                "baseline_id": "current-time",
+                "binding": True,
+                "evidence_ids": ["baseline-observed"],
+            },
+            {
+                "id": "compare-capacity",
+                "description": "Compare candidate capacity.",
+                "measure": "Completed cases per month",
+                "target": "Report the measured value",
+                "baseline_id": "current-volume",
+                "binding": False,
+                "evidence_ids": ["volume-assumption"],
+            },
+        ],
+        "baselines": [
+            {
+                "id": "current-time",
+                "description": "Current handling time.",
+                "measure": "Median minutes per case",
+                "value": "12 minutes",
+                "evidence_ids": ["baseline-observed"],
+            },
+            {
+                "id": "current-volume",
+                "description": "Expected monthly volume.",
+                "measure": "Completed cases per month",
+                "value": "About 1000",
+                "evidence_ids": ["volume-assumption"],
+            },
+        ],
+        "constraints": [
+            {
+                "id": "capacity-view",
+                "description": "Show capacity for comparison.",
+                "test": "Completed cases per month is reported",
+                "required_result": "A value is reported; no minimum",
+                "binding": False,
+                "evidence_ids": ["volume-assumption"],
+            }
+        ],
+        "affected_volume": {
+            "statement": "The task handles material monthly volume.",
+            "evidence_ids": ["volume-assumption"],
+        },
+        "material_pain": {
+            "statement": "Manual retrieval adds handling time.",
+            "evidence_ids": ["baseline-observed"],
+        },
+        "error_cost": {
+            "statement": "Incorrect output requires rework.",
+            "evidence_ids": ["baseline-observed"],
+        },
+        "technology_limitation": {
+            "statement": "Current search may contribute to delay.",
+            "evidence_ids": ["volume-assumption"],
+        },
+    }
+
+
+def _problem_evidence() -> list[dict[str, object]]:
+    return [
+        _entry("observed", "baseline-observed"),
+        _entry("assumption", "volume-assumption"),
+    ]
+
+
 def _entry(kind: str, identifier: str = "evidence-1") -> dict[str, object]:
     entry: dict[str, object] = {
         "id": identifier,
@@ -93,9 +172,14 @@ def test_packaged_schema_is_available() -> None:
     assert payload["properties"]["case"]["additionalProperties"] is False
     assert payload["properties"]["evidence"]["type"] == "array"
     assert payload["properties"]["task"]["$ref"] == "#/$defs/taskBoundary"
+    assert payload["properties"]["problem_value"]["$ref"] == "#/$defs/problemValue"
     assert payload["$defs"]["evidenceEntry"]["additionalProperties"] is False
     assert payload["$defs"]["taskBoundary"]["additionalProperties"] is False
     assert payload["$defs"]["taskAction"]["additionalProperties"] is False
+    assert payload["$defs"]["problemValue"]["additionalProperties"] is False
+    assert payload["$defs"]["problemOutcome"]["additionalProperties"] is False
+    assert payload["$defs"]["problemBaseline"]["additionalProperties"] is False
+    assert payload["$defs"]["problemConstraint"]["additionalProperties"] is False
 
 
 def test_generated_workspace_validates(tmp_path: Path) -> None:
@@ -774,6 +858,30 @@ def test_unsupported_schema_version_has_distinct_exit(tmp_path: Path, version: o
 
 
 @pytest.mark.parametrize(
+    "content",
+    [
+        # Non-string YAML keys (int, bool, null) mixed with string keys must
+        # fail closed as unknown fields, not crash into an internal error.
+        "schema_version: 1\ncase: {id: x, title: X}\nproblem_value: {1: a, extra: b}\n",
+        "schema_version: 1\ncase: {id: x, title: X}\nproblem_value: {1: a, '1': b}\n",
+        "schema_version: 1\ncase: {id: x, title: X}\ntrue: a\nextra: b\n",
+        "schema_version: 1\ncase: {id: x, title: X, null: a, extra: b}\n",
+    ],
+)
+def test_mixed_type_unknown_keys_fail_closed_without_internal_error(
+    tmp_path: Path, content: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text(content)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert any(diagnostic.id == "unknown-field" for diagnostic in result.diagnostics)
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.VALIDATION_FAILED
+
+
+@pytest.mark.parametrize(
     ("document", "field"),
     [
         ({"schema_version": 1, "case": {"id": "x", "title": "X"}, "extra": 1}, "$.extra"),
@@ -1087,9 +1195,13 @@ def test_validate_success_json_reports_evidence_count(
     assert json.loads(captured.out) == {
         "action_count": 0,
         "diagnostics": [],
+        "constraint_count": 0,
         "evidence_count": 2,
         "exit_code": 0,
         "file": "case.yaml",
+        "outcome_count": 0,
+        "problem_value_defined": False,
+        "problem_value_ready": False,
         "schema_version": 1,
         "status": "valid",
         "task_defined": False,
@@ -1115,9 +1227,13 @@ def test_validate_success_json_reports_task_boundary_counts(
     assert json.loads(captured.out) == {
         "action_count": 2,
         "diagnostics": [],
+        "constraint_count": 0,
         "evidence_count": 0,
         "exit_code": 0,
         "file": "case.yaml",
+        "outcome_count": 0,
+        "problem_value_defined": False,
+        "problem_value_ready": False,
         "schema_version": 1,
         "status": "valid",
         "task_defined": True,
@@ -1265,3 +1381,612 @@ def test_malformed_yaml_diagnostics_are_path_independent(
     assert main(["validate", str(second), "--json"]) == ExitCode.MALFORMED_INPUT
     second_json = capsys.readouterr().out
     assert first_json == second_json
+
+
+def test_complete_problem_value_validates_as_typed_immutable_objects(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": _problem_value(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    problem = result.dossier.problem_value
+    assert isinstance(problem, ProblemValue)
+    assert [item.id for item in problem.outcomes] == ["reduce-time", "compare-capacity"]
+    assert all(isinstance(item, ProblemOutcome) for item in problem.outcomes)
+    assert all(isinstance(item, ProblemBaseline) for item in problem.baselines)
+    assert all(isinstance(item, ProblemConstraint) for item in problem.constraints)
+    assert problem.affected_volume.evidence_ids == ("volume-assumption",)
+    assert evaluate_problem_value_readiness(result.dossier).ready is True
+    with pytest.raises(FrozenInstanceError):
+        problem.outcomes[0].target = "Changed"  # type: ignore[misc]
+
+
+def test_absent_problem_value_is_valid_but_not_ready(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [finding.id for finding in readiness.findings] == ["problem-value-missing"]
+    assert readiness.findings[0].field == "$.problem_value"
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    [
+        "outcomes",
+        "baselines",
+        "constraints",
+        "affected_volume",
+        "material_pain",
+        "error_cost",
+        "technology_limitation",
+    ],
+)
+def test_every_problem_value_section_is_required(tmp_path: Path, missing_field: str) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    del problem[missing_field]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-005"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize(
+    ("record", "missing_field"),
+    [
+        ("outcome", "id"),
+        ("outcome", "description"),
+        ("outcome", "measure"),
+        ("outcome", "target"),
+        ("outcome", "baseline_id"),
+        ("outcome", "binding"),
+        ("outcome", "evidence_ids"),
+        ("baseline", "id"),
+        ("baseline", "description"),
+        ("baseline", "measure"),
+        ("baseline", "value"),
+        ("baseline", "evidence_ids"),
+        ("constraint", "id"),
+        ("constraint", "description"),
+        ("constraint", "test"),
+        ("constraint", "required_result"),
+        ("constraint", "binding"),
+        ("constraint", "evidence_ids"),
+        ("statement", "statement"),
+        ("statement", "evidence_ids"),
+    ],
+)
+def test_every_problem_value_record_field_is_required(
+    tmp_path: Path, record: str, missing_field: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    if record == "outcome":
+        target = cast(list[dict[str, object]], problem["outcomes"])[0]
+    elif record == "baseline":
+        target = cast(list[dict[str, object]], problem["baselines"])[0]
+    elif record == "constraint":
+        target = cast(list[dict[str, object]], problem["constraints"])[0]
+    else:
+        target = cast(dict[str, object], problem["affected_volume"])
+    del target[missing_field]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-005"
+    assert missing_field in result.diagnostics[0].remediation
+
+
+@pytest.mark.parametrize(
+    ("record", "field"),
+    [
+        ("outcome", "id"),
+        ("outcome", "description"),
+        ("outcome", "measure"),
+        ("outcome", "target"),
+        ("outcome", "baseline_id"),
+        ("outcome", "evidence_ids"),
+        ("baseline", "id"),
+        ("baseline", "description"),
+        ("baseline", "measure"),
+        ("baseline", "value"),
+        ("baseline", "evidence_ids"),
+        ("constraint", "id"),
+        ("constraint", "description"),
+        ("constraint", "test"),
+        ("constraint", "required_result"),
+        ("constraint", "evidence_ids"),
+        ("statement", "statement"),
+        ("statement", "evidence_ids"),
+    ],
+)
+def test_all_problem_value_strings_require_visible_content(
+    tmp_path: Path, record: str, field: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    if record == "outcome":
+        target = cast(list[dict[str, object]], problem["outcomes"])[0]
+    elif record == "baseline":
+        target = cast(list[dict[str, object]], problem["baselines"])[0]
+    elif record == "constraint":
+        target = cast(list[dict[str, object]], problem["constraints"])[0]
+    else:
+        target = cast(dict[str, object], problem["affected_volume"])
+    target[field] = [" \t "] if field == "evidence_ids" else " \t "
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-005"
+    assert "non-whitespace" in result.diagnostics[0].remediation
+
+
+def test_explicit_empty_problem_constraints_are_valid(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    problem["constraints"] = []
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.problem_value is not None
+    assert result.dossier.problem_value.constraints == ()
+
+
+@pytest.mark.parametrize("value", [None, [], "value", 42])
+def test_problem_value_must_be_an_object_when_supplied(tmp_path: Path, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "problem_value": value,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].requirement == "FR-005"
+
+
+def test_problem_value_unknown_and_whitespace_fields_fail_closed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    outcomes[0]["description"] = " \t "
+    outcomes[0]["unexpected"] = "inert"
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert all(item.requirement == "FR-005" for item in result.diagnostics)
+    assert {item.id for item in result.diagnostics} == {"schema-validation-failed", "unknown-field"}
+
+
+def test_unquoted_problem_binding_yes_does_not_become_boolean(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    payload = {
+        "schema_version": 1,
+        "case": {"id": "x", "title": "X"},
+        "evidence": _problem_evidence(),
+        "problem_value": _problem_value(),
+    }
+    content = yaml.safe_dump(payload, sort_keys=False).replace("binding: true", "binding: yes", 1)
+    (workspace / "case.yaml").write_text(content)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.problem_value.outcomes[0].binding"
+    assert result.diagnostics[0].requirement == "FR-005"
+
+
+def test_problem_criterion_duplicates_share_one_namespace(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    constraints = cast(list[dict[str, object]], problem["constraints"])
+    outcomes[1]["id"] = outcomes[0]["id"]
+    constraints[0]["id"] = outcomes[0]["id"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert [item.id for item in result.diagnostics] == [
+        "duplicate-problem-criterion-id",
+        "duplicate-problem-criterion-id",
+    ]
+    assert [item.field for item in result.diagnostics] == [
+        "$.problem_value.constraints[0].id",
+        "$.problem_value.outcomes[1].id",
+    ]
+    assert all("$.problem_value.outcomes[0].id" in item.message for item in result.diagnostics)
+
+
+def test_duplicate_baselines_and_missing_baseline_references_are_exact(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    baselines = cast(list[dict[str, object]], problem["baselines"])
+    baselines[1]["id"] = baselines[0]["id"]
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    outcomes[1]["baseline_id"] = "absent"
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert [(item.id, item.field) for item in result.diagnostics] == [
+        ("duplicate-problem-baseline-id", "$.problem_value.baselines[1].id"),
+        ("missing-problem-baseline-reference", "$.problem_value.outcomes[1].baseline_id"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_path"),
+    [
+        ("outcome", "$.problem_value.outcomes[0].evidence_ids[0]"),
+        ("baseline", "$.problem_value.baselines[0].evidence_ids[0]"),
+        ("constraint", "$.problem_value.constraints[0].evidence_ids[0]"),
+        ("statement", "$.problem_value.error_cost.evidence_ids[0]"),
+    ],
+)
+def test_missing_problem_evidence_references_are_exact(
+    tmp_path: Path, target: str, expected_path: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    if target == "outcome":
+        cast(list[dict[str, object]], problem["outcomes"])[0]["evidence_ids"] = ["absent"]
+    elif target == "baseline":
+        cast(list[dict[str, object]], problem["baselines"])[0]["evidence_ids"] = ["absent"]
+    elif target == "constraint":
+        cast(list[dict[str, object]], problem["constraints"])[0]["evidence_ids"] = ["absent"]
+    else:
+        cast(dict[str, object], problem["error_cost"])["evidence_ids"] = ["absent"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    matches = [
+        item for item in result.diagnostics if item.id == "missing-problem-value-evidence-reference"
+    ]
+    assert len(matches) == 1
+    assert matches[0].field == expected_path
+    assert matches[0].requirement == "FR-005"
+
+
+def test_problem_evidence_must_be_classified_for_problem_value(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = _problem_evidence()
+    evidence[0]["affects"] = ["comparative-fit"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence,
+            "problem_value": _problem_value(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    mismatches = [
+        item for item in result.diagnostics if item.id == "problem-value-evidence-area-mismatch"
+    ]
+    assert [item.field for item in mismatches] == [
+        "$.problem_value.baselines[0].evidence_ids[0]",
+        "$.problem_value.error_cost.evidence_ids[0]",
+        "$.problem_value.material_pain.evidence_ids[0]",
+        "$.problem_value.outcomes[0].evidence_ids[0]",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("kind", "ready"),
+    [("observed", True), ("estimate", True), ("assumption", False), ("missing", False)],
+)
+def test_baseline_evidence_kind_controls_readiness(tmp_path: Path, kind: str, ready: bool) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = [_entry(kind, "baseline-observed"), _entry("assumption", "volume-assumption")]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence,
+            "problem_value": _problem_value(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is ready
+    assert [finding.id for finding in readiness.findings] == (
+        [] if ready else ["credible-baseline-missing"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "metadata_field"),
+    [("observed", "provenance"), ("estimate", "method")],
+)
+def test_blank_credibility_metadata_cannot_make_a_baseline_ready(
+    tmp_path: Path, kind: str, metadata_field: str
+) -> None:
+    workspace = _workspace(tmp_path)
+    baseline = _entry(kind, "baseline-observed")
+    baseline[metadata_field] = " \t "
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": [baseline, _entry("assumption", "volume-assumption")],
+            "problem_value": _problem_value(),
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [finding.id for finding in readiness.findings] == ["credible-baseline-missing"]
+
+
+def test_baseline_with_any_observed_or_estimate_entry_is_credible(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    evidence = [
+        _entry("assumption", "volume-assumption"),
+        _entry("observed", "baseline-observed"),
+        _entry("estimate", "est"),
+    ]
+    problem = _problem_value()
+    baselines = cast(list[dict[str, object]], problem["baselines"])
+    baselines[0]["evidence_ids"] = ["volume-assumption", "baseline-observed"]
+    baselines[1]["evidence_ids"] = ["est", "volume-assumption"]
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence,
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is True
+    assert readiness.findings == ()
+
+
+def test_baseline_and_criterion_ids_use_separate_namespaces(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    outcome_id = cast(str, cast(list[dict[str, object]], problem["outcomes"])[0]["id"])
+    baselines = cast(list[dict[str, object]], problem["baselines"])
+    baselines[0]["id"] = outcome_id
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    outcomes[0]["baseline_id"] = outcome_id
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.diagnostics == ()
+
+
+def test_multi_document_yaml_is_malformed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    (workspace / "case.yaml").write_text(
+        "schema_version: 1\ncase: {id: x, title: X}\n---\nschema_version: 1\n"
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.MALFORMED_INPUT
+    assert result.diagnostics[0].id == "malformed-yaml"
+
+
+def test_every_binding_outcome_requires_a_credible_baseline(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    outcomes = cast(list[dict[str, object]], problem["outcomes"])
+    outcomes[1]["binding"] = True
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [(finding.id, finding.field) for finding in readiness.findings] == [
+        ("credible-baseline-missing", "$.problem_value.outcomes[1].baseline_id")
+    ]
+
+
+def test_readiness_requires_at_least_one_binding_outcome(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    problem = _problem_value()
+    for outcome in cast(list[dict[str, object]], problem["outcomes"]):
+        outcome["binding"] = False
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": problem,
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_problem_value_readiness(result.dossier)
+    assert readiness.ready is False
+    assert [finding.id for finding in readiness.findings] == ["binding-outcome-missing"]
+
+
+def test_validate_json_reports_problem_value_readiness(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": _problem_evidence(),
+            "problem_value": _problem_value(),
+        },
+    )
+
+    assert main(["validate", str(workspace), "--json"]) == ExitCode.SUCCESS
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["problem_value_defined"] is True
+    assert payload["problem_value_ready"] is True
+    assert payload["outcome_count"] == 2
+    assert payload["constraint_count"] == 1
+
+
+def test_template_problem_value_example_is_valid_and_ready(tmp_path: Path) -> None:
+    guidance = (
+        files("archsift").joinpath("templates/workspace-README.md").read_text(encoding="utf-8")
+    )
+    blocks = guidance.split("```yaml")
+    evidence_example = yaml.safe_load(blocks[2].split("```", 1)[0])
+    problem_example = yaml.safe_load(blocks[3].split("```", 1)[0])
+    workspace = _workspace(tmp_path)
+    _write_case(
+        workspace,
+        {
+            "schema_version": 1,
+            "case": {"id": "x", "title": "X"},
+            "evidence": evidence_example["evidence"],
+            "problem_value": problem_example["problem_value"],
+        },
+    )
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert evaluate_problem_value_readiness(result.dossier).ready is True

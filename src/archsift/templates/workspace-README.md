@@ -62,6 +62,45 @@ evidence:
     resolved_by: Measure exception frequency over a representative month.
 ```
 
+Describe the value gate before comparing technologies. Every outcome and constraint explicitly says whether it is binding, and every claim cites the evidence ledger. A binding outcome is ready for later assessment only when its baseline cites an observation or method-backed estimate.
+
+```yaml
+problem_value:
+  outcomes:
+    - id: reduce-handling-time
+      description: Reduce routine-case handling time without lowering review quality.
+      measure: Median handling minutes per completed case
+      target: At most 8 minutes
+      baseline_id: current-handling-time
+      binding: true
+      evidence_ids: [baseline-observation]
+  baselines:
+    - id: current-handling-time
+      description: Current median handling time for representative routine cases.
+      measure: Median handling minutes per completed case
+      value: 12 minutes
+      evidence_ids: [baseline-observation]
+  constraints:
+    - id: demand-capacity
+      description: Compare each candidate against expected monthly demand.
+      test: Supported completed cases per month
+      required_result: Report for comparison; no minimum threshold
+      binding: false
+      evidence_ids: [volume-assumption]
+  affected_volume:
+    statement: The task handles a material monthly case volume.
+    evidence_ids: [volume-assumption]
+  material_pain:
+    statement: Manual retrieval contributes avoidable handling effort.
+    evidence_ids: [baseline-observation]
+  error_cost:
+    statement: Incorrect dispositions require rework before release.
+    evidence_ids: [baseline-observation]
+  technology_limitation:
+    statement: Current search tooling may be contributing to handling time.
+    evidence_ids: [volume-assumption]
+```
+
 Validate the dossier from this directory with:
 
 ```bash

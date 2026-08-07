@@ -32,6 +32,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "kind: assumption" in guidance
     assert "kind: estimate" in guidance
     assert "kind: missing" in guidance
+    assert "problem_value:" in guidance
+    assert "baseline_id:" in guidance
+    assert "technology_limitation:" in guidance
     assert (target / "evidence").is_dir()
     assert (target / "output").is_dir()
 
