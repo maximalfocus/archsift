@@ -70,6 +70,7 @@ jobs:
           assert "archsift/canonical.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
+          assert "archsift/markdown_report.py" in names
           assert "archsift/persistence.py" in names
           assert "archsift/rules.py" in names
           assert "archsift/docs/exit-codes.md" in names
@@ -98,6 +99,7 @@ jobs:
               canonical_decision_record_bytes,
               compose_decision_record,
           )
+          from archsift.markdown_report import render_markdown_decision_report
           from archsift.validation import validate_workspace
           wheel = next(Path("dist").glob("*.whl")).resolve()
           root = Path(tempfile.mkdtemp())
@@ -129,6 +131,9 @@ jobs:
           assert effects.count("support-candidate") == 5
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
+          guidance = (case / "README.md").read_text(encoding="utf-8")
+          assert "Markdown review view" in guidance
+          assert "visibly quoted as inert data" in guidance
           external_root = root / "external-evidence"
           external_root.mkdir()
           (case / "evidence" / "baseline.bin").write_bytes(b"installed baseline\x00")
@@ -374,6 +379,7 @@ jobs:
           source_snapshot = {
               "canonical_bytes": canonical_dossier_bytes(source_dossier).hex(),
               "decision_record": canonical_decision_record_bytes(source_record).hex(),
+              "markdown_report": render_markdown_decision_report(source_record).hex(),
               "dossier_identity": dossier_content_identity(source_dossier),
               "artefact_identities": [item.to_dict() for item in source_artefacts],
               "evidence_identities": evidence_content_identities(source_dossier),
@@ -391,6 +397,7 @@ jobs:
                       "from archsift.decision import evaluate_assessment; "
                       "from archsift.decision_record import canonical_decision_record_bytes, "
                       "compose_decision_record; "
+                      "from archsift.markdown_report import render_markdown_decision_report; "
                       "from archsift.validation import validate_workspace; "
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
                       "assert dossier is not None; "
@@ -407,6 +414,7 @@ jobs:
                       "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "
                       "'artefact_identities': [item.to_dict() for item in artefacts], "
                       "'decision_record': canonical_decision_record_bytes(record).hex(), "
+                      "'markdown_report': render_markdown_decision_report(record).hex(), "
                       "'dossier_identity': dossier_content_identity(dossier), "
                       "'evidence_identities': evidence_content_identities(dossier), "
                       "'verdict': result.verdict.value}, sort_keys=True))"
@@ -427,6 +435,7 @@ jobs:
               artefact_identities=source_artefacts,
           )
           source_assess_bytes = canonical_decision_record_bytes(source_assess)
+          source_report_bytes = render_markdown_decision_report(source_assess)
           assess_command = [
               archsift,
               "assess",
@@ -441,11 +450,15 @@ jobs:
           assess_payload = json.loads(first_assess.stdout)
           record_identity = assess_payload["record_content_identity"]
           record_path = case / "output" / f"sha256-{record_identity[7:]}.json"
+          report_path = case / "output" / f"sha256-{record_identity[7:]}.md"
           assert record_path.read_bytes() == first_assess.stdout
+          assert report_path.read_bytes() == source_report_bytes
           os.utime(record_path, (1_700_000_000, 1_700_000_000))
-          recorded_mtime = record_path.stat().st_mtime_ns
+          os.utime(report_path, (1_700_000_000, 1_700_000_000))
+          recorded_mtimes = (record_path.stat().st_mtime_ns, report_path.stat().st_mtime_ns)
           second_assess = subprocess.run(assess_command, check=True, capture_output=True)
           assert second_assess.stdout == first_assess.stdout
           assert second_assess.stderr == b""
-          assert record_path.stat().st_mtime_ns == recorded_mtime
+          assert (record_path.stat().st_mtime_ns, report_path.stat().st_mtime_ns) == recorded_mtimes
           assert len(list((case / "output").glob("*.json"))) == 1
+          assert len(list((case / "output").glob("*.md"))) == 1

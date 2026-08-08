@@ -79,14 +79,14 @@ evidence:
 
 `provenance` remains inert text naming the observation source; ArchSift never treats it as a path. An optional `artefacts` entry explicitly names bytes for later hashing. A `workspace` path is POSIX-relative to this workspace's `evidence/` directory. An `external` path is relative to an external evidence root that the caller must explicitly grant outside the dossier; the dossier cannot select that root itself. `archsift validate` checks only this authored reference contract and never opens either file.
 
-After validation, produce an immutable JSON decision record with:
+After validation, produce an immutable JSON decision record and its Markdown review view with:
 
 ```console
 archsift assess . --json
 archsift assess . --external-evidence-root ../authorised-evidence --json
 ```
 
-The external-root location is caller authority and is never stored in the record. Assessment writes the exact canonical JSON to `output/sha256-<record-id>.json`; identical reruns reuse byte-identical output without changing it, and a conflicting file is never overwritten. The generated decision record is currently JSON-only; Markdown reports, custom output paths, comparison, and reassessment are not implemented yet.
+The external-root location is caller authority and is never stored in the record. Assessment writes the exact canonical JSON to `output/sha256-<record-id>.json` and a deterministic review view to the matching `.md` path. Both files carry the same record identity; identical reruns reuse byte-identical output without changing it, and a conflicting file is never overwritten. Authored values in Markdown are visibly quoted as inert data, so headings, links, HTML, controls, provenance, and artefact paths cannot become report structure or fetch instructions. `--json` still emits only canonical JSON to stdout. Custom output paths, comparison, and reassessment are not implemented yet.
 
 Describe the value gate before comparing technologies. Every outcome and constraint explicitly says whether it is binding, and every claim cites the evidence ledger. A binding outcome is ready for later assessment only when its baseline cites an observation or method-backed estimate.
 

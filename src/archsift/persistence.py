@@ -8,10 +8,25 @@ from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import BinaryIO
 
 from archsift.decision_record import DecisionRecord, canonical_decision_record_bytes
+from archsift.markdown_report import render_markdown_decision_report
 
 _CHUNK_SIZE = 1024 * 1024
+
+# Generation-sensitive identity of one stat capture. The two-field (device,
+# inode) token is not enough: filesystems that recycle inodes immediately
+# (for example ext4) can hand a recreated file the same inode number, so the
+# ctime/mtime nanoseconds, size, and mode fields distinguish a different file
+# generation at the same path. Tokens are only ever compared between captures
+# from the same stat surface (path lstat against path lstat); path lstat and
+# handle fstat surfaces are not portable to each other on every supported
+# platform, so cross-surface identity is bound with os.path.samestat plus the
+# surface-stable size and mode fields. Timestamps have filesystem-dependent
+# resolution and remain forgeable by a same-tick adversary; the token is a
+# strong portable generation marker, not a cryptographic guarantee.
+_FileIdentity = tuple[int, int, int, int, int, int]
 
 
 class RecordPersistenceFailure(StrEnum):
@@ -59,6 +74,14 @@ class PersistedDecisionRecord:
 
     relative_path: str
     reused: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PersistedDecisionOutputs:
+    """The canonical JSON source and deterministic Markdown review view."""
+
+    json: PersistedDecisionRecord
+    markdown: PersistedDecisionRecord
 
 
 def _error(
@@ -112,7 +135,7 @@ def _resolve_output_root(workspace: Path) -> Path:
     return output_root
 
 
-def _target_name(record: DecisionRecord) -> str:
+def _target_name(record: DecisionRecord, extension: str = "json") -> str:
     identity = record.record_content_identity
     if (
         type(identity) is not str
@@ -126,11 +149,37 @@ def _target_name(record: DecisionRecord) -> str:
             message="The decision record has no valid portable content identity.",
             remediation="Compose and validate the final decision record before persistence.",
         )
-    return f"sha256-{identity[7:]}.json"
+    if extension not in {"json", "md"}:
+        raise _error(
+            RecordPersistenceFailure.TARGET_UNSAFE,
+            requirement="FR-011",
+            message="The decision-record output format is unsupported.",
+            remediation="Persist only the canonical JSON record or its Markdown review view.",
+        )
+    return f"sha256-{identity[7:]}.{extension}"
+
+
+def _stat_token(status: os.stat_result) -> _FileIdentity:
+    """Return the generation-sensitive identity of one stat capture."""
+    return (
+        status.st_dev,
+        status.st_ino,
+        status.st_mode,
+        status.st_size,
+        status.st_ctime_ns,
+        status.st_mtime_ns,
+    )
 
 
 def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
-    """Return whether the existing derived target holds exactly the given bytes."""
+    """Return whether the existing derived target holds exactly the given bytes.
+
+    The opened descriptor is bound to the path with os.path.samestat at each
+    point, and the generation-sensitive token is compared between the path
+    lstat before verification and the path lstat after it — the same stat
+    surface, portable across platforms. Same-byte replacements, symlink swaps,
+    and recycled-inode generations are therefore never accepted as reuse.
+    """
     try:
         resolved = target.resolve(strict=True)
     except (OSError, RuntimeError) as error:
@@ -148,7 +197,8 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             remediation="Remove links or aliases from the derived decision-record target.",
         )
     try:
-        if not stat.S_ISREG(resolved.stat().st_mode):
+        before = resolved.lstat()
+        if not stat.S_ISREG(before.st_mode):
             raise _error(
                 RecordPersistenceFailure.TARGET_UNSAFE,
                 requirement="NFR-004",
@@ -156,12 +206,13 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
                 remediation="Remove the non-regular derived target.",
             )
         with resolved.open("rb") as stream:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            opened = os.fstat(stream.fileno())
+            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
                 raise _error(
                     RecordPersistenceFailure.TARGET_UNSAFE,
                     requirement="NFR-004",
-                    message="The existing decision-record target is not a regular file.",
-                    remediation="Remove the non-regular derived target.",
+                    message="The existing decision-record target changed while being verified.",
+                    remediation="Remove the replaced target and retry without concurrent changes.",
                 )
             offset = 0
             while offset < len(content):
@@ -169,7 +220,16 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
                 if not chunk or chunk != content[offset : offset + len(chunk)]:
                     return False
                 offset += len(chunk)
-            return stream.read(1) == b""
+            if stream.read(1) != b"":
+                return False
+        after = resolved.lstat()
+        if not os.path.samestat(after, opened) or _stat_token(after) != _stat_token(before):
+            raise _error(
+                RecordPersistenceFailure.TARGET_UNSAFE,
+                requirement="NFR-004",
+                message="The existing decision-record target changed while being verified.",
+                remediation="Remove the replaced target and retry without concurrent changes.",
+            )
     except RecordPersistenceError:
         raise
     except OSError as error:
@@ -179,6 +239,7 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             message="The existing decision-record target cannot be read safely.",
             remediation="Make the derived regular file readable or remove it.",
         ) from error
+    return True
 
 
 def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
@@ -190,6 +251,119 @@ def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
         message="The content-addressed target already contains different bytes.",
         remediation="Preserve the existing file and investigate the integrity conflict.",
     )
+
+
+def _opened_stat(stream: BinaryIO) -> os.stat_result | None:
+    """Return the opened handle's stat capture, or None when it cannot bind.
+
+    Filesystems without a usable file index report a zero inode; such a
+    capture is treated as unknown so ownership checks fail closed instead of
+    risking a concurrent replacement.
+    """
+    try:
+        status = os.fstat(stream.fileno())
+    except OSError:
+        return None
+    if status.st_ino == 0:
+        return None
+    return status
+
+
+def _closed_file_identity(target: Path, opened: os.stat_result | None) -> _FileIdentity | None:
+    """Return a path-surface generation token for the just-closed created file.
+
+    Ownership is established after close by binding the path to the opened
+    handle with os.path.samestat plus the surface-stable size and mode fields;
+    the token itself is taken from the post-close path lstat, so the stored
+    identity and every later cleanup check share the same stat surface. When
+    ownership cannot be proven the file is left in place (fail closed) rather
+    than deleting a concurrent replacement.
+    """
+    if opened is None:
+        return None
+    try:
+        path_stat = target.lstat()
+    except OSError:
+        return None
+    if (
+        not stat.S_ISREG(path_stat.st_mode)
+        or not os.path.samestat(path_stat, opened)
+        or path_stat.st_size != opened.st_size
+        or path_stat.st_mode != opened.st_mode
+    ):
+        return None
+    return _stat_token(path_stat)
+
+
+def _same_created_file(target: Path, identity: _FileIdentity | None) -> bool:
+    """Return whether the path still names the exact file opened this attempt."""
+    if identity is None:
+        return False
+    try:
+        status = target.stat()
+    except OSError:
+        return False
+    return _stat_token(status) == identity
+
+
+def _unlink_created_file(target: Path, identity: _FileIdentity | None) -> None:
+    """Remove a file this attempt created, never a concurrent replacement."""
+    if _same_created_file(target, identity):
+        with suppress(OSError):
+            target.unlink(missing_ok=True)
+
+
+def _persist_content(
+    output_root: Path,
+    filename: str,
+    content: bytes,
+) -> tuple[PersistedDecisionRecord, _FileIdentity | None]:
+    """Create or byte-identically reuse one derived target.
+
+    Returns the persistence result and, for a freshly created file, the
+    path-surface generation token of the closed file, bound to the opened
+    handle, used to clean up only that exact file on any later failure.
+    """
+    target = output_root / filename
+    if target.exists() or target.is_symlink():
+        _reuse_or_conflict(target, output_root, content)
+        return PersistedDecisionRecord(f"output/{filename}", True), None
+
+    opened_identity: os.stat_result | None = None
+    created = False
+    try:
+        with target.open("xb") as stream:
+            created = True
+            try:
+                if stream.write(content) != len(content):
+                    raise OSError("incomplete decision-record write")
+                stream.flush()
+                os.fsync(stream.fileno())
+            except OSError:
+                # Land any buffered partial bytes, then capture the opened
+                # handle before it closes and before any replacement can land.
+                with suppress(OSError):
+                    stream.flush()
+                opened_identity = _opened_stat(stream)
+                raise
+            # Capture only after the final bytes are written, flushed, and
+            # fsynced so the handle binds to the durable final file state.
+            opened_identity = _opened_stat(stream)
+    except FileExistsError:
+        _reuse_or_conflict(target, output_root, content)
+        return PersistedDecisionRecord(f"output/{filename}", True), None
+    except OSError as error:
+        if created:
+            created_identity = _closed_file_identity(target, opened_identity)
+            _unlink_created_file(target, created_identity)
+        raise _error(
+            RecordPersistenceFailure.WRITE_FAILED,
+            requirement="FR-011",
+            message="A decision-record output could not be written completely.",
+            remediation="Restore write access and retry without replacing an existing record.",
+        ) from error
+    created_identity = _closed_file_identity(target, opened_identity)
+    return PersistedDecisionRecord(f"output/{filename}", False), created_identity
 
 
 def persist_decision_record(
@@ -206,32 +380,68 @@ def persist_decision_record(
             message="Persistence content does not match the canonical decision record.",
             remediation="Persist only bytes produced from the same validated record.",
         )
-    output_root = _resolve_output_root(workspace)
-    filename = _target_name(record)
-    target = output_root / filename
-    if target.exists() or target.is_symlink():
-        reused = _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", reused)
+    return _persist_content(_resolve_output_root(workspace), _target_name(record), content)[0]
 
-    created = False
-    try:
-        with target.open("xb") as stream:
-            created = True
-            if stream.write(content) != len(content):
-                raise OSError("incomplete decision-record write")
-            stream.flush()
-            os.fsync(stream.fileno())
-    except FileExistsError:
-        reused = _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", reused)
-    except OSError as error:
-        if created:
-            with suppress(OSError):
-                target.unlink(missing_ok=True)
+
+def persist_decision_outputs(
+    workspace: Path,
+    record: DecisionRecord,
+    json_content: bytes,
+    markdown_content: bytes,
+) -> PersistedDecisionOutputs:
+    """Safely create or reuse the JSON record and its Markdown review view as one pair."""
+    expected_json = canonical_decision_record_bytes(record)
+    expected_markdown = render_markdown_decision_report(record)
+    if type(json_content) is not bytes or json_content != expected_json:
         raise _error(
-            RecordPersistenceFailure.WRITE_FAILED,
+            RecordPersistenceFailure.INTEGRITY_CONFLICT,
             requirement="FR-011",
-            message="The canonical decision record could not be written completely.",
-            remediation="Restore write access and retry without replacing an existing record.",
-        ) from error
-    return PersistedDecisionRecord(f"output/{filename}", False)
+            message="Persistence content does not match the canonical decision record.",
+            remediation="Persist only bytes produced from the same validated record.",
+        )
+    if type(markdown_content) is not bytes or markdown_content != expected_markdown:
+        raise _error(
+            RecordPersistenceFailure.INTEGRITY_CONFLICT,
+            requirement="FR-011",
+            message="Persistence content does not match the decision record's Markdown view.",
+            remediation="Persist only Markdown bytes rendered from the same validated record.",
+        )
+
+    output_root = _resolve_output_root(workspace)
+    json_name = _target_name(record, "json")
+    markdown_name = _target_name(record, "md")
+    expected = ((json_name, json_content), (markdown_name, markdown_content))
+
+    # Detect every existing conflict before creating either missing half of the pair.
+    for filename, content in expected:
+        target = output_root / filename
+        if target.exists() or target.is_symlink():
+            _reuse_or_conflict(target, output_root, content)
+
+    created: list[tuple[Path, _FileIdentity | None]] = []
+    try:
+        persisted_json, json_identity = _persist_content(output_root, json_name, json_content)
+        if not persisted_json.reused:
+            created.append((output_root / json_name, json_identity))
+        persisted_markdown, markdown_identity = _persist_content(
+            output_root, markdown_name, markdown_content
+        )
+        if not persisted_markdown.reused:
+            created.append((output_root / markdown_name, markdown_identity))
+        for filename, content in expected:
+            if not _existing_target_matches(output_root / filename, output_root, content):
+                raise _error(
+                    RecordPersistenceFailure.INTEGRITY_CONFLICT,
+                    requirement="FR-011",
+                    message="A persisted decision-record output failed byte verification.",
+                    remediation="Preserve existing records and investigate the integrity conflict.",
+                )
+    except OSError:
+        # Roll back only files this attempt created: a path that once named our
+        # inode is not proof it still does, so an identity mismatch preserves
+        # the concurrent replacement and fails the pair closed.
+        for target, identity in created:
+            _unlink_created_file(target, identity)
+        raise
+
+    return PersistedDecisionOutputs(persisted_json, persisted_markdown)

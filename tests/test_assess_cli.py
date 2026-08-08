@@ -61,6 +61,7 @@ def test_assess_json_persists_exact_canonical_incomplete_record_and_reuses_it(
     payload = json.loads(first_output.out)
     identity = payload["record_content_identity"]
     target = workspace / "output" / f"sha256-{identity[7:]}.json"
+    report_target = workspace / "output" / f"sha256-{identity[7:]}.md"
     first_bytes = first_output.out.encode("ascii")
 
     assert first_output.err == ""
@@ -69,16 +70,18 @@ def test_assess_json_persists_exact_canonical_incomplete_record_and_reuses_it(
     assert payload["artefact_links"] == []
     assert payload["configuration"] == {"entries": [], "schema_version": 1}
     assert target.read_bytes() == first_bytes
+    assert identity in report_target.read_text(encoding="utf-8")
     os.utime(target, (1_700_000_000, 1_700_000_000))
-    before = target.stat().st_mtime_ns
+    os.utime(report_target, (1_700_000_000, 1_700_000_000))
+    before = (target.stat().st_mtime_ns, report_target.stat().st_mtime_ns)
 
     assert main(["assess", str(workspace), "--json"]) == ExitCode.SUCCESS
     second_output = capsys.readouterr()
 
     assert second_output.out.encode("ascii") == first_bytes
     assert second_output.err == ""
-    assert target.stat().st_mtime_ns == before
-    assert list((workspace / "output").iterdir()) == [target]
+    assert (target.stat().st_mtime_ns, report_target.stat().st_mtime_ns) == before
+    assert set((workspace / "output").iterdir()) == {target, report_target}
 
 
 def test_assess_human_and_quiet_modes_never_render_authored_or_host_text(
@@ -93,6 +96,8 @@ def test_assess_human_and_quiet_modes_never_render_authored_or_host_text(
     assert human.err == ""
     assert human.out.startswith("Assessment insufficient-evidence: sha256:")
     assert " -> output/sha256-" in human.out
+    assert ".json; report -> output/sha256-" in human.out
+    assert human.out.rstrip().endswith(".md")
     assert "authored-title-is-private" not in human.out
     assert str(tmp_path) not in human.out
     human_identity = human.out.split()[2]
@@ -104,6 +109,11 @@ def test_assess_human_and_quiet_modes_never_render_authored_or_host_text(
     assert main(["assess", str(workspace), "--quiet"]) == ExitCode.SUCCESS
     quiet = capsys.readouterr()
     assert quiet.out == quiet.err == ""
+    stem = f"sha256-{human_identity[7:]}"
+    assert {path.name for path in (workspace / "output").iterdir()} == {
+        f"{stem}.json",
+        f"{stem}.md",
+    }
 
 
 def test_external_artefact_requires_cli_grant_and_never_serializes_host_root(
@@ -219,7 +229,7 @@ def test_assess_validates_before_hashing_or_persistence(
         raise AssertionError("assessment crossed the validation gate")
 
     monkeypatch.setattr("archsift.cli.evidence_artefact_identities", forbidden)
-    monkeypatch.setattr("archsift.cli.persist_decision_record", forbidden)
+    monkeypatch.setattr("archsift.cli.persist_decision_outputs", forbidden)
 
     assert main(["assess", str(workspace), "--json"]) == ExitCode.VALIDATION_FAILED
     output = capsys.readouterr()
@@ -257,6 +267,29 @@ def test_assess_rejects_combined_json_and_quiet_modes(tmp_path: Path) -> None:
 
     assert captured.value.code == ExitCode.USAGE
     assert list((workspace / "output").iterdir()) == []
+
+
+def test_assess_reports_markdown_integrity_conflict_without_replacing_either_target(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace = _workspace(tmp_path)
+    assert main(["assess", str(workspace), "--json"]) == ExitCode.SUCCESS
+    success = capsys.readouterr()
+    identity = json.loads(success.out)["record_content_identity"]
+    json_target = workspace / "output" / f"sha256-{identity[7:]}.json"
+    report_target = workspace / "output" / f"sha256-{identity[7:]}.md"
+    json_before = json_target.read_bytes()
+    report_target.write_bytes(b"conflicting Markdown bytes")
+
+    assert main(["assess", str(workspace), "--json"]) == ExitCode.PERSISTENCE_FAILED
+    failure = capsys.readouterr()
+    payload = json.loads(failure.out)
+
+    assert payload["status"] == "persistence-failed"
+    assert payload["diagnostics"][0]["id"] == "decision-record-integrity-conflict"
+    assert json_target.read_bytes() == json_before
+    assert report_target.read_bytes() == b"conflicting Markdown bytes"
 
 
 def test_assess_reports_integrity_conflict_without_replacing_target(
