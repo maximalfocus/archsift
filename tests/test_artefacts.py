@@ -556,7 +556,7 @@ def test_unreadable_file_uses_stable_error_without_host_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    workspace = tmp_path / "private\x1bcase"
+    workspace = tmp_path / "private-case"
     root = workspace / "evidence"
     root.mkdir(parents=True)
     target = root / "file.bin"
@@ -571,7 +571,7 @@ def test_unreadable_file_uses_stable_error_without_host_path(
 
     def blocked_open(path: Path, *args: object, **kwargs: object):
         if path == target.resolve():
-            raise PermissionError("private host detail")
+            raise PermissionError("private host detail\x1b")
         return original_open(path, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", blocked_open)
