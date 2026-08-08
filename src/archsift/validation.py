@@ -768,6 +768,14 @@ def _evidence_artefact_diagnostics(
                     "NFR-004",
                     "Replace every backslash with a POSIX path segment separator.",
                 )
+            elif re.match(r"^[A-Za-z]:", path):
+                diagnostic = _diagnostic(
+                    "evidence-artefact-path-drive-prefix",
+                    "An evidence artefact path cannot contain a drive prefix.",
+                    path_field,
+                    "NFR-004",
+                    "Use a plain relative POSIX path beneath the selected root.",
+                )
             elif any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in path):
                 diagnostic = _diagnostic(
                     "evidence-artefact-path-control-character",

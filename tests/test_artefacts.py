@@ -174,6 +174,8 @@ def test_duplicate_artefact_ids_fail_at_later_exact_path(tmp_path: Path) -> None
         ("./file.bin", "evidence-artefact-path-current-segment"),
         ("folder/../file.bin", "evidence-artefact-path-parent-segment"),
         ("folder/\x1bfile.bin", "evidence-artefact-path-control-character"),
+        ("C:foo", "evidence-artefact-path-drive-prefix"),
+        ("d:/file.bin", "evidence-artefact-path-drive-prefix"),
     ],
 )
 def test_unsafe_authored_path_shapes_fail_closed(
@@ -344,7 +346,15 @@ def _assert_error(
 
 @pytest.mark.parametrize(
     "path",
-    ["/absolute.bin", "folder\\file.bin", "folder//file.bin", "./file.bin", "../file.bin"],
+    [
+        "/absolute.bin",
+        "folder\\file.bin",
+        "folder//file.bin",
+        "./file.bin",
+        "../file.bin",
+        "C:foo",
+        "D:/file.bin",
+    ],
 )
 def test_hashing_api_rejects_unvalidated_unsafe_paths_before_root_access(
     tmp_path: Path,

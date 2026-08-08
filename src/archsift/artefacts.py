@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import stat
 from dataclasses import dataclass
 from enum import StrEnum
@@ -124,6 +125,7 @@ def _validate_reference_path(pending: _PendingArtefact) -> None:
     if (
         path.startswith("/")
         or "\\" in path
+        or re.match(r"^[A-Za-z]:", path) is not None
         or "" in segments
         or "." in segments
         or ".." in segments
