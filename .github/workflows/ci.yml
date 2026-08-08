@@ -66,6 +66,7 @@ jobs:
           assert wheel.name.endswith("-py3-none-any.whl"), wheel
           with ZipFile(wheel) as archive:
               names = set(archive.namelist())
+          assert "archsift/artefacts.py" in names
           assert "archsift/canonical.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
@@ -83,6 +84,7 @@ jobs:
           import tempfile
           import venv
           from pathlib import Path
+          from archsift.artefacts import evidence_artefact_identities
           from archsift.canonical import (
               canonical_dossier_bytes,
               dossier_content_identity,
@@ -124,6 +126,10 @@ jobs:
           assert effects.count("support-candidate") == 5
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
+          external_root = root / "external-evidence"
+          external_root.mkdir()
+          (case / "evidence" / "baseline.bin").write_bytes(b"installed baseline\x00")
+          (external_root / "trial.bin").write_bytes(b"installed trial\xff")
           initialized = subprocess.run(
               [python, "-m", "archsift", "validate", case, "--json"],
               check=True,
@@ -173,6 +179,11 @@ jobs:
                   "affects": ["problem-value"],
                   "provenance": "sanitised measurement",
                   "observed_at": "2026-08-07",
+                  "artefacts": [{
+                      "id": "baseline-bytes",
+                      "root": "workspace",
+                      "path": "baseline.bin",
+                  }],
               }, {
                   "id": "agency-estimate",
                   "kind": "estimate",
@@ -180,6 +191,11 @@ jobs:
                   "owner": "Engineering lead",
                   "affects": ["agency-necessity", "comparative-fit"],
                   "method": "Sanitised installed-wheel smoke fixture.",
+                  "artefacts": [{
+                      "id": "trial-bytes",
+                      "root": "external",
+                      "path": "trial.bin",
+                  }],
               }, {
                   "id": "autonomy-observed",
                   "kind": "observed",
@@ -350,6 +366,14 @@ jobs:
               "canonical_bytes": canonical_dossier_bytes(source_dossier).hex(),
               "decision_record": canonical_decision_record_bytes(source_record).hex(),
               "dossier_identity": dossier_content_identity(source_dossier),
+              "artefact_identities": [
+                  item.to_dict()
+                  for item in evidence_artefact_identities(
+                      source_dossier,
+                      workspace=case,
+                      external_root=external_root,
+                  )
+              ],
               "evidence_identities": evidence_content_identities(source_dossier),
               "verdict": evaluate_assessment(source_dossier).verdict.value,
           }
@@ -359,6 +383,7 @@ jobs:
                   "-c",
                   (
                       "import json; from pathlib import Path; import sys; "
+                      "from archsift.artefacts import evidence_artefact_identities; "
                       "from archsift.canonical import canonical_dossier_bytes, "
                       "dossier_content_identity, evidence_content_identities; "
                       "from archsift.decision import evaluate_assessment; "
@@ -376,12 +401,16 @@ jobs:
                       "assert tuple(c.id for c in result.unmet_conditions) == "
                       "('verify-production-capacity',); "
                       "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "
+                      "'artefact_identities': [item.to_dict() for item in "
+                      "evidence_artefact_identities(dossier, workspace=Path(sys.argv[1]), "
+                      "external_root=Path(sys.argv[2]))], "
                       "'decision_record': canonical_decision_record_bytes(record).hex(), "
                       "'dossier_identity': dossier_content_identity(dossier), "
                       "'evidence_identities': evidence_content_identities(dossier), "
                       "'verdict': result.verdict.value}, sort_keys=True))"
                   ),
                   str(case),
+                  str(external_root),
               ],
               check=True,
               capture_output=True,

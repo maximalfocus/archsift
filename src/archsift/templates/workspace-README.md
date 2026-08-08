@@ -42,6 +42,10 @@ evidence:
     affects: [problem-value]
     provenance: evidence/sanitised-baseline.csv
     observed_at: 2026-08-06
+    artefacts:
+      - id: baseline-data
+        root: workspace
+        path: sanitised-baseline.csv
   - id: volume-assumption
     kind: assumption
     claim: Monthly demand will remain near its current level.
@@ -54,6 +58,10 @@ evidence:
     owner: Engineering lead
     affects: [agency-necessity, comparative-fit]
     method: Estimate from a sanitised representative-case sample.
+    artefacts:
+      - id: representative-sample
+        root: external
+        path: trials/representative-sample.json
   - id: exception-gap
     kind: missing
     claim: The frequency of policy exceptions is unknown.
@@ -68,6 +76,8 @@ evidence:
     provenance: evidence/sanitised-control-review.txt
     observed_at: 2026-08-07
 ```
+
+`provenance` remains inert text naming the observation source; ArchSift never treats it as a path. An optional `artefacts` entry explicitly names bytes for later hashing. A `workspace` path is POSIX-relative to this workspace's `evidence/` directory. An `external` path is relative to an external evidence root that the caller must explicitly grant outside the dossier; the dossier cannot select that root itself. `archsift validate` checks only this authored reference contract and never opens either file.
 
 Describe the value gate before comparing technologies. Every outcome and constraint explicitly says whether it is binding, and every claim cites the evidence ledger. A binding outcome is ready for later assessment only when its baseline cites an observation or method-backed estimate.
 

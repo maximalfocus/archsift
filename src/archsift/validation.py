@@ -341,6 +341,22 @@ class EvidenceKind(StrEnum):
     MISSING = "missing"
 
 
+class EvidenceArtefactRoot(StrEnum):
+    """Authorised root selected by an evidence-artefact reference."""
+
+    WORKSPACE = "workspace"
+    EXTERNAL = "external"
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceArtefactReference:
+    """One authored relative reference to evidence bytes."""
+
+    id: str
+    root: EvidenceArtefactRoot
+    path: str
+
+
 class DecisionArea(StrEnum):
     """Decision areas an evidence entry can affect."""
 
@@ -386,6 +402,7 @@ class ObservedEvidence(EvidenceEntry):
 
     provenance: str
     observed_at: date
+    artefacts: tuple[EvidenceArtefactReference, ...] = ()
     kind: ClassVar[EvidenceKind] = EvidenceKind.OBSERVED
 
 
@@ -394,6 +411,7 @@ class AssumptionEvidence(EvidenceEntry):
     """A belief with an explicit falsification observation."""
 
     falsified_by: str
+    artefacts: tuple[EvidenceArtefactReference, ...] = ()
     kind: ClassVar[EvidenceKind] = EvidenceKind.ASSUMPTION
 
 
@@ -402,6 +420,7 @@ class EstimateEvidence(EvidenceEntry):
     """A forecast with a recorded method."""
 
     method: str
+    artefacts: tuple[EvidenceArtefactReference, ...] = ()
     kind: ClassVar[EvidenceKind] = EvidenceKind.ESTIMATE
 
 
@@ -410,6 +429,7 @@ class MissingEvidence(EvidenceEntry):
     """A known evidence gap with a resolution observation."""
 
     resolved_by: str
+    artefacts: tuple[EvidenceArtefactReference, ...] = ()
     kind: ClassVar[EvidenceKind] = EvidenceKind.MISSING
 
 
@@ -637,7 +657,9 @@ def _remediation(error: ValidationError, field: str) -> str:
 
 def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
     base_field = _field_path(list(error.absolute_path))
-    if base_field.startswith("$.evidence"):
+    if base_field.startswith("$.evidence") and ".artefacts" in base_field:
+        requirement = "FR-011"
+    elif base_field.startswith("$.evidence"):
         requirement = "FR-004"
     elif base_field.startswith("$.task"):
         requirement = "FR-003"
@@ -700,6 +722,104 @@ def _duplicate_evidence_diagnostics(entries: Sequence[Mapping[str, Any]]) -> tup
                     "Give every evidence entry a unique stable ID and update later references.",
                 )
             )
+    return tuple(diagnostics)
+
+
+def _evidence_artefact_diagnostics(
+    entries: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    diagnostics: list[Diagnostic] = []
+    for evidence_index, entry in enumerate(entries):
+        first_by_id: dict[str, int] = {}
+        artefacts = cast(Sequence[Mapping[str, Any]], entry.get("artefacts", ()))
+        for artefact_index, artefact in enumerate(artefacts):
+            identifier = cast(str, artefact["id"])
+            id_path = f"$.evidence[{evidence_index}].artefacts[{artefact_index}].id"
+            first = first_by_id.setdefault(identifier, artefact_index)
+            if first != artefact_index:
+                diagnostics.append(
+                    _diagnostic(
+                        "duplicate-evidence-artefact-id",
+                        f"Evidence artefact ID {identifier!r} duplicates the reference at "
+                        f"$.evidence[{evidence_index}].artefacts[{first}].id.",
+                        id_path,
+                        "FR-011",
+                        "Give every artefact reference within this evidence entry a unique "
+                        "stable ID.",
+                    )
+                )
+
+            path = cast(str, artefact["path"])
+            path_field = f"$.evidence[{evidence_index}].artefacts[{artefact_index}].path"
+            diagnostic: Diagnostic | None = None
+            if path.startswith("/"):
+                diagnostic = _diagnostic(
+                    "evidence-artefact-path-absolute",
+                    "An evidence artefact path must be relative to its authorised root.",
+                    path_field,
+                    "NFR-004",
+                    "Use a relative POSIX path beneath the selected root.",
+                )
+            elif "\\" in path:
+                diagnostic = _diagnostic(
+                    "evidence-artefact-path-backslash",
+                    "An evidence artefact path must use POSIX forward slashes.",
+                    path_field,
+                    "NFR-004",
+                    "Replace every backslash with a POSIX path segment separator.",
+                )
+            elif ":" in path:
+                diagnostic = _diagnostic(
+                    "evidence-artefact-path-colon",
+                    "An evidence artefact path cannot contain a colon.",
+                    path_field,
+                    "NFR-004",
+                    "Use a plain relative POSIX path beneath the selected root.",
+                )
+            elif any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in path):
+                diagnostic = _diagnostic(
+                    "evidence-artefact-path-control-character",
+                    "An evidence artefact path cannot contain control characters.",
+                    path_field,
+                    "NFR-004",
+                    "Remove control characters from the authored relative path.",
+                )
+            else:
+                segments = path.split("/")
+                if "" in segments:
+                    diagnostic = _diagnostic(
+                        "evidence-artefact-path-empty-segment",
+                        "An evidence artefact path cannot contain an empty segment.",
+                        path_field,
+                        "NFR-004",
+                        "Remove leading, trailing, or repeated POSIX separators.",
+                    )
+                elif "." in segments:
+                    diagnostic = _diagnostic(
+                        "evidence-artefact-path-current-segment",
+                        "An evidence artefact path cannot contain a current-directory segment.",
+                        path_field,
+                        "NFR-004",
+                        "Remove every '.' segment from the authored relative path.",
+                    )
+                elif ".." in segments:
+                    diagnostic = _diagnostic(
+                        "evidence-artefact-path-parent-segment",
+                        "An evidence artefact path cannot contain a parent-directory segment.",
+                        path_field,
+                        "NFR-004",
+                        "Keep the authored path beneath its selected root without traversal.",
+                    )
+                elif any(segment.endswith((" ", ".")) for segment in segments):
+                    diagnostic = _diagnostic(
+                        "evidence-artefact-path-trailing-dot-or-space",
+                        "An evidence artefact path segment cannot end with a dot or a space.",
+                        path_field,
+                        "NFR-004",
+                        "Use plain file and directory names without trailing dots or spaces.",
+                    )
+            if diagnostic is not None:
+                diagnostics.append(diagnostic)
     return tuple(diagnostics)
 
 
@@ -1530,6 +1650,16 @@ def _typed_candidate_comparison(
 
 
 def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...]:
+    def artefacts(entry: Mapping[str, Any]) -> tuple[EvidenceArtefactReference, ...]:
+        return tuple(
+            EvidenceArtefactReference(
+                id=cast(str, raw["id"]),
+                root=EvidenceArtefactRoot(cast(str, raw["root"])),
+                path=cast(str, raw["path"]),
+            )
+            for raw in cast(Sequence[Mapping[str, Any]], entry.get("artefacts", ()))
+        )
+
     typed: list[Evidence] = []
     for entry in entries:
         identifier = cast(str, entry["id"])
@@ -1546,6 +1676,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     affects,
                     provenance=cast(str, entry["provenance"]),
                     observed_at=date.fromisoformat(cast(str, entry["observed_at"])),
+                    artefacts=artefacts(entry),
                 )
             )
         elif kind is EvidenceKind.ASSUMPTION:
@@ -1556,6 +1687,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     owner,
                     affects,
                     falsified_by=cast(str, entry["falsified_by"]),
+                    artefacts=artefacts(entry),
                 )
             )
         elif kind is EvidenceKind.ESTIMATE:
@@ -1566,6 +1698,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     owner,
                     affects,
                     method=cast(str, entry["method"]),
+                    artefacts=artefacts(entry),
                 )
             )
         else:
@@ -1576,6 +1709,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     owner,
                     affects,
                     resolved_by=cast(str, entry["resolved_by"]),
+                    artefacts=artefacts(entry),
                 )
             )
     return tuple(typed)
@@ -2239,6 +2373,7 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
+            *_evidence_artefact_diagnostics(raw_evidence),
             *_duplicate_task_action_diagnostics(raw_task),
             *_problem_value_semantic_diagnostics(raw_problem_value, raw_evidence),
             *_agency_necessity_semantic_diagnostics(raw_agency_necessity, raw_evidence),

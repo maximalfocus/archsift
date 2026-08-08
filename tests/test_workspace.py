@@ -33,6 +33,10 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "kind: assumption" in guidance
     assert "kind: estimate" in guidance
     assert "kind: missing" in guidance
+    assert "artefacts:" in guidance
+    assert "root: workspace" in guidance
+    assert "root: external" in guidance
+    assert "provenance` remains inert text" in guidance
     assert "problem_value:" in guidance
     assert "baseline_id:" in guidance
     assert "technology_limitation:" in guidance
