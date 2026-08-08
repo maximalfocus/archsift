@@ -20,6 +20,7 @@ from archsift.validation import (
     AutonomyPermission,
     AutonomyQuestion,
     Candidate,
+    CandidateAuthority,
     CandidateComparison,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -217,7 +218,8 @@ def _check_typed_value(value: object, declared: Any) -> None:
             raise CanonicalizationError("Unsupported None typed value for canonicalization.")
         members = tuple(member for member in arguments if member is not type(None))
         for member in members:
-            if type(value) is member:
+            member_origin = get_origin(member)
+            if type(value) is member or (member_origin is tuple and type(value) is tuple):
                 _check_typed_value(value, member)
                 return
         if declared is Evidence:
@@ -458,7 +460,15 @@ def _autonomy_question(value: AutonomyQuestion) -> JsonObject:
 
 
 def _hard_veto(value: HardVeto) -> JsonObject:
-    expected = ("id", "status", "condition", "consequence", "action_ids", "evidence_ids")
+    expected = (
+        "id",
+        "status",
+        "condition",
+        "consequence",
+        "action_ids",
+        "evidence_ids",
+        "prohibited_control_classes",
+    )
     return _checked_object(
         value,
         HardVeto,
@@ -474,6 +484,24 @@ def _hard_veto(value: HardVeto) -> JsonObject:
             "consequence": value.consequence,
             "action_ids": list(value.action_ids),
             "evidence_ids": list(value.evidence_ids),
+            "prohibited_control_classes": (
+                [
+                    _enum_value(
+                        item,
+                        ControlClass,
+                        (
+                            "human-owned-work",
+                            "process-redesign",
+                            "deterministic-automation",
+                            "fixed-ai-workflow",
+                            "agentic-control",
+                        ),
+                    )
+                    for item in value.prohibited_control_classes
+                ]
+                if value.prohibited_control_classes is not None
+                else None
+            ),
         },
     )
 
@@ -553,6 +581,20 @@ def _constraint_test(value: CandidateConstraintTest) -> JsonObject:
     )
 
 
+def _candidate_authority(value: CandidateAuthority) -> JsonObject:
+    expected = ("action_ids", "retained_human_control_ids", "evidence_ids")
+    return _checked_object(
+        value,
+        CandidateAuthority,
+        expected,
+        {
+            "action_ids": list(value.action_ids),
+            "retained_human_control_ids": list(value.retained_human_control_ids),
+            "evidence_ids": list(value.evidence_ids),
+        },
+    )
+
+
 def _candidate(value: Candidate) -> JsonObject:
     expected = (
         "id",
@@ -563,6 +605,7 @@ def _candidate(value: Candidate) -> JsonObject:
         "material_deviations",
         "outcome_tests",
         "constraint_tests",
+        "authority",
     )
     return _checked_object(
         value,
@@ -599,6 +642,9 @@ def _candidate(value: Candidate) -> JsonObject:
             "material_deviations": list(value.material_deviations),
             "outcome_tests": [_outcome_test(item) for item in value.outcome_tests],
             "constraint_tests": [_constraint_test(item) for item in value.constraint_tests],
+            "authority": (
+                _candidate_authority(value.authority) if value.authority is not None else None
+            ),
         },
     )
 

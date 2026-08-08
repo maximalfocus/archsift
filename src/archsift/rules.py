@@ -14,7 +14,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.4.0"
+RULESET_VERSION = "1.5.0"
 
 
 class RuleEffect(StrEnum):
@@ -23,6 +23,8 @@ class RuleEffect(StrEnum):
     BLOCK = "block"
     REQUIRE_EVIDENCE = "require-evidence"
     SUPPORT_CANDIDATE = "support-candidate"
+    CONSTRAIN_AUTONOMY = "constrain-autonomy"
+    NON_DECISIVE = "non-decisive"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,10 +109,11 @@ def _decision_rule(
     description: str,
     consequence: str,
     rationale: str,
+    requirement: str = "FR-009",
 ) -> RuleDefinition:
     return RuleDefinition(
         id=identifier,
-        requirement="FR-009",
+        requirement=requirement,
         effect=effect,
         description=description,
         consequence=consequence,
@@ -288,6 +291,40 @@ DECISION_RULES = tuple(
     sorted(
         (
             _decision_rule(
+                "active-veto-applicability-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require explicit prohibited control classes for an overlapping active veto.",
+                "The affected automation candidate remains undetermined.",
+                "A prose consequence cannot be parsed into machine-enforceable class scope.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "active-veto-blocks-candidate",
+                RuleEffect.BLOCK,
+                "Block an automation candidate prohibited by an overlapping active veto.",
+                "The candidate is eliminated from its represented control class.",
+                "An active hard boundary cannot be offset by unrelated candidate strengths.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "automation-authority-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require a credible task-action authority scope for every automation candidate.",
+                "The automation candidate remains undetermined.",
+                "Autonomy boundaries cannot be applied without knowing which actions a candidate "
+                "controls.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "autonomy-boundary-non-decisive",
+                RuleEffect.NON_DECISIVE,
+                "Record an inactive or non-overlapping autonomy boundary explicitly.",
+                "The boundary has no effect on this candidate's disposition.",
+                "Required autonomy facts must be causally accounted for even when they do not "
+                "apply.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
                 "binding-constraint-failed",
                 RuleEffect.BLOCK,
                 "Block a candidate that credibly fails a binding constraint.",
@@ -314,6 +351,31 @@ DECISION_RULES = tuple(
                 "Support a candidate that credibly meets a binding outcome.",
                 "The binding outcome supports the candidate but cannot override a block.",
                 "Eligibility support must remain criterion-specific and evidence-traceable.",
+            ),
+            _decision_rule(
+                "credible-authority-evidence-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require observed or method-backed evidence for candidate authority scope.",
+                "The automation candidate remains undetermined.",
+                "An assumption or known gap cannot establish which consequential actions an "
+                "architecture controls.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "mandatory-human-control-omitted",
+                RuleEffect.BLOCK,
+                "Block a candidate that omits an applicable mandatory human control.",
+                "The candidate is eliminated from its represented control class.",
+                "A mandatory human boundary cannot be averaged away or treated as report-only.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "mandatory-human-control-retained",
+                RuleEffect.CONSTRAIN_AUTONOMY,
+                "Constrain a candidate to retain an applicable mandatory human control.",
+                "The candidate may remain eligible only with the named human control retained.",
+                "A preserved control is an architecture boundary, not an unmet future condition.",
+                requirement="FR-007/FR-009",
             ),
         ),
         key=lambda rule: rule.id,

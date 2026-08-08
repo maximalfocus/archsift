@@ -213,6 +213,7 @@ autonomy_permission:
       consequence: Autonomous release is prohibited.
       action_ids: [release-disposition]
       evidence_ids: [autonomy-control-observation]
+      prohibited_control_classes: [agentic-control]
   mandatory_human_controls:
     - id: approve-release
       description: Approve the disposition before external release.
@@ -223,6 +224,8 @@ autonomy_permission:
 ```
 
 Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Candidates that inform the comparison without holding one of those decision-boundary roles use the required explicit form `roles: []`. Every named role still belongs to at most one candidate. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
+
+Every deterministic-automation, fixed-AI-workflow, or agentic-control candidate must declare an evidence-backed `authority` scope before it can survive assessment. `action_ids` identify the task actions controlled by that candidate. `retained_human_control_ids` explicitly identifies which applicable mandatory controls remain in the architecture; an empty list means none are retained. Active hard vetoes block only declared `prohibited_control_classes` whose action IDs intersect the candidate authority. Missing authority or overlapping veto applicability leaves the candidate undetermined, while inactive or non-overlapping boundaries are reported as non-decisive. ArchSift validates these declarations and their provenance but does not prove their external truth.
 
 ```yaml
 candidate_comparison:
@@ -249,7 +252,11 @@ candidate_comparison:
       control_class: fixed-ai-workflow
       roles: [proposed]
       material_deviations:
-        - Consequential release remains outside the workflow.
+        - Consequential release remains subject to human approval.
+      authority:
+        action_ids: [release-disposition]
+        retained_human_control_ids: [approve-release]
+        evidence_ids: [autonomy-control-observation]
       outcome_tests:
         - outcome_id: reduce-handling-time
           result: meets

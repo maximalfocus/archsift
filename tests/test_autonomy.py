@@ -15,6 +15,7 @@ from archsift.validation import (
     AutonomyAnswer,
     AutonomyPermission,
     AutonomyQuestion,
+    ControlClass,
     HardVeto,
     HardVetoStatus,
     MandatoryHumanControl,
@@ -169,6 +170,7 @@ def test_complete_autonomy_is_typed_immutable_ordered_and_ready(tmp_path: Path) 
     workspace = _workspace(tmp_path)
     autonomy = _autonomy()
     vetoes = cast(list[dict[str, object]], autonomy["hard_vetoes"])
+    vetoes[0]["prohibited_control_classes"] = ["fixed-ai-workflow", "agentic-control"]
     vetoes.append(
         {
             "id": "no-bulk-release",
@@ -194,6 +196,11 @@ def test_complete_autonomy_is_typed_immutable_ordered_and_ready(tmp_path: Path) 
     ]
     assert all(isinstance(veto, HardVeto) for veto in facts.hard_vetoes)
     assert facts.hard_vetoes[0].status is HardVetoStatus.ACTIVE
+    assert facts.hard_vetoes[0].prohibited_control_classes == (
+        ControlClass.FIXED_AI_WORKFLOW,
+        ControlClass.AGENTIC_CONTROL,
+    )
+    assert facts.hard_vetoes[1].prohibited_control_classes is None
     assert all(
         isinstance(control, MandatoryHumanControl) for control in facts.mandatory_human_controls
     )
@@ -305,6 +312,13 @@ def test_every_human_control_field_is_required(tmp_path: Path, missing_field: st
         ("veto", "consequence", " \t "),
         ("veto", "action_ids", [" \t "]),
         ("veto", "evidence_ids", [" \t "]),
+        ("veto", "prohibited_control_classes", []),
+        ("veto", "prohibited_control_classes", ["unsupported"]),
+        (
+            "veto",
+            "prohibited_control_classes",
+            ["agentic-control", "agentic-control"],
+        ),
         ("control", "id", " \t "),
         ("control", "description", " \t "),
         ("control", "control_point", " \t "),
