@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import stat
 from dataclasses import dataclass
 from enum import StrEnum
@@ -94,6 +93,10 @@ class _PendingArtefact:
     reference: EvidenceArtefactReference
 
     @property
+    def id_field(self) -> str:
+        return f"$.evidence[{self.evidence_index}].artefacts[{self.artefact_index}].id"
+
+    @property
     def root_field(self) -> str:
         return f"$.evidence[{self.evidence_index}].artefacts[{self.artefact_index}].root"
 
@@ -125,10 +128,11 @@ def _validate_reference_path(pending: _PendingArtefact) -> None:
     if (
         path.startswith("/")
         or "\\" in path
-        or re.match(r"^[A-Za-z]:", path) is not None
+        or ":" in path
         or "" in segments
         or "." in segments
         or ".." in segments
+        or any(segment.endswith((" ", ".")) for segment in segments)
         or any(ord(character) < 32 or 127 <= ord(character) <= 159 for character in path)
     ):
         raise _error(
@@ -335,7 +339,7 @@ def evidence_artefact_identities(
         if key in seen:
             raise _error(
                 EvidenceArtefactFailure.DUPLICATE_REFERENCE,
-                field=item.root_field,
+                field=item.id_field,
                 requirement="FR-011",
                 message="An evidence and artefact ID pair is duplicated.",
                 remediation="Use unique evidence IDs and artefact IDs before hashing.",

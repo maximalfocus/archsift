@@ -174,8 +174,12 @@ def test_duplicate_artefact_ids_fail_at_later_exact_path(tmp_path: Path) -> None
         ("./file.bin", "evidence-artefact-path-current-segment"),
         ("folder/../file.bin", "evidence-artefact-path-parent-segment"),
         ("folder/\x1bfile.bin", "evidence-artefact-path-control-character"),
-        ("C:foo", "evidence-artefact-path-drive-prefix"),
-        ("d:/file.bin", "evidence-artefact-path-drive-prefix"),
+        ("file:stream", "evidence-artefact-path-colon"),
+        ("C:foo", "evidence-artefact-path-colon"),
+        ("d:/file.bin", "evidence-artefact-path-colon"),
+        ("folder/file.", "evidence-artefact-path-trailing-dot-or-space"),
+        ("folder/file ", "evidence-artefact-path-trailing-dot-or-space"),
+        ("folder./file.bin", "evidence-artefact-path-trailing-dot-or-space"),
     ],
 )
 def test_unsafe_authored_path_shapes_fail_closed(
@@ -352,8 +356,11 @@ def _assert_error(
         "folder//file.bin",
         "./file.bin",
         "../file.bin",
+        "file:stream",
         "C:foo",
         "D:/file.bin",
+        "folder/file.",
+        "folder/file ",
     ],
 )
 def test_hashing_api_rejects_unvalidated_unsafe_paths_before_root_access(
@@ -372,6 +379,23 @@ def test_hashing_api_rejects_unvalidated_unsafe_paths_before_root_access(
         tmp_path / "missing-workspace",
         EvidenceArtefactFailure.REFERENCE_PATH_INVALID,
     )
+
+
+def test_hashing_api_duplicate_pair_reports_later_id_field(tmp_path: Path) -> None:
+    dossier = _typed_dossier(
+        _observed(
+            "evidence",
+            EvidenceArtefactReference("dup", EvidenceArtefactRoot.WORKSPACE, "a.bin"),
+            EvidenceArtefactReference("dup", EvidenceArtefactRoot.WORKSPACE, "b.bin"),
+        )
+    )
+
+    error = _assert_error(
+        dossier,
+        tmp_path / "unused-workspace",
+        EvidenceArtefactFailure.DUPLICATE_REFERENCE,
+    )
+    assert error.field == "$.evidence[0].artefacts[1].id"
 
 
 def test_external_reference_requires_an_explicit_root(tmp_path: Path) -> None:

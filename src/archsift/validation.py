@@ -768,10 +768,10 @@ def _evidence_artefact_diagnostics(
                     "NFR-004",
                     "Replace every backslash with a POSIX path segment separator.",
                 )
-            elif re.match(r"^[A-Za-z]:", path):
+            elif ":" in path:
                 diagnostic = _diagnostic(
-                    "evidence-artefact-path-drive-prefix",
-                    "An evidence artefact path cannot contain a drive prefix.",
+                    "evidence-artefact-path-colon",
+                    "An evidence artefact path cannot contain a colon.",
                     path_field,
                     "NFR-004",
                     "Use a plain relative POSIX path beneath the selected root.",
@@ -809,6 +809,14 @@ def _evidence_artefact_diagnostics(
                         path_field,
                         "NFR-004",
                         "Keep the authored path beneath its selected root without traversal.",
+                    )
+                elif any(segment.endswith((" ", ".")) for segment in segments):
+                    diagnostic = _diagnostic(
+                        "evidence-artefact-path-trailing-dot-or-space",
+                        "An evidence artefact path segment cannot end with a dot or a space.",
+                        path_field,
+                        "NFR-004",
+                        "Use plain file and directory names without trailing dots or spaces.",
                     )
             if diagnostic is not None:
                 diagnostics.append(diagnostic)
