@@ -173,7 +173,7 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.1.0"
+    assert RULESET_VERSION == "1.2.0"
     assert ids == sorted(ids)
     assert len(ids) == len(set(ids)) == 26
     assert set(ids) == {
@@ -226,7 +226,8 @@ def test_rules_cli_human_json_and_quiet_are_deterministic(
     human_second = capsys.readouterr()
     assert human_first == human_second
     assert human_first.err == ""
-    assert f"ArchSift prerequisite ruleset {RULESET_VERSION}" in human_first.out
+    assert f"ArchSift ruleset {RULESET_VERSION}" in human_first.out
+    assert "binding-outcome-failed [block; FR-009]" in human_first.out
     assert "task-boundary-missing [require-evidence; FR-003]" in human_first.out
 
     assert main(["rules", "--json"]) == ExitCode.SUCCESS

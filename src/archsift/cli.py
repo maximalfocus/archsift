@@ -14,7 +14,7 @@ from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.rules import (
     RULESET_VERSION,
     evaluate_assessment_prerequisites,
-    list_prerequisite_rules,
+    list_rules,
 )
 from archsift.validation import (
     ValidationResult,
@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
     _output_options(validate_parser)
 
-    rules_parser = subparsers.add_parser("rules", help="list packaged prerequisite rules")
+    rules_parser = subparsers.add_parser("rules", help="list packaged decision rules")
     _output_options(rules_parser)
     return parser
 
@@ -219,7 +219,7 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
 
 
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
-    rules = list_prerequisite_rules()
+    rules = list_rules()
     if quiet:
         return int(ExitCode.SUCCESS)
     if json_output:
@@ -234,7 +234,7 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
             stream=sys.stdout,
         )
         return int(ExitCode.SUCCESS)
-    _print(f"ArchSift prerequisite ruleset {RULESET_VERSION}", stream=sys.stdout)
+    _print(f"ArchSift ruleset {RULESET_VERSION}", stream=sys.stdout)
     for rule in rules:
         _print(
             f"{rule.id} [{rule.effect.value}; {rule.requirement}] {rule.description} "

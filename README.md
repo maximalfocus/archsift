@@ -5,7 +5,7 @@
 ArchSift is an open-source, local-first decision-support project for comparing human-owned work, process redesign, deterministic automation, fixed AI workflows, and runtime model-directed agency. It is designed to make evidence and trade-offs inspectable, and it may abstain when the available evidence cannot support a defensible decision.
 
 > [!IMPORTANT]
-> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison facts, compose their prerequisite readiness, and inspect the packaged ruleset; candidate elimination and architecture verdicts are not implemented yet.
+> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison facts, compose their prerequisite readiness, and inspect the packaged ruleset. The domain core can deterministically eliminate represented candidates by binding evidence; final architecture verdicts and decision records are not implemented yet.
 
 ## Install for development
 
