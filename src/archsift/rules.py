@@ -1,4 +1,4 @@
-"""Versioned, inspectable prerequisite rules for later assessment."""
+"""Versioned, inspectable rules for deterministic architecture assessment."""
 
 from __future__ import annotations
 
@@ -14,13 +14,15 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.1.0"
+RULESET_VERSION = "1.2.0"
 
 
 class RuleEffect(StrEnum):
-    """Supported consequence classes for transparent decision rules."""
+    """Supported non-scoring consequence classes for transparent rules."""
 
+    BLOCK = "block"
     REQUIRE_EVIDENCE = "require-evidence"
+    SUPPORT_CANDIDATE = "support-candidate"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +89,23 @@ def _rule(identifier: str, requirement: str, description: str, rationale: str) -
         effect=RuleEffect.REQUIRE_EVIDENCE,
         description=description,
         consequence=_PREREQUISITE_CONSEQUENCE,
+        source_rationale=rationale,
+    )
+
+
+def _decision_rule(
+    identifier: str,
+    effect: RuleEffect,
+    description: str,
+    consequence: str,
+    rationale: str,
+) -> RuleDefinition:
+    return RuleDefinition(
+        id=identifier,
+        requirement="FR-009",
+        effect=effect,
+        description=description,
+        consequence=consequence,
         source_rationale=rationale,
     )
 
@@ -257,21 +276,68 @@ PREREQUISITE_RULES = tuple(
     )
 )
 
-_RULES_BY_ID = {rule.id: rule for rule in PREREQUISITE_RULES}
-if len(_RULES_BY_ID) != len(PREREQUISITE_RULES):  # pragma: no cover - package invariant
-    raise RuntimeError("Packaged prerequisite rule IDs must be unique.")
+DECISION_RULES = tuple(
+    sorted(
+        (
+            _decision_rule(
+                "binding-constraint-failed",
+                RuleEffect.BLOCK,
+                "Block a candidate that credibly fails a binding constraint.",
+                "The candidate is eliminated from its represented control class.",
+                "A required constraint failure cannot be offset by unrelated strengths.",
+            ),
+            _decision_rule(
+                "binding-constraint-met",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support a candidate that credibly meets a binding constraint.",
+                "The binding constraint supports the candidate but cannot override a block.",
+                "Eligibility support must remain criterion-specific and evidence-traceable.",
+            ),
+            _decision_rule(
+                "binding-outcome-failed",
+                RuleEffect.BLOCK,
+                "Block a candidate that credibly fails a binding outcome.",
+                "The candidate is eliminated from its represented control class.",
+                "A required outcome failure cannot be offset by unrelated strengths.",
+            ),
+            _decision_rule(
+                "binding-outcome-met",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support a candidate that credibly meets a binding outcome.",
+                "The binding outcome supports the candidate but cannot override a block.",
+                "Eligibility support must remain criterion-specific and evidence-traceable.",
+            ),
+        ),
+        key=lambda rule: rule.id,
+    )
+)
+
+RULES = tuple(sorted((*PREREQUISITE_RULES, *DECISION_RULES), key=lambda rule: rule.id))
+_RULES_BY_ID = {rule.id: rule for rule in RULES}
+if len(_RULES_BY_ID) != len(RULES):  # pragma: no cover - package invariant
+    raise RuntimeError("Packaged rule IDs must be unique.")
+
+
+def list_rules() -> tuple[RuleDefinition, ...]:
+    """Return every immutable packaged rule in canonical order."""
+    return RULES
 
 
 def list_prerequisite_rules() -> tuple[RuleDefinition, ...]:
-    """Return the immutable packaged rules in canonical order."""
+    """Return prerequisite rules in canonical order for API compatibility."""
     return PREREQUISITE_RULES
 
 
-def _assessment_finding(source: PrerequisiteFinding) -> AssessmentPrerequisiteFinding:
+def get_rule_definition(identifier: str) -> RuleDefinition:
+    """Return one packaged rule or fail on an internal catalog mismatch."""
     try:
-        rule = _RULES_BY_ID[source.id]
+        return _RULES_BY_ID[identifier]
     except KeyError as error:  # pragma: no cover - guarded by catalog coverage tests
-        raise RuntimeError(f"No packaged rule definition for finding {source.id!r}.") from error
+        raise RuntimeError(f"No packaged rule definition for {identifier!r}.") from error
+
+
+def _assessment_finding(source: PrerequisiteFinding) -> AssessmentPrerequisiteFinding:
+    rule = get_rule_definition(source.id)
     return AssessmentPrerequisiteFinding(
         rule_id=rule.id,
         field=source.field,
