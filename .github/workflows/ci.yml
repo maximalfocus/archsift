@@ -71,9 +71,11 @@ jobs:
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
           assert "archsift/markdown_report.py" in names
+          assert "archsift/method.py" in names
           assert "archsift/persistence.py" in names
           assert "archsift/rules.py" in names
           assert "archsift/docs/exit-codes.md" in names
+          assert "archsift/docs/method-v1.0.0.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -124,13 +126,51 @@ jobs:
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
           assert rules_payload["ruleset_version"] == "1.6.0"
+          assert rules_payload["method"]["version"] == "1.0.0"
+          assert rules_payload["method"]["ruleset_version"] == "1.6.0"
+          assert rules_payload["method"]["specification"] == "docs/method-v1.0.0.md"
+          assert len(rules_payload["method"]["sources"]) == 6
           assert len(rules_payload["rules"]) == 57
+          assert all(rule["rationale_id"].startswith("method-v1.0.0#") for rule in rules_payload["rules"])
+          assert all(rule["source_ids"] for rule in rules_payload["rules"])
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 8
           assert effects.count("require-evidence") == 36
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 2
+          human_rules = subprocess.run(
+              [archsift, "rules"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          assert "method 1.0.0; docs/method-v1.0.0.md" in human_rules.stdout
+          assert "Method: method-v1.0.0#" in human_rules.stdout
+          assert " Sources: " in human_rules.stdout
+          method_probe = subprocess.run(
+              [
+                  python,
+                  "-c",
+                  (
+                      "from importlib.resources import files; "
+                      "from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, "
+                      "validate_method_catalog; "
+                      "from archsift.rules import RULESET_VERSION, list_rules; "
+                      "rules = list_rules(); "
+                      "validate_method_catalog(RULESET_VERSION, tuple(r.id for r in rules)); "
+                      "text = files('archsift').joinpath(METHOD_SPECIFICATION).read_text("
+                      "encoding='utf-8'); "
+                      "assert f'# ArchSift method specification {METHOD_VERSION}' in text; "
+                      "assert all(r.rationale_id in text for r in rules); "
+                      "print(METHOD_VERSION, METHOD_SPECIFICATION, len(rules))"
+                  ),
+              ],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          assert method_probe.stdout.strip() == "1.0.0 docs/method-v1.0.0.md 57"
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")

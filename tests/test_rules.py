@@ -8,6 +8,7 @@ import pytest
 
 from archsift.cli import main
 from archsift.diagnostics import ExitCode
+from archsift.method import METHOD_RULESET_VERSION, METHOD_SPECIFICATION, METHOD_VERSION
 from archsift.rules import (
     RULESET_VERSION,
     RuleEffect,
@@ -235,7 +236,10 @@ def test_rules_cli_human_json_and_quiet_are_deterministic(
     human_second = capsys.readouterr()
     assert human_first == human_second
     assert human_first.err == ""
-    assert f"ArchSift ruleset {RULESET_VERSION}" in human_first.out
+    assert (
+        f"ArchSift ruleset {RULESET_VERSION} "
+        f"(method {METHOD_VERSION}; {METHOD_SPECIFICATION})" in human_first.out
+    )
     assert "binding-outcome-failed [block; FR-009]" in human_first.out
     assert (
         "agentic-fixed-workflow-sufficient-blocks-candidate [block; FR-006/FR-009]"
@@ -251,7 +255,11 @@ def test_rules_cli_human_json_and_quiet_are_deterministic(
     assert json_first == json_second
     assert json_first.err == ""
     payload = json.loads(json_first.out)
-    assert payload["ruleset_version"] == RULESET_VERSION
+    assert payload["ruleset_version"] == RULESET_VERSION == METHOD_RULESET_VERSION
+    assert payload["method"]["version"] == METHOD_VERSION
+    assert payload["method"]["ruleset_version"] == RULESET_VERSION
+    assert payload["method"]["specification"] == METHOD_SPECIFICATION
+    assert payload["method"]["sources"]
     assert payload["status"] == "ok"
     assert payload["exit_code"] == 0
     assert payload["diagnostics"] == []
@@ -263,9 +271,15 @@ def test_rules_cli_human_json_and_quiet_are_deterministic(
         "description",
         "effect",
         "id",
+        "rationale_id",
         "requirement",
+        "source_ids",
         "source_rationale",
     }
+    assert all(
+        rule["rationale_id"].startswith(f"method-v{METHOD_VERSION}#") for rule in payload["rules"]
+    )
+    assert all(rule["source_ids"] for rule in payload["rules"])
     assert "verdict" not in payload
 
     assert main(["rules", "--quiet"]) == ExitCode.SUCCESS
