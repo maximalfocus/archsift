@@ -10,7 +10,18 @@ from pathlib import Path
 from typing import NoReturn, TextIO
 
 from archsift import package_version
+from archsift.artefacts import (
+    EvidenceArtefactError,
+    EvidenceArtefactFailure,
+    evidence_artefact_identities,
+)
+from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.persistence import (
+    RecordPersistenceError,
+    RecordPersistenceFailure,
+    persist_decision_record,
+)
 from archsift.rules import (
     RULESET_VERSION,
     evaluate_assessment_prerequisites,
@@ -58,6 +69,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     rules_parser = subparsers.add_parser("rules", help="list packaged decision rules")
     _output_options(rules_parser)
+
+    assess_parser = subparsers.add_parser(
+        "assess", help="produce an immutable canonical JSON decision record"
+    )
+    assess_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
+    assess_parser.add_argument(
+        "--external-evidence-root",
+        type=Path,
+        help="explicitly authorise one external evidence directory",
+    )
+    _output_options(assess_parser)
     return parser
 
 
@@ -218,6 +240,123 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
     return int(result.exit_code)
 
 
+_ARTEFACT_UNAVAILABLE_FAILURES = {
+    EvidenceArtefactFailure.EXTERNAL_ROOT_REQUIRED,
+    EvidenceArtefactFailure.TARGET_MISSING,
+    EvidenceArtefactFailure.TARGET_UNREADABLE,
+}
+_PERSISTENCE_UNSAFE_FAILURES = {
+    RecordPersistenceFailure.WORKSPACE_UNAVAILABLE,
+    RecordPersistenceFailure.OUTPUT_ROOT_UNSAFE,
+    RecordPersistenceFailure.TARGET_UNSAFE,
+}
+
+
+def _emit_assess_failure(
+    error: EvidenceArtefactError | RecordPersistenceError,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    if isinstance(error, EvidenceArtefactError):
+        exit_code = (
+            ExitCode.ARTEFACT_UNAVAILABLE
+            if error.category in _ARTEFACT_UNAVAILABLE_FAILURES
+            else ExitCode.UNSAFE_PATH
+        )
+        diagnostic_id = f"evidence-artefact-{error.category.value}"
+        diagnostic_file = "case.yaml"
+        status = "artefact-unavailable" if exit_code is ExitCode.ARTEFACT_UNAVAILABLE else "unsafe"
+    else:
+        exit_code = (
+            ExitCode.UNSAFE_PATH
+            if error.category in _PERSISTENCE_UNSAFE_FAILURES
+            else ExitCode.PERSISTENCE_FAILED
+        )
+        diagnostic_id = f"decision-record-{error.category.value}"
+        diagnostic_file = "output"
+        status = "unsafe" if exit_code is ExitCode.UNSAFE_PATH else "persistence-failed"
+    diagnostic = Diagnostic(
+        id=diagnostic_id,
+        message=error.message,
+        file=diagnostic_file,
+        field=error.field,
+        requirement=error.requirement,
+        remediation=error.remediation,
+    )
+    _emit(
+        status=status,
+        exit_code=exit_code,
+        diagnostics=(diagnostic,),
+        json_output=json_output,
+        quiet=quiet,
+        success_message="",
+        details={},
+    )
+    return int(exit_code)
+
+
+def _write_canonical_stdout(content: bytes) -> None:
+    stream = sys.stdout
+    binary = getattr(stream, "buffer", None)
+    if binary is not None:
+        binary.write(content)
+        binary.flush()
+    else:
+        stream.write(content.decode("ascii"))
+        stream.flush()
+
+
+def _run_assess(
+    path: Path,
+    *,
+    external_evidence_root: Path | None,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    try:
+        result = validate_workspace(path)
+        if result.exit_code is not ExitCode.SUCCESS or result.dossier is None:
+            _emit(
+                status="invalid",
+                exit_code=result.exit_code,
+                diagnostics=result.diagnostics,
+                json_output=json_output,
+                quiet=quiet,
+                success_message="",
+                details={"file": "case.yaml"},
+            )
+            return int(result.exit_code)
+        artefacts = evidence_artefact_identities(
+            result.dossier,
+            workspace=path,
+            external_root=external_evidence_root,
+        )
+        record = compose_decision_record(
+            result.dossier,
+            tool_version=package_version(),
+            artefact_identities=artefacts,
+        )
+        content = canonical_decision_record_bytes(record)
+        persisted = persist_decision_record(path, record, content)
+    except (EvidenceArtefactError, RecordPersistenceError) as error:
+        return _emit_assess_failure(error, json_output=json_output, quiet=quiet)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(content)
+        return int(ExitCode.SUCCESS)
+    _print(
+        f"Assessment {record.assessment.verdict.value}: {record.record_content_identity} "
+        f"-> {persisted.relative_path}",
+        stream=sys.stdout,
+    )
+    return int(ExitCode.SUCCESS)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -264,5 +403,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_validate(args.case, json_output=args.json_output, quiet=args.quiet)
     if args.command == "rules":
         return _run_rules(json_output=args.json_output, quiet=args.quiet)
+    if args.command == "assess":
+        return _run_assess(
+            args.case,
+            external_evidence_root=args.external_evidence_root,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
     parser.print_help()
     return int(ExitCode.SUCCESS)

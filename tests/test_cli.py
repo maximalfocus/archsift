@@ -79,13 +79,13 @@ def test_network_guard_blocks_connection_paths() -> None:
             client.connect_ex(("127.0.0.1", 1))
 
 
-def test_no_arguments_prints_honest_foundation_help(
+def test_no_arguments_prints_current_command_help(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert main([]) == 0
     output = capsys.readouterr().out
     assert "Evidence-calibrated architecture decision support" in output
-    assert "assess" not in output
+    assert "assess" in output
 
 
 def test_non_ascii_output_survives_ascii_only_stream(

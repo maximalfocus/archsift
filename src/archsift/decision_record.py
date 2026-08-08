@@ -1,11 +1,13 @@
-"""Canonical in-memory decision-record composition for current typed inputs."""
+"""Canonical content-addressed decision records for current typed inputs."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass, replace
 from enum import Enum, StrEnum
+from hashlib import sha256
 from typing import Any, TypeAlias, TypeVar, cast
 
+from archsift.artefacts import EvidenceArtefactIdentity
 from archsift.canonical import (
     CanonicalizationError,
     JsonObject,
@@ -41,11 +43,13 @@ from archsift.validation import (
     DecisionCondition,
     DecisionConditionStatus,
     Dossier,
+    EvidenceArtefactRoot,
     EvidenceKind,
     MissingEvidence,
 )
 
 RECORD_SCHEMA_VERSION = 1
+CONFIGURATION_SCHEMA_VERSION = 1
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
 
@@ -59,6 +63,25 @@ class UnresolvedGapSource(StrEnum):
 
     PREREQUISITE = "prerequisite"
     DECISION = "decision"
+
+
+@dataclass(frozen=True, slots=True)
+class AssessmentConfigurationEntry:
+    """One canonical decision-affecting configuration value."""
+
+    key: str
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class AssessmentConfiguration:
+    """Versioned configuration included in final decision-record identity."""
+
+    schema_version: int = CONFIGURATION_SCHEMA_VERSION
+    entries: tuple[AssessmentConfigurationEntry, ...] = ()
+
+
+DEFAULT_ASSESSMENT_CONFIGURATION = AssessmentConfiguration()
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,16 +139,20 @@ class ReassessmentTrigger:
 
 @dataclass(frozen=True, slots=True)
 class DecisionRecord:
-    """Immutable semantic record for the current typed dossier and assessment."""
+    """Immutable content-addressed record for the current typed inputs."""
 
     record_schema_version: int
+    record_content_identity: str
     dossier_schema_version: int
     dossier_content_identity: str
     ruleset_version: str
     tool_version: str
+    configuration: AssessmentConfiguration
+    configuration_content_identity: str
     dossier: Dossier
     assessment: AssessmentEvaluation
     evidence_links: tuple[EvidenceLink, ...]
+    artefact_links: tuple[EvidenceArtefactIdentity, ...]
     unresolved_gaps: tuple[UnresolvedGap, ...]
     reassessment_triggers: tuple[ReassessmentTrigger, ...]
 
@@ -163,6 +190,28 @@ def _require_string(value: object, label: str) -> str:
     if type(value) is not str:
         raise DecisionRecordError(f"{label} must be text for decision records.")
     return value
+
+
+def _require_non_empty_string(value: object, label: str) -> str:
+    text = _require_string(value, label)
+    if not text.strip():
+        raise DecisionRecordError(f"{label} must be non-empty text for decision records.")
+    return text
+
+
+def _require_content_identity(value: object, label: str) -> str:
+    identity = _require_string(value, label)
+    if (
+        len(identity) != 71
+        or not identity.startswith("sha256:")
+        or any(character not in "0123456789abcdef" for character in identity[7:])
+    ):
+        raise DecisionRecordError(f"{label} must be a lowercase SHA-256 content identity.")
+    return identity
+
+
+def _content_identity(content: bytes) -> str:
+    return f"sha256:{sha256(content).hexdigest()}"
 
 
 def _enum_value(
@@ -411,10 +460,38 @@ def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
     return _checked_payload(value.to_dict(), expected, "assessment evaluation")
 
 
+def _configuration_dict(value: AssessmentConfiguration) -> JsonObject:
+    _checked_dataclass(value, AssessmentConfiguration, ("schema_version", "entries"))
+    if (
+        type(value.schema_version) is not int
+        or value.schema_version != CONFIGURATION_SCHEMA_VERSION
+    ):
+        raise DecisionRecordError("Unsupported assessment-configuration schema version.")
+    entries = _require_tuple(value.entries, "Assessment-configuration entries")
+    rendered: list[JsonValue] = []
+    previous_key: str | None = None
+    for entry in entries:
+        _checked_dataclass(entry, AssessmentConfigurationEntry, ("key", "value"))
+        key = _require_non_empty_string(entry.key, "Assessment-configuration key")
+        _require_non_empty_string(entry.value, "Assessment-configuration value")
+        if previous_key is not None and key <= previous_key:
+            raise DecisionRecordError(
+                "Assessment-configuration entries must have unique canonical key order."
+            )
+        previous_key = key
+        rendered.append({"key": key, "value": entry.value})
+    return {"entries": rendered, "schema_version": value.schema_version}
+
+
+def assessment_configuration_content_identity(value: AssessmentConfiguration) -> str:
+    """Return the canonical identity of one validated assessment configuration."""
+    return _content_identity(canonical_json_bytes(_configuration_dict(value)))
+
+
 def _evidence_link_dict(value: EvidenceLink) -> JsonObject:
     _checked_dataclass(value, EvidenceLink, ("evidence_id", "kind", "content_identity"))
-    _require_string(value.evidence_id, "Evidence-link evidence_id")
-    _require_string(value.content_identity, "Evidence-link content_identity")
+    _require_non_empty_string(value.evidence_id, "Evidence-link evidence_id")
+    _require_content_identity(value.content_identity, "Evidence-link content_identity")
     return {
         "content_identity": value.content_identity,
         "evidence_id": value.evidence_id,
@@ -422,6 +499,36 @@ def _evidence_link_dict(value: EvidenceLink) -> JsonObject:
             value.kind,
             EvidenceKind,
             ("observed", "assumption", "estimate", "missing"),
+        ),
+    }
+
+
+def _artefact_link_dict(value: EvidenceArtefactIdentity) -> JsonObject:
+    expected = (
+        "evidence_id",
+        "artefact_id",
+        "root",
+        "path",
+        "byte_length",
+        "content_identity",
+    )
+    _checked_dataclass(value, EvidenceArtefactIdentity, expected)
+    _require_non_empty_string(value.evidence_id, "Artefact-link evidence_id")
+    _require_non_empty_string(value.artefact_id, "Artefact-link artefact_id")
+    _require_non_empty_string(value.path, "Artefact-link path")
+    if type(value.byte_length) is not int or value.byte_length < 0:
+        raise DecisionRecordError("Artefact-link byte_length must be a non-negative integer.")
+    _require_content_identity(value.content_identity, "Artefact-link content_identity")
+    return {
+        "artefact_id": value.artefact_id,
+        "byte_length": value.byte_length,
+        "content_identity": value.content_identity,
+        "evidence_id": value.evidence_id,
+        "path": value.path,
+        "root": _enum_value(
+            value.root,
+            EvidenceArtefactRoot,
+            ("workspace", "external"),
         ),
     }
 
@@ -631,16 +738,95 @@ def _expected_evidence_links(dossier: Dossier) -> tuple[EvidenceLink, ...]:
     )
 
 
-def _validate_record(record: DecisionRecord) -> tuple[JsonObject, JsonObject]:
+def _expected_artefact_contract(
+    dossier: Dossier,
+) -> tuple[tuple[str, str, EvidenceArtefactRoot, str], ...]:
+    contract = tuple(
+        sorted(
+            (
+                (evidence.id, reference.id, reference.root, reference.path)
+                for evidence in dossier.evidence
+                for reference in evidence.artefacts
+            ),
+            key=lambda item: (item[0], item[1]),
+        )
+    )
+    pairs = [(item[0], item[1]) for item in contract]
+    if len(pairs) != len(set(pairs)):
+        raise DecisionRecordError("Decision-record artefact references contain duplicate ID pairs.")
+    return contract
+
+
+def _validated_artefact_links(
+    dossier: Dossier,
+    links: object,
+) -> tuple[EvidenceArtefactIdentity, ...]:
+    values = _require_tuple(links, "Decision-record artefact links")
+    typed = cast(tuple[EvidenceArtefactIdentity, ...], values)
+    for value in typed:
+        _artefact_link_dict(value)
+    pairs = [(value.evidence_id, value.artefact_id) for value in typed]
+    if pairs != sorted(pairs) or len(pairs) != len(set(pairs)):
+        raise DecisionRecordError(
+            "Decision-record artefact links require unique canonical evidence/artefact order."
+        )
+    actual = tuple(
+        (value.evidence_id, value.artefact_id, value.root, value.path) for value in typed
+    )
+    if actual != _expected_artefact_contract(dossier):
+        raise DecisionRecordError(
+            "Decision-record artefact links do not exactly match the dossier references."
+        )
+    return typed
+
+
+def _identity_payload(
+    record: DecisionRecord,
+    dossier_payload: JsonObject,
+    assessment_payload: JsonObject,
+) -> JsonObject:
+    links: JsonObject = {
+        link.evidence_id: _evidence_link_dict(link) for link in record.evidence_links
+    }
+    if len(links) != len(record.evidence_links):
+        raise DecisionRecordError("Duplicate evidence links cannot be canonicalized.")
+    return {
+        "artefact_links": [_artefact_link_dict(link) for link in record.artefact_links],
+        "assessment": assessment_payload,
+        "configuration": _configuration_dict(record.configuration),
+        "configuration_content_identity": record.configuration_content_identity,
+        "dossier": dossier_payload,
+        "dossier_content_identity": record.dossier_content_identity,
+        "dossier_schema_version": record.dossier_schema_version,
+        "evidence_links": links,
+        "reassessment_triggers": [
+            _trigger_dict(trigger) for trigger in record.reassessment_triggers
+        ],
+        "record_schema_version": record.record_schema_version,
+        "ruleset_version": record.ruleset_version,
+        "tool_version": record.tool_version,
+        "unresolved_gaps": [_gap_dict(gap) for gap in record.unresolved_gaps],
+    }
+
+
+def _validate_record(
+    record: DecisionRecord,
+    *,
+    verify_record_identity: bool = True,
+) -> JsonObject:
     expected_fields = (
         "record_schema_version",
+        "record_content_identity",
         "dossier_schema_version",
         "dossier_content_identity",
         "ruleset_version",
         "tool_version",
+        "configuration",
+        "configuration_content_identity",
         "dossier",
         "assessment",
         "evidence_links",
+        "artefact_links",
         "unresolved_gaps",
         "reassessment_triggers",
     )
@@ -652,15 +838,18 @@ def _validate_record(record: DecisionRecord) -> tuple[JsonObject, JsonObject]:
         raise DecisionRecordError("Unsupported decision-record schema version.")
     if type(record.dossier_schema_version) is not int:
         raise DecisionRecordError("Decision-record dossier schema version must be an integer.")
-    if type(record.dossier_content_identity) is not str:
-        raise DecisionRecordError("Decision-record dossier identity must be text.")
-    if type(record.ruleset_version) is not str:
-        raise DecisionRecordError("Decision-record ruleset version must be text.")
-    if type(record.tool_version) is not str or not record.tool_version.strip():
-        raise DecisionRecordError("Decision records require an explicit non-empty tool version.")
+    _require_content_identity(record.dossier_content_identity, "Decision-record dossier identity")
+    _require_non_empty_string(record.ruleset_version, "Decision-record ruleset version")
+    _require_non_empty_string(record.tool_version, "Decision-record tool version")
     _require_tuple(record.evidence_links, "Decision-record evidence links")
+    _validated_artefact_links(record.dossier, record.artefact_links)
     _require_tuple(record.unresolved_gaps, "Decision-record unresolved gaps")
     _require_tuple(record.reassessment_triggers, "Decision-record reassessment triggers")
+
+    configuration_payload = _configuration_dict(record.configuration)
+    expected_configuration_identity = _content_identity(canonical_json_bytes(configuration_payload))
+    if record.configuration_content_identity != expected_configuration_identity:
+        raise DecisionRecordError("Decision-record configuration identity is inconsistent.")
 
     dossier_payload = canonical_dossier_dict(record.dossier)
     if record.dossier_schema_version != record.dossier.schema_version:
@@ -703,11 +892,26 @@ def _validate_record(record: DecisionRecord) -> tuple[JsonObject, JsonObject]:
         _gap_dict(gap)
     for trigger in record.reassessment_triggers:
         _trigger_dict(trigger)
-    return dossier_payload, assessment_payload
+
+    payload = _identity_payload(record, dossier_payload, assessment_payload)
+    expected_record_identity = _content_identity(canonical_json_bytes(payload))
+    if verify_record_identity:
+        _require_content_identity(
+            record.record_content_identity, "Decision-record content identity"
+        )
+        if record.record_content_identity != expected_record_identity:
+            raise DecisionRecordError("Decision-record content identity is inconsistent.")
+    return payload
 
 
-def compose_decision_record(dossier: Dossier, *, tool_version: str) -> DecisionRecord:
-    """Compose the canonical semantic record for one validated typed dossier."""
+def compose_decision_record(
+    dossier: Dossier,
+    *,
+    tool_version: str,
+    artefact_identities: tuple[EvidenceArtefactIdentity, ...] = (),
+    configuration: AssessmentConfiguration = DEFAULT_ASSESSMENT_CONFIGURATION,
+) -> DecisionRecord:
+    """Compose a pure content-addressed record from already-resolved typed inputs."""
     if type(tool_version) is not str or not tool_version.strip():
         raise DecisionRecordError("Decision records require an explicit non-empty tool version.")
     dossier_payload = canonical_dossier_dict(dossier)
@@ -719,46 +923,49 @@ def compose_decision_record(dossier: Dossier, *, tool_version: str) -> DecisionR
         assessment_payload,
         {link.evidence_id for link in links},
     )
-    record = DecisionRecord(
+    _validated_artefact_links(dossier, artefact_identities)
+    configuration_identity = assessment_configuration_content_identity(configuration)
+    draft = DecisionRecord(
         record_schema_version=RECORD_SCHEMA_VERSION,
+        record_content_identity="",
         dossier_schema_version=dossier.schema_version,
         dossier_content_identity=dossier_content_identity(dossier),
         ruleset_version=assessment.ruleset_version,
         tool_version=tool_version,
+        configuration=configuration,
+        configuration_content_identity=configuration_identity,
         dossier=dossier,
         assessment=assessment,
         evidence_links=links,
+        artefact_links=artefact_identities,
         unresolved_gaps=_unresolved_gaps(assessment),
         reassessment_triggers=_reassessment_triggers(dossier),
+    )
+    payload = _validate_record(draft, verify_record_identity=False)
+    record = replace(
+        draft,
+        record_content_identity=_content_identity(canonical_json_bytes(payload)),
     )
     _validate_record(record)
     return record
 
 
+def canonical_decision_record_identity_payload_bytes(record: DecisionRecord) -> bytes:
+    """Return canonical bytes hashed for record identity, excluding only that identity."""
+    return canonical_json_bytes(_validate_record(record))
+
+
+def decision_record_content_identity(record: DecisionRecord) -> str:
+    """Recompute and return the validated final decision-record identity."""
+    return _content_identity(canonical_decision_record_identity_payload_bytes(record))
+
+
 def canonical_decision_record_dict(record: DecisionRecord) -> JsonObject:
-    """Return one complete record snapshot as canonical JSON-compatible data."""
-    dossier_payload, assessment_payload = _validate_record(record)
-    links: JsonObject = {
-        link.evidence_id: _evidence_link_dict(link) for link in record.evidence_links
-    }
-    if len(links) != len(record.evidence_links):
-        raise DecisionRecordError("Duplicate evidence links cannot be canonicalized.")
-    return {
-        "assessment": assessment_payload,
-        "dossier": dossier_payload,
-        "dossier_content_identity": record.dossier_content_identity,
-        "dossier_schema_version": record.dossier_schema_version,
-        "evidence_links": links,
-        "reassessment_triggers": [
-            _trigger_dict(trigger) for trigger in record.reassessment_triggers
-        ],
-        "record_schema_version": record.record_schema_version,
-        "ruleset_version": record.ruleset_version,
-        "tool_version": record.tool_version,
-        "unresolved_gaps": [_gap_dict(gap) for gap in record.unresolved_gaps],
-    }
+    """Return one complete content-addressed record as canonical JSON data."""
+    payload = _validate_record(record)
+    return {**payload, "record_content_identity": record.record_content_identity}
 
 
 def canonical_decision_record_bytes(record: DecisionRecord) -> bytes:
-    """Return strict canonical JSON bytes for one in-memory decision record."""
+    """Return strict canonical JSON bytes for one final decision record."""
     return canonical_json_bytes(canonical_decision_record_dict(record))

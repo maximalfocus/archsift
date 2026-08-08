@@ -4,7 +4,7 @@ This directory contains one local architecture-decision case.
 
 - `case.yaml` is the versioned, human-editable dossier.
 - `evidence/` is reserved for local evidence artefacts; ledger provenance is inert metadata and validation does not open it.
-- `output/` is reserved for generated decision records and is safe to recreate.
+- `output/` holds immutable content-addressed decision records; ArchSift never overwrites conflicting bytes.
 
 Add one operational `task` only after its boundary is known. A programme name is not enough: record observable start and completion conditions, participants, inputs, produced actions, approval boundaries, and explicit exclusions.
 
@@ -78,6 +78,15 @@ evidence:
 ```
 
 `provenance` remains inert text naming the observation source; ArchSift never treats it as a path. An optional `artefacts` entry explicitly names bytes for later hashing. A `workspace` path is POSIX-relative to this workspace's `evidence/` directory. An `external` path is relative to an external evidence root that the caller must explicitly grant outside the dossier; the dossier cannot select that root itself. `archsift validate` checks only this authored reference contract and never opens either file.
+
+After validation, produce an immutable JSON decision record with:
+
+```console
+archsift assess . --json
+archsift assess . --external-evidence-root ../authorised-evidence --json
+```
+
+The external-root location is caller authority and is never stored in the record. Assessment writes the exact canonical JSON to `output/sha256-<record-id>.json`; identical reruns reuse byte-identical output without changing it, and a conflicting file is never overwritten. The generated decision record is currently JSON-only; Markdown reports, custom output paths, comparison, and reassessment are not implemented yet.
 
 Describe the value gate before comparing technologies. Every outcome and constraint explicitly says whether it is binding, and every claim cites the evidence ledger. A binding outcome is ready for later assessment only when its baseline cites an observation or method-backed estimate.
 
