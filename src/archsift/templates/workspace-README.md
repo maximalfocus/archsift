@@ -170,6 +170,10 @@ agency_necessity:
       evidence_ids: [workflow-estimate]
 ```
 
+An `agentic-control` candidate survives the agency rules only when credible structured evidence says a fixed workflow is insufficient, at least one residual case demonstrates that insufficiency, runtime tool choice or runtime replanning is required, and environmental feedback is available. A sufficient fixed workflow, no need for either runtime adaptation, or unavailable feedback blocks agentic control. Unknown or assumption-only required facts leave it undetermined.
+
+Non-predefinable steps or unpredictable ordering support the trace but do not replace that survival contract. Completion and effect verifiability remain visible but are non-decisive for agency necessity; do not reinterpret them as autonomy permission. ArchSift records whether observed or method-backed support exists—it does not prove the external truth or operational adequacy of the authored evidence. Rationale, descriptions, and `fixed_workflow_failure` remain inert text and are never parsed into a conclusion.
+
 Record autonomy facts separately from agency necessity and from any permission conclusion. Readiness means the facts and boundaries have credible evidence; it does not mean autonomy is permitted. Hard vetoes and mandatory human controls remain explicit and are never averaged into a score.
 
 ```yaml

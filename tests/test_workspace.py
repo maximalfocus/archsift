@@ -47,6 +47,11 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "agency_necessity:" in guidance
     assert "fixed_workflow_sufficient:" in guidance
     assert "residual_cases:" in guidance
+    assert "survives the agency rules only when" in guidance
+    assert "Unknown or assumption-only required facts leave it undetermined" in guidance
+    assert "non-decisive for agency necessity" in guidance
+    assert "does not prove the external truth or operational adequacy" in guidance
+    assert "`fixed_workflow_failure` remain inert text" in guidance
     assert "autonomy_permission:" in guidance
     assert "hard_vetoes:" in guidance
     assert "mandatory_human_controls:" in guidance

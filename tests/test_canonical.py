@@ -484,7 +484,7 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
     assert identity == _EXPECTED_DOSSIER_ID
     assert dossier_content_identity(dossier) == identity
     assert evidence_content_identities(dossier) == _EXPECTED_EVIDENCE_IDS
-    assert RULESET_VERSION == "1.5.0"
+    assert RULESET_VERSION == "1.6.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:

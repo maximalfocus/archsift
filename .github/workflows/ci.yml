@@ -123,19 +123,22 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.5.0"
-          assert len(rules_payload["rules"]) == 43
+          assert rules_payload["ruleset_version"] == "1.6.0"
+          assert len(rules_payload["rules"]) == 57
           effects = [rule["effect"] for rule in rules_payload["rules"]]
-          assert effects.count("block") == 5
-          assert effects.count("require-evidence") == 31
-          assert effects.count("support-candidate") == 5
+          assert effects.count("block") == 8
+          assert effects.count("require-evidence") == 36
+          assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
-          assert effects.count("non-decisive") == 1
+          assert effects.count("non-decisive") == 2
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")
           assert "Markdown review view" in guidance
           assert "visibly quoted as inert data" in guidance
+          assert "survives the agency rules only when" in guidance
+          assert "non-decisive for agency necessity" in guidance
+          assert "does not prove the external truth or operational adequacy" in guidance
           external_root = root / "external-evidence"
           external_root.mkdir()
           (case / "evidence" / "baseline.bin").write_bytes(b"installed baseline\x00")
@@ -149,7 +152,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.5.0"
+          assert initialized_payload["ruleset_version"] == "1.6.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -370,7 +373,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.5.0"
+          assert payload["ruleset_version"] == "1.6.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
@@ -407,7 +410,8 @@ jobs:
                       "from archsift.decision_record import canonical_decision_record_bytes, "
                       "compose_decision_record; "
                       "from archsift.markdown_report import render_markdown_decision_report; "
-                      "from archsift.validation import ControlClass, validate_workspace; "
+                      "from archsift.validation import AgencyAnswer, CandidateRole, ControlClass, "
+                      "HardVetoStatus, ResidualCase, validate_workspace; "
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
                       "assert dossier is not None; "
                       "result = evaluate_assessment(dossier); "
@@ -420,7 +424,38 @@ jobs:
                       "assert result.mandatory_human_control_ids == ('approve-release',); "
                       "assert any(f.rule_id == 'mandatory-human-control-retained' "
                       "for f in result.ordered_elimination_evaluation.findings); "
+                      "comparison = dossier.candidate_comparison; assert comparison is not None; "
                       "autonomy = dossier.autonomy_permission; assert autonomy is not None; "
+                      "agentic_candidate = replace(comparison.candidates[1], "
+                      "control_class=ControlClass.AGENTIC_CONTROL, "
+                      "roles=(CandidateRole.PROPOSED, CandidateRole.AGENTIC_COMPARATOR)); "
+                      "agentic_autonomy = replace(autonomy, hard_vetoes=(replace("
+                      "autonomy.hard_vetoes[0], status=HardVetoStatus.INACTIVE),)); "
+                      "agentic_dossier = replace(dossier, autonomy_permission=agentic_autonomy, "
+                      "candidate_comparison=replace(comparison, "
+                      "candidates=(comparison.candidates[0], agentic_candidate))); "
+                      "blocked_agentic = evaluate_assessment(agentic_dossier); "
+                      "assert any(c.candidate_id == 'fixed-workflow' and "
+                      "c.disposition.value == 'eliminated' for c in "
+                      "blocked_agentic.ordered_elimination_evaluation.candidates); "
+                      "assert any(f.rule_id == "
+                      "'agentic-fixed-workflow-sufficient-blocks-candidate' for f in "
+                      "blocked_agentic.ordered_elimination_evaluation.findings); "
+                      "agency = dossier.agency_necessity; assert agency is not None; "
+                      "supported_agency = replace(agency, "
+                      "runtime_tool_choice_required=replace(agency.runtime_tool_choice_required, "
+                      "answer=AgencyAnswer.YES), fixed_workflow_sufficient=replace("
+                      "agency.fixed_workflow_sufficient, answer=AgencyAnswer.NO), "
+                      "residual_cases=(ResidualCase('installed-residual', "
+                      "'A sanitised installed-wheel residual case.', "
+                      "'A fixed workflow cannot choose its next approved step.', "
+                      "('agency-estimate',)),)); "
+                      "supported_agentic = evaluate_assessment(replace(agentic_dossier, "
+                      "agency_necessity=supported_agency)); "
+                      "assert supported_agentic.recommended_class is ControlClass.AGENTIC_CONTROL; "
+                      "assert supported_agentic.verdict.value == 'supported'; "
+                      "assert any(f.rule_id == 'agentic-residual-case-supports-agency' for f in "
+                      "supported_agentic.ordered_elimination_evaluation.findings); "
                       "blocked_veto = replace(autonomy.hard_vetoes[0], "
                       "prohibited_control_classes=(ControlClass.FIXED_AI_WORKFLOW,)); "
                       "blocked = replace(dossier, autonomy_permission=replace(autonomy, "

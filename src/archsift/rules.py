@@ -14,7 +14,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.5.0"
+RULESET_VERSION = "1.6.0"
 
 
 class RuleEffect(StrEnum):
@@ -323,6 +323,125 @@ DECISION_RULES = tuple(
                 "Required autonomy facts must be causally accounted for even when they do not "
                 "apply.",
                 requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
+                "agentic-agency-answer-unknown",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require a known answer for every agentic candidate agency question.",
+                "The agentic candidate remains undetermined.",
+                "Runtime agency cannot be established while a required structured fact is unknown.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-agency-fact-non-decisive",
+                RuleEffect.NON_DECISIVE,
+                "Record a known agency fact that does not change the runtime-agency contract.",
+                "The fact has no effect on this agentic candidate's disposition.",
+                "Monitorability and facts that do not establish dynamic execution remain "
+                "visible without being reinterpreted as permission or necessity.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-agency-necessity-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require the agency-necessity fact section for every agentic candidate.",
+                "The agentic candidate remains undetermined.",
+                "Agentic control cannot survive without an explicit runtime-agency fact boundary.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-credible-agency-evidence-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require observed or method-backed evidence for each agentic agency answer.",
+                "The agentic candidate remains undetermined.",
+                "Assumptions and known gaps cannot establish a runtime-agency fact.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-credible-residual-evidence-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require observed or method-backed evidence for each agentic residual case.",
+                "The agentic candidate remains undetermined.",
+                "An unsupported residual case cannot establish fixed-workflow insufficiency.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-dynamic-execution-supports-agency",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support agentic necessity with credible non-predefinable or unpredictable "
+                "execution.",
+                "The fact supports agency necessity but cannot override a block or evidence gap.",
+                "Dynamic execution is supporting context, not a substitute for runtime "
+                "adaptation and fixed-workflow insufficiency.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-feedback-supports-agency",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support agentic necessity when environmental feedback is credibly available.",
+                "The fact supports agency necessity but cannot override a block or evidence gap.",
+                "The agentic class revises execution using environmental feedback.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-feedback-unavailable-blocks-candidate",
+                RuleEffect.BLOCK,
+                "Block agentic control when environmental feedback is credibly unavailable.",
+                "The agentic candidate is eliminated from its represented control class.",
+                "Without environmental feedback, the defined agentic control loop cannot operate.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-fixed-workflow-insufficiency-supports-agency",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support agentic necessity when a fixed workflow is credibly insufficient.",
+                "The fact supports agency necessity but still requires a credible residual case.",
+                "Greater runtime freedom requires explicit evidence that fixed control is "
+                "insufficient.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                RuleEffect.BLOCK,
+                "Block agentic control when a fixed workflow is credibly sufficient.",
+                "The agentic candidate is eliminated from its represented control class.",
+                "A sufficient fixed workflow makes greater runtime freedom unnecessary.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-residual-case-missing",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require a residual case when fixed-workflow insufficiency is asserted.",
+                "The agentic candidate remains undetermined.",
+                "A conclusion of fixed-workflow insufficiency needs a concrete evidenced case.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-residual-case-supports-agency",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support agentic necessity with a credible fixed-workflow residual case.",
+                "The residual supports agency necessity but cannot override a block or gap.",
+                "A concrete residual case keeps the claim of fixed-workflow insufficiency "
+                "evidence-traceable.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-runtime-adaptation-missing",
+                RuleEffect.BLOCK,
+                "Block agentic control when neither runtime tool choice nor replanning is "
+                "required.",
+                "The agentic candidate is eliminated from its represented control class.",
+                "Agentic control is unnecessary when no runtime model-directed adaptation is "
+                "needed.",
+                requirement="FR-006/FR-009",
+            ),
+            _decision_rule(
+                "agentic-runtime-adaptation-supports-agency",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Support agentic necessity with credible runtime tool choice or replanning.",
+                "The fact supports agency necessity but cannot override a block or evidence gap.",
+                "At least one structured runtime-adaptation need is required for agentic control.",
+                requirement="FR-006/FR-009",
             ),
             _decision_rule(
                 "binding-constraint-failed",
