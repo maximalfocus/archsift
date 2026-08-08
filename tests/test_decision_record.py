@@ -7,10 +7,12 @@ import sys
 from dataclasses import FrozenInstanceError, dataclass, replace
 from datetime import date
 from enum import StrEnum
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
+from archsift.artefacts import EvidenceArtefactIdentity
 from archsift.canonical import (
     CanonicalizationError,
     canonical_evidence_dict,
@@ -19,15 +21,21 @@ from archsift.canonical import (
 )
 from archsift.decision import ArchitectureVerdict, EvidenceState, evaluate_assessment
 from archsift.decision_record import (
+    CONFIGURATION_SCHEMA_VERSION,
     RECORD_SCHEMA_VERSION,
+    AssessmentConfiguration,
+    AssessmentConfigurationEntry,
     DecisionGap,
     DecisionRecord,
     DecisionRecordError,
     EvidenceLink,
     PrerequisiteGap,
+    assessment_configuration_content_identity,
     canonical_decision_record_bytes,
     canonical_decision_record_dict,
+    canonical_decision_record_identity_payload_bytes,
     compose_decision_record,
+    decision_record_content_identity,
 )
 from archsift.rules import RULESET_VERSION
 from archsift.validation import (
@@ -54,6 +62,8 @@ from archsift.validation import (
     DecisionCondition,
     DecisionConditionStatus,
     Dossier,
+    EvidenceArtefactReference,
+    EvidenceArtefactRoot,
     EvidencedStatement,
     EvidenceKind,
     HardVeto,
@@ -357,6 +367,16 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert content == _POSITIVE_GOLDEN.read_bytes()
     assert json.loads(content) == payload
     assert record.record_schema_version == RECORD_SCHEMA_VERSION == 1
+    assert record.record_content_identity == decision_record_content_identity(record)
+    assert record.record_content_identity == (
+        "sha256:" + sha256(canonical_decision_record_identity_payload_bytes(record)).hexdigest()
+    )
+    assert record.configuration.schema_version == CONFIGURATION_SCHEMA_VERSION == 1
+    assert record.configuration.entries == ()
+    assert record.configuration_content_identity == assessment_configuration_content_identity(
+        record.configuration
+    )
+    assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
     assert record.ruleset_version == RULESET_VERSION == "1.4.0"
@@ -422,6 +442,8 @@ def test_record_is_deeply_immutable_at_the_typed_boundary() -> None:
         record.tool_version = "changed"  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
         record.evidence_links[0].content_identity = "changed"  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        record.configuration.schema_version = 2  # type: ignore[misc]
     with pytest.raises(TypeError):
         record.dossier.evidence[0] = record.dossier.evidence[0]  # type: ignore[index]
 
@@ -533,6 +555,14 @@ def test_stale_or_mutated_record_components_fail_consistency_checks() -> None:
     )
     mutations = (
         (replace(record, record_schema_version=2), "record schema version"),
+        (
+            replace(record, record_content_identity="sha256:" + "0" * 64),
+            "record content identity",
+        ),
+        (
+            replace(record, configuration_content_identity="sha256:" + "0" * 64),
+            "configuration identity",
+        ),
         (replace(record, dossier_schema_version=2), "dossier schema version"),
         (
             replace(record, dossier_content_identity="sha256:" + "0" * 64),
@@ -813,13 +843,17 @@ def test_evolved_record_and_link_shapes_fail_exhaustiveness_guards() -> None:
     record = compose_decision_record(positive_dossier(), tool_version=_TOOL_VERSION)
     extended_record = _ExtendedRecord(
         record_schema_version=record.record_schema_version,
+        record_content_identity=record.record_content_identity,
         dossier_schema_version=record.dossier_schema_version,
         dossier_content_identity=record.dossier_content_identity,
         ruleset_version=record.ruleset_version,
         tool_version=record.tool_version,
+        configuration=record.configuration,
+        configuration_content_identity=record.configuration_content_identity,
         dossier=record.dossier,
         assessment=record.assessment,
         evidence_links=record.evidence_links,
+        artefact_links=record.artefact_links,
         unresolved_gaps=record.unresolved_gaps,
         reassessment_triggers=record.reassessment_triggers,
     )
@@ -860,6 +894,156 @@ def test_malformed_or_stale_nested_conditions_fail_closed() -> None:
         canonical_decision_record_bytes(malformed)
     with pytest.raises(DecisionRecordError, match="assessment is inconsistent"):
         canonical_decision_record_bytes(stale)
+
+
+def test_artefact_links_require_exact_canonical_reference_closure() -> None:
+    dossier = positive_dossier()
+    first_evidence = dossier.evidence[0]
+    references = (
+        EvidenceArtefactReference("z-file", EvidenceArtefactRoot.WORKSPACE, "z.bin"),
+        EvidenceArtefactReference("a-file", EvidenceArtefactRoot.EXTERNAL, "a.bin"),
+    )
+    changed_evidence = replace(first_evidence, artefacts=references)
+    dossier = replace(dossier, evidence=(changed_evidence, *dossier.evidence[1:]))
+    identities = (
+        EvidenceArtefactIdentity(
+            changed_evidence.id,
+            "a-file",
+            EvidenceArtefactRoot.EXTERNAL,
+            "a.bin",
+            0,
+            "sha256:" + "a" * 64,
+        ),
+        EvidenceArtefactIdentity(
+            changed_evidence.id,
+            "z-file",
+            EvidenceArtefactRoot.WORKSPACE,
+            "z.bin",
+            3,
+            "sha256:" + "b" * 64,
+        ),
+    )
+
+    record = compose_decision_record(
+        dossier,
+        tool_version=_TOOL_VERSION,
+        artefact_identities=identities,
+    )
+
+    assert record.artefact_links == identities
+    assert canonical_decision_record_dict(record)["artefact_links"] == [
+        identity.to_dict() for identity in identities
+    ]
+    mutations = (
+        (),
+        identities[:1],
+        tuple(reversed(identities)),
+        (*identities, identities[0]),
+        (
+            identities[0],
+            replace(identities[0], artefact_id="extra-file"),
+            identities[1],
+        ),
+        (replace(identities[0], path="changed.bin"), identities[1]),
+        (replace(identities[0], root=EvidenceArtefactRoot.WORKSPACE), identities[1]),
+    )
+    for mutation in mutations:
+        with pytest.raises(DecisionRecordError, match="artefact"):
+            compose_decision_record(
+                dossier,
+                tool_version=_TOOL_VERSION,
+                artefact_identities=mutation,
+            )
+
+
+def test_artefact_bytes_and_configuration_change_only_final_record_identity() -> None:
+    dossier = incomplete_dossier()
+    entry = dossier.evidence[0]
+    changed_entry = replace(
+        entry,
+        artefacts=(EvidenceArtefactReference("file", EvidenceArtefactRoot.WORKSPACE, "file.bin"),),
+    )
+    dossier = replace(dossier, evidence=(changed_entry, *dossier.evidence[1:]))
+    first_identity = EvidenceArtefactIdentity(
+        changed_entry.id,
+        "file",
+        EvidenceArtefactRoot.WORKSPACE,
+        "file.bin",
+        3,
+        "sha256:" + "1" * 64,
+    )
+    configuration = AssessmentConfiguration(
+        entries=(AssessmentConfigurationEntry("profile", "synthetic-a"),)
+    )
+    changed_configuration = AssessmentConfiguration(
+        entries=(AssessmentConfigurationEntry("profile", "synthetic-b"),)
+    )
+
+    original = compose_decision_record(
+        dossier,
+        tool_version=_TOOL_VERSION,
+        artefact_identities=(first_identity,),
+        configuration=configuration,
+    )
+    changed_bytes = compose_decision_record(
+        dossier,
+        tool_version=_TOOL_VERSION,
+        artefact_identities=(replace(first_identity, content_identity="sha256:" + "2" * 64),),
+        configuration=configuration,
+    )
+    changed_config = compose_decision_record(
+        dossier,
+        tool_version=_TOOL_VERSION,
+        artefact_identities=(first_identity,),
+        configuration=changed_configuration,
+    )
+
+    assert original.record_content_identity != changed_bytes.record_content_identity
+    assert original.record_content_identity != changed_config.record_content_identity
+    assert original.configuration_content_identity != changed_config.configuration_content_identity
+
+
+def test_malformed_artefact_and_configuration_values_fail_with_domain_errors() -> None:
+    dossier = incomplete_dossier()
+    entry = dossier.evidence[0]
+    changed_entry = replace(
+        entry,
+        artefacts=(EvidenceArtefactReference("file", EvidenceArtefactRoot.WORKSPACE, "file.bin"),),
+    )
+    dossier = replace(dossier, evidence=(changed_entry, *dossier.evidence[1:]))
+    identity = EvidenceArtefactIdentity(
+        changed_entry.id,
+        "file",
+        EvidenceArtefactRoot.WORKSPACE,
+        "file.bin",
+        3,
+        "sha256:" + "1" * 64,
+    )
+
+    with pytest.raises(DecisionRecordError, match="byte_length"):
+        compose_decision_record(
+            dossier,
+            tool_version=_TOOL_VERSION,
+            artefact_identities=(replace(identity, byte_length=-1),),
+        )
+    with pytest.raises(DecisionRecordError, match="content_identity"):
+        compose_decision_record(
+            dossier,
+            tool_version=_TOOL_VERSION,
+            artefact_identities=(replace(identity, content_identity="sha256:bad"),),
+        )
+    with pytest.raises(DecisionRecordError, match="canonical key order"):
+        compose_decision_record(
+            dossier,
+            tool_version=_TOOL_VERSION,
+            artefact_identities=(identity,),
+            configuration=AssessmentConfiguration(
+                entries=(
+                    AssessmentConfigurationEntry("z", "one"),
+                    AssessmentConfigurationEntry("a", "two"),
+                )
+            ),
+        )
 
 
 def test_composition_performs_no_io_environment_clock_randomness_or_mutation(
@@ -918,7 +1102,7 @@ print(json.dumps({'bytes': canonical_decision_record_bytes(record).hex()}, sort_
     assert json.loads(outputs[0])["bytes"].endswith("0a")
 
 
-def test_represented_changes_affect_record_bytes_without_a_record_identity_claim() -> None:
+def test_represented_changes_affect_record_bytes_and_final_identity() -> None:
     dossier = positive_dossier()
     original = compose_decision_record(dossier, tool_version=_TOOL_VERSION)
     changed_tool = compose_decision_record(dossier, tool_version="0.1.1-test")
@@ -933,4 +1117,13 @@ def test_represented_changes_affect_record_bytes_without_a_record_identity_claim
     assert canonical_decision_record_bytes(original) != canonical_decision_record_bytes(
         changed_case
     )
-    assert "record_content_identity" not in canonical_decision_record_dict(original)
+    assert original.record_content_identity != changed_tool.record_content_identity
+    assert original.record_content_identity != changed_case.record_content_identity
+    full_payload = canonical_decision_record_dict(original)
+    identity_payload = json.loads(canonical_decision_record_identity_payload_bytes(original))
+    assert full_payload["record_content_identity"] == original.record_content_identity
+    assert set(full_payload) - set(identity_payload) == {"record_content_identity"}
+    identity_source = {
+        key: value for key, value in full_payload.items() if key != "record_content_identity"
+    }
+    assert identity_source == identity_payload

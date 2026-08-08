@@ -51,6 +51,9 @@ Repository = "https://github.com/maximalfocus/archsift"
 [tool.hatch.build.targets.wheel]
 packages = ["src/archsift"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"docs/exit-codes.md" = "archsift/docs/exit-codes.md"
+
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]

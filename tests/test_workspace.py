@@ -37,6 +37,10 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "root: workspace" in guidance
     assert "root: external" in guidance
     assert "provenance` remains inert text" in guidance
+    assert "archsift assess . --json" in guidance
+    assert "--external-evidence-root" in guidance
+    assert "output/sha256-<record-id>.json" in guidance
+    assert "conflicting file is never overwritten" in guidance
     assert "problem_value:" in guidance
     assert "baseline_id:" in guidance
     assert "technology_limitation:" in guidance

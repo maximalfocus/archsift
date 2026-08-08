@@ -70,7 +70,9 @@ jobs:
           assert "archsift/canonical.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
+          assert "archsift/persistence.py" in names
           assert "archsift/rules.py" in names
+          assert "archsift/docs/exit-codes.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -84,6 +86,7 @@ jobs:
           import tempfile
           import venv
           from pathlib import Path
+          from archsift import package_version
           from archsift.artefacts import evidence_artefact_identities
           from archsift.canonical import (
               canonical_dossier_bytes,
@@ -358,22 +361,21 @@ jobs:
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
+          source_artefacts = evidence_artefact_identities(
+              source_dossier,
+              workspace=case,
+              external_root=external_root,
+          )
           source_record = compose_decision_record(
               source_dossier,
               tool_version="0.1.0-wheel-smoke",
+              artefact_identities=source_artefacts,
           )
           source_snapshot = {
               "canonical_bytes": canonical_dossier_bytes(source_dossier).hex(),
               "decision_record": canonical_decision_record_bytes(source_record).hex(),
               "dossier_identity": dossier_content_identity(source_dossier),
-              "artefact_identities": [
-                  item.to_dict()
-                  for item in evidence_artefact_identities(
-                      source_dossier,
-                      workspace=case,
-                      external_root=external_root,
-                  )
-              ],
+              "artefact_identities": [item.to_dict() for item in source_artefacts],
               "evidence_identities": evidence_content_identities(source_dossier),
               "verdict": evaluate_assessment(source_dossier).verdict.value,
           }
@@ -393,17 +395,17 @@ jobs:
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
                       "assert dossier is not None; "
                       "result = evaluate_assessment(dossier); "
+                      "artefacts = evidence_artefact_identities(dossier, "
+                      "workspace=Path(sys.argv[1]), external_root=Path(sys.argv[2])); "
                       "record = compose_decision_record(dossier, "
-                      "tool_version='0.1.0-wheel-smoke'); "
+                      "tool_version='0.1.0-wheel-smoke', artefact_identities=artefacts); "
                       "assert result.recommended_class.value == 'fixed-ai-workflow'; "
                       "assert result.active_hard_veto_ids == ('no-autonomous-release',); "
                       "assert result.mandatory_human_control_ids == ('approve-release',); "
                       "assert tuple(c.id for c in result.unmet_conditions) == "
                       "('verify-production-capacity',); "
                       "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "
-                      "'artefact_identities': [item.to_dict() for item in "
-                      "evidence_artefact_identities(dossier, workspace=Path(sys.argv[1]), "
-                      "external_root=Path(sys.argv[2]))], "
+                      "'artefact_identities': [item.to_dict() for item in artefacts], "
                       "'decision_record': canonical_decision_record_bytes(record).hex(), "
                       "'dossier_identity': dossier_content_identity(dossier), "
                       "'evidence_identities': evidence_content_identities(dossier), "
@@ -419,3 +421,31 @@ jobs:
           installed_snapshot = json.loads(decision.stdout)
           assert installed_snapshot == source_snapshot
           assert installed_snapshot["verdict"] == "conditional"
+          source_assess = compose_decision_record(
+              source_dossier,
+              tool_version=package_version(),
+              artefact_identities=source_artefacts,
+          )
+          source_assess_bytes = canonical_decision_record_bytes(source_assess)
+          assess_command = [
+              archsift,
+              "assess",
+              case,
+              "--external-evidence-root",
+              external_root,
+              "--json",
+          ]
+          first_assess = subprocess.run(assess_command, check=True, capture_output=True)
+          assert first_assess.stderr == b""
+          assert first_assess.stdout == source_assess_bytes
+          assess_payload = json.loads(first_assess.stdout)
+          record_identity = assess_payload["record_content_identity"]
+          record_path = case / "output" / f"sha256-{record_identity[7:]}.json"
+          assert record_path.read_bytes() == first_assess.stdout
+          os.utime(record_path, (1_700_000_000, 1_700_000_000))
+          recorded_mtime = record_path.stat().st_mtime_ns
+          second_assess = subprocess.run(assess_command, check=True, capture_output=True)
+          assert second_assess.stdout == first_assess.stdout
+          assert second_assess.stderr == b""
+          assert record_path.stat().st_mtime_ns == recorded_mtime
+          assert len(list((case / "output").glob("*.json"))) == 1
