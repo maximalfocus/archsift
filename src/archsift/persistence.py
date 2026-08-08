@@ -15,6 +15,15 @@ from archsift.markdown_report import render_markdown_decision_report
 
 _CHUNK_SIZE = 1024 * 1024
 
+# Generation-sensitive identity of one stat capture. The two-field (device,
+# inode) token is not enough: filesystems that recycle inodes immediately
+# (for example ext4) can hand a recreated file the same inode number, so the
+# ctime/mtime nanoseconds, size, and mode fields distinguish a different file
+# generation at the same path. Timestamps have filesystem-dependent resolution
+# and remain forgeable by a same-tick adversary; the token is a strong portable
+# generation marker, not a cryptographic guarantee.
+_FileIdentity = tuple[int, int, int, int, int, int]
+
 
 class RecordPersistenceFailure(StrEnum):
     """Stable failures at the decision-record output boundary."""
@@ -146,14 +155,27 @@ def _target_name(record: DecisionRecord, extension: str = "json") -> str:
     return f"sha256-{identity[7:]}.{extension}"
 
 
+def _stat_token(status: os.stat_result) -> _FileIdentity:
+    """Return the generation-sensitive identity of one stat capture."""
+    return (
+        status.st_dev,
+        status.st_ino,
+        status.st_mode,
+        status.st_size,
+        status.st_ctime_ns,
+        status.st_mtime_ns,
+    )
+
+
 def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
     """Return whether the existing derived target holds exactly the given bytes.
 
     Verification binds the opened descriptor to the path identity it was opened
-    from: the direct target is lstat'ed before open, the opened file must be
-    the same file via os.path.samestat, and the path must still name that file
-    after the exact-length byte comparison. Same-byte replacements and symlink
-    swaps are therefore never accepted as reuse.
+    from: the direct target is lstat'ed before open, the opened file must match
+    the generation-sensitive token of that capture, and the path must still
+    name that file after the exact-length byte comparison. Same-byte
+    replacements, symlink swaps, and recycled-inode generations are therefore
+    never accepted as reuse.
     """
     try:
         resolved = target.resolve(strict=True)
@@ -182,7 +204,7 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             )
         with resolved.open("rb") as stream:
             opened = os.fstat(stream.fileno())
-            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
+            if not stat.S_ISREG(opened.st_mode) or _stat_token(opened) != _stat_token(before):
                 raise _error(
                     RecordPersistenceFailure.TARGET_UNSAFE,
                     requirement="NFR-004",
@@ -198,7 +220,7 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             if stream.read(1) != b"":
                 return False
         after = resolved.lstat()
-        if not os.path.samestat(after, opened):
+        if _stat_token(after) != _stat_token(opened):
             raise _error(
                 RecordPersistenceFailure.TARGET_UNSAFE,
                 requirement="NFR-004",
@@ -228,8 +250,8 @@ def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
     )
 
 
-def _opened_file_identity(stream: BinaryIO) -> tuple[int, int] | None:
-    """Return the (device, inode) identity of the just-created open file.
+def _opened_file_identity(stream: BinaryIO) -> _FileIdentity | None:
+    """Return the generation-sensitive identity of the just-created open file.
 
     The identity later proves that a path still names the file created by this
     attempt before any cleanup deletes it. Filesystems without a usable file
@@ -242,10 +264,10 @@ def _opened_file_identity(stream: BinaryIO) -> tuple[int, int] | None:
         return None
     if status.st_ino == 0:
         return None
-    return (status.st_dev, status.st_ino)
+    return _stat_token(status)
 
 
-def _same_created_file(target: Path, identity: tuple[int, int] | None) -> bool:
+def _same_created_file(target: Path, identity: _FileIdentity | None) -> bool:
     """Return whether the path still names the exact file opened this attempt."""
     if identity is None:
         return False
@@ -253,10 +275,10 @@ def _same_created_file(target: Path, identity: tuple[int, int] | None) -> bool:
         status = target.stat()
     except OSError:
         return False
-    return (status.st_dev, status.st_ino) == identity
+    return _stat_token(status) == identity
 
 
-def _unlink_created_file(target: Path, identity: tuple[int, int] | None) -> None:
+def _unlink_created_file(target: Path, identity: _FileIdentity | None) -> None:
     """Remove a file this attempt created, never a concurrent replacement."""
     if _same_created_file(target, identity):
         with suppress(OSError):
@@ -267,7 +289,7 @@ def _persist_content(
     output_root: Path,
     filename: str,
     content: bytes,
-) -> tuple[PersistedDecisionRecord, tuple[int, int] | None]:
+) -> tuple[PersistedDecisionRecord, _FileIdentity | None]:
     """Create or byte-identically reuse one derived target.
 
     Returns the persistence result and, for a freshly created file, the opened
@@ -278,16 +300,27 @@ def _persist_content(
         _reuse_or_conflict(target, output_root, content)
         return PersistedDecisionRecord(f"output/{filename}", True), None
 
-    created_identity: tuple[int, int] | None = None
+    created_identity: _FileIdentity | None = None
     created = False
     try:
         with target.open("xb") as stream:
             created = True
+            try:
+                if stream.write(content) != len(content):
+                    raise OSError("incomplete decision-record write")
+                stream.flush()
+                os.fsync(stream.fileno())
+            except OSError:
+                # Land any buffered partial bytes, then capture the identity of
+                # the partially-mutated file while the handle is still open,
+                # before any concurrent replacement can occupy the path.
+                with suppress(OSError):
+                    stream.flush()
+                created_identity = _opened_file_identity(stream)
+                raise
+            # Capture only after the final bytes are written, flushed, and
+            # fsynced so the token matches the durable final file state.
             created_identity = _opened_file_identity(stream)
-            if stream.write(content) != len(content):
-                raise OSError("incomplete decision-record write")
-            stream.flush()
-            os.fsync(stream.fileno())
     except FileExistsError:
         _reuse_or_conflict(target, output_root, content)
         return PersistedDecisionRecord(f"output/{filename}", True), None
@@ -355,7 +388,7 @@ def persist_decision_outputs(
         if target.exists() or target.is_symlink():
             _reuse_or_conflict(target, output_root, content)
 
-    created: list[tuple[Path, tuple[int, int] | None]] = []
+    created: list[tuple[Path, _FileIdentity | None]] = []
     try:
         persisted_json, json_identity = _persist_content(output_root, json_name, json_content)
         if not persisted_json.reused:
