@@ -54,6 +54,7 @@ packages = ["src/archsift"]
 [tool.hatch.build.targets.wheel.force-include]
 "docs/exit-codes.md" = "archsift/docs/exit-codes.md"
 "docs/method-v1.0.0.md" = "archsift/docs/method-v1.0.0.md"
+"docs/method-v1.1.0.md" = "archsift/docs/method-v1.1.0.md"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"

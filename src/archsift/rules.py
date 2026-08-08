@@ -15,7 +15,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.6.0"
+RULESET_VERSION = "1.7.0"
 
 
 class RuleEffect(StrEnum):
@@ -259,6 +259,12 @@ PREREQUISITE_RULES = tuple(
                 "Unsupported residual cases cannot justify greater runtime freedom.",
             ),
             _rule(
+                "credible-strongest-simpler-evidence-missing",
+                "FR-008",
+                "Require credible support for the authored strongest-simpler boundary.",
+                "An assumption or known gap cannot justify the selected simpler alternative.",
+            ),
+            _rule(
                 "hard-veto-status-unknown",
                 "FR-007",
                 "Require known applicability for every hard veto.",
@@ -287,6 +293,25 @@ PREREQUISITE_RULES = tuple(
                 "FR-008",
                 "Require baseline and strongest-simpler directed comparisons.",
                 "The proposed and more complex candidates must face credible simpler alternatives.",
+            ),
+            _rule(
+                "strongest-simpler-boundary-coverage-missing",
+                "FR-008",
+                "Require the authored boundary to cover every represented simpler candidate.",
+                "Omitting a represented simpler alternative makes the selected boundary "
+                "incomplete.",
+            ),
+            _rule(
+                "strongest-simpler-boundary-incompatible",
+                "FR-008",
+                "Require the authored boundary to match applicable candidate roles and classes.",
+                "A boundary cannot justify a different, absent, or non-simpler candidate.",
+            ),
+            _rule(
+                "strongest-simpler-boundary-missing",
+                "FR-008",
+                "Require an explicit strongest-simpler boundary for a non-human proposal.",
+                "A role label alone cannot establish the strongest represented simpler option.",
             ),
             _rule(
                 "task-boundary-missing",

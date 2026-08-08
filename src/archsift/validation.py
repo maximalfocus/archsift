@@ -336,11 +336,23 @@ class CandidatePairComparison:
 
 
 @dataclass(frozen=True, slots=True)
+class StrongestSimplerBoundary:
+    """Authored evidence boundary for selecting the strongest represented simpler candidate."""
+
+    strongest_candidate_id: str
+    scope: str
+    rationale: str
+    considered_candidate_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class CandidateComparison:
-    """Candidate roles, tests, and pairwise trade-offs for FR-008."""
+    """Candidate roles, tests, pairwise trade-offs, and the simpler boundary for FR-008."""
 
     candidates: tuple[Candidate, ...]
     comparisons: tuple[CandidatePairComparison, ...]
+    strongest_simpler_boundary: StrongestSimplerBoundary | None = None
 
 
 class EvidenceKind(StrEnum):
@@ -1353,6 +1365,55 @@ def _candidate_comparison_semantic_diagnostics(
                     )
 
     candidate_ids = set(first_candidate)
+    boundary = cast(
+        Mapping[str, Any] | None,
+        comparison.get("strongest_simpler_boundary"),
+    )
+    if boundary is not None:
+        boundary_path = "$.candidate_comparison.strongest_simpler_boundary"
+        strongest_candidate_id = cast(str, boundary["strongest_candidate_id"])
+        if strongest_candidate_id not in candidate_ids:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-strongest-simpler-candidate-reference",
+                    f"Candidate ID {strongest_candidate_id!r} does not exist in candidates.",
+                    f"{boundary_path}.strongest_candidate_id",
+                    "FR-008",
+                    "Add the referenced candidate or use an existing candidate ID.",
+                )
+            )
+        first_considered: dict[str, int] = {}
+        for considered_index, considered_id in enumerate(
+            cast(Sequence[str], boundary["considered_candidate_ids"])
+        ):
+            considered_path = f"{boundary_path}.considered_candidate_ids[{considered_index}]"
+            first_index = first_considered.setdefault(considered_id, considered_index)
+            if first_index != considered_index:
+                diagnostics.append(
+                    _diagnostic(
+                        "duplicate-strongest-simpler-candidate-reference",
+                        f"Considered candidate ID {considered_id!r} duplicates "
+                        f"{boundary_path}.considered_candidate_ids[{first_index}].",
+                        considered_path,
+                        "FR-008",
+                        "List each considered candidate exactly once.",
+                    )
+                )
+            if considered_id not in candidate_ids:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing-strongest-simpler-candidate-reference",
+                        f"Candidate ID {considered_id!r} does not exist in candidates.",
+                        considered_path,
+                        "FR-008",
+                        "Add the referenced candidate or use an existing candidate ID.",
+                    )
+                )
+        for evidence_index, evidence_id in enumerate(cast(Sequence[str], boundary["evidence_ids"])):
+            evidence_references.append(
+                (f"{boundary_path}.evidence_ids[{evidence_index}]", evidence_id)
+            )
+
     first_pair: dict[tuple[str, str], int] = {}
     for comparison_index, pair in enumerate(comparisons):
         subject_id = cast(str, pair["subject_candidate_id"])
@@ -1768,7 +1829,28 @@ def _typed_candidate_comparison(
         )
         for raw in cast(Sequence[Mapping[str, Any]], comparison["comparisons"])
     )
-    return CandidateComparison(candidates=candidates, comparisons=comparisons)
+    raw_boundary = cast(
+        Mapping[str, Any] | None,
+        comparison.get("strongest_simpler_boundary"),
+    )
+    boundary = (
+        StrongestSimplerBoundary(
+            strongest_candidate_id=cast(str, raw_boundary["strongest_candidate_id"]),
+            scope=cast(str, raw_boundary["scope"]),
+            rationale=cast(str, raw_boundary["rationale"]),
+            considered_candidate_ids=tuple(
+                cast(Sequence[str], raw_boundary["considered_candidate_ids"])
+            ),
+            evidence_ids=tuple(cast(Sequence[str], raw_boundary["evidence_ids"])),
+        )
+        if raw_boundary is not None
+        else None
+    )
+    return CandidateComparison(
+        candidates=candidates,
+        comparisons=comparisons,
+        strongest_simpler_boundary=boundary,
+    )
 
 
 def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...]:
@@ -2110,6 +2192,9 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
     proposed = require_role(CandidateRole.PROPOSED)
     strongest = role_candidates.get(CandidateRole.STRONGEST_SIMPLER)
     agentic = role_candidates.get(CandidateRole.AGENTIC_COMPARATOR)
+    boundary = comparison.strongest_simpler_boundary
+    candidates_by_id = {candidate.id: candidate for candidate in comparison.candidates}
+    boundary_path = "$.candidate_comparison.strongest_simpler_boundary"
 
     if proposed is not None:
         proposed_rank = _CONTROL_CLASS_ORDER.index(proposed[1].control_class)
@@ -2127,16 +2212,147 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                         "Assign strongest-simpler to a candidate with a lower control class.",
                     )
                 )
-        elif strongest is not None:
-            findings.append(
-                PrerequisiteFinding(
-                    "candidate-role-incompatible",
-                    role_paths[CandidateRole.STRONGEST_SIMPLER],
-                    "FR-008",
-                    "A human-owned-work proposal has no simpler control class.",
-                    "Remove the strongest-simpler role for this proposal.",
+            if boundary is None:
+                findings.append(
+                    PrerequisiteFinding(
+                        "strongest-simpler-boundary-missing",
+                        boundary_path,
+                        "FR-008",
+                        "The dossier does not justify its strongest represented simpler candidate.",
+                        "Add the authored scope, rationale, considered candidates, and evidence.",
+                    )
                 )
-            )
+            else:
+                if strongest is not None and boundary.strongest_candidate_id != strongest[1].id:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "strongest-simpler-boundary-incompatible",
+                            f"{boundary_path}.strongest_candidate_id",
+                            "FR-008",
+                            f"Boundary candidate {boundary.strongest_candidate_id!r} does not "
+                            f"carry the strongest-simpler role assigned to {strongest[1].id!r}.",
+                            "Reference the candidate that carries the strongest-simpler role.",
+                        )
+                    )
+                expected_ids = tuple(
+                    candidate.id
+                    for candidate in comparison.candidates
+                    if _CONTROL_CLASS_ORDER.index(candidate.control_class) < proposed_rank
+                )
+                considered_ids = set(boundary.considered_candidate_ids)
+                missing_ids = tuple(
+                    dict.fromkeys(
+                        (
+                            *(
+                                identifier
+                                for identifier in expected_ids
+                                if identifier not in considered_ids
+                            ),
+                            *(
+                                (boundary.strongest_candidate_id,)
+                                if boundary.strongest_candidate_id not in considered_ids
+                                else ()
+                            ),
+                        )
+                    )
+                )
+                if missing_ids:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "strongest-simpler-boundary-coverage-missing",
+                            f"{boundary_path}.considered_candidate_ids",
+                            "FR-008",
+                            "The strongest-simpler boundary omits required considered "
+                            f"candidates: {', '.join(repr(item) for item in missing_ids)}.",
+                            "Include the selected candidate and every represented candidate "
+                            "below the proposed control class.",
+                        )
+                    )
+                boundary_candidate = candidates_by_id.get(boundary.strongest_candidate_id)
+                if boundary_candidate is None:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "strongest-simpler-boundary-incompatible",
+                            f"{boundary_path}.strongest_candidate_id",
+                            "FR-008",
+                            f"Candidate {boundary.strongest_candidate_id!r} is not represented "
+                            "in the dossier.",
+                            "Reference an existing represented candidate.",
+                        )
+                    )
+                elif _CONTROL_CLASS_ORDER.index(boundary_candidate.control_class) >= proposed_rank:
+                    findings.append(
+                        PrerequisiteFinding(
+                            "strongest-simpler-boundary-incompatible",
+                            f"{boundary_path}.strongest_candidate_id",
+                            "FR-008",
+                            f"Boundary candidate {boundary.strongest_candidate_id!r} is not "
+                            f"strictly simpler than proposed candidate {proposed[1].id!r}.",
+                            "Reference a candidate below the proposed control class.",
+                        )
+                    )
+                for considered_index, identifier in enumerate(boundary.considered_candidate_ids):
+                    considered_candidate = candidates_by_id.get(identifier)
+                    if considered_candidate is None:
+                        findings.append(
+                            PrerequisiteFinding(
+                                "strongest-simpler-boundary-incompatible",
+                                f"{boundary_path}.considered_candidate_ids[{considered_index}]",
+                                "FR-008",
+                                f"Candidate {identifier!r} is not represented in the dossier.",
+                                "Reference an existing represented candidate.",
+                            )
+                        )
+                    elif (
+                        _CONTROL_CLASS_ORDER.index(considered_candidate.control_class)
+                        >= proposed_rank
+                    ):
+                        findings.append(
+                            PrerequisiteFinding(
+                                "strongest-simpler-boundary-incompatible",
+                                f"{boundary_path}.considered_candidate_ids[{considered_index}]",
+                                "FR-008",
+                                f"Candidate {identifier!r} is not strictly simpler than proposed "
+                                f"candidate {proposed[1].id!r}.",
+                                "Consider only represented candidates below the proposed "
+                                "control class.",
+                            )
+                        )
+                if not any(
+                    _is_credible_support(evidence.get(identifier))
+                    for identifier in boundary.evidence_ids
+                ):
+                    findings.append(
+                        PrerequisiteFinding(
+                            "credible-strongest-simpler-evidence-missing",
+                            f"{boundary_path}.evidence_ids",
+                            "FR-008",
+                            "The strongest-simpler boundary lacks observed or estimated support.",
+                            "Cite at least one observed entry or method-backed estimate.",
+                            boundary.evidence_ids,
+                        )
+                    )
+        else:
+            if strongest is not None:
+                findings.append(
+                    PrerequisiteFinding(
+                        "candidate-role-incompatible",
+                        role_paths[CandidateRole.STRONGEST_SIMPLER],
+                        "FR-008",
+                        "A human-owned-work proposal has no simpler control class.",
+                        "Remove the strongest-simpler role for this proposal.",
+                    )
+                )
+            if boundary is not None:
+                findings.append(
+                    PrerequisiteFinding(
+                        "strongest-simpler-boundary-incompatible",
+                        boundary_path,
+                        "FR-008",
+                        "A human-owned-work proposal has no applicable strongest-simpler boundary.",
+                        "Remove strongest_simpler_boundary for this proposal.",
+                    )
+                )
 
     agentic_candidates = [
         candidate
@@ -2247,6 +2463,21 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
         )
     if proposed is not None and strongest is not None and proposed[1].id != strongest[1].id:
         required_pairs.append((proposed[1].id, strongest[1].id))
+    if (
+        proposed is not None
+        and strongest is not None
+        and boundary is not None
+        and boundary.strongest_candidate_id == strongest[1].id
+    ):
+        proposed_rank = _CONTROL_CLASS_ORDER.index(proposed[1].control_class)
+        required_pairs.extend(
+            (strongest[1].id, identifier)
+            for identifier in boundary.considered_candidate_ids
+            if identifier != strongest[1].id
+            and identifier in candidates_by_id
+            and _CONTROL_CLASS_ORDER.index(candidates_by_id[identifier].control_class)
+            < proposed_rank
+        )
     for subject_id, comparator_id in dict.fromkeys(required_pairs):
         if (subject_id, comparator_id) not in authored_pairs:
             findings.append(

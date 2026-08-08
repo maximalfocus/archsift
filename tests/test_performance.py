@@ -29,7 +29,10 @@ def test_large_dossier_fixture_is_deterministic_and_has_prd_scale() -> None:
     assert len(first["evidence"]) == EVIDENCE_COUNT == 500
     comparison = first["candidate_comparison"]
     assert len(comparison["candidates"]) == CANDIDATE_COUNT == 20
-    assert len(comparison["comparisons"]) == 20
+    assert len(comparison["comparisons"]) == (2 * CANDIDATE_COUNT) - 3
+    boundary = comparison["strongest_simpler_boundary"]
+    assert boundary["strongest_candidate_id"] == "candidate-18"
+    assert len(boundary["considered_candidate_ids"]) == CANDIDATE_COUNT - 1
     role_lists = [candidate["roles"] for candidate in comparison["candidates"]]
     assert role_lists.count([]) == 17
     assert role_lists[0] == ["current-baseline"]

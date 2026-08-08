@@ -47,6 +47,7 @@ from archsift.validation import (
     ProblemBaseline,
     ProblemOutcome,
     ProblemValue,
+    StrongestSimplerBoundary,
     TaskAction,
     TaskBoundary,
 )
@@ -240,6 +241,13 @@ def _positive_dossier() -> Dossier:
         candidate_comparison=CandidateComparison(
             candidates=(human, process),
             comparisons=(CandidatePairComparison("process", "human", _dimensions()),),
+            strongest_simpler_boundary=StrongestSimplerBoundary(
+                strongest_candidate_id="human",
+                scope="All represented candidates below process redesign.",
+                rationale="Human-owned work is the strongest represented simpler option.",
+                considered_candidate_ids=("human",),
+                evidence_ids=("observed",),
+            ),
         ),
         decision_conditions=(
             DecisionCondition(
