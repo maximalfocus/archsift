@@ -103,12 +103,12 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.2.0"
-          assert len(rules_payload["rules"]) == 30
+          assert rules_payload["ruleset_version"] == "1.3.0"
+          assert len(rules_payload["rules"]) == 35
           effects = [rule["effect"] for rule in rules_payload["rules"]]
-          assert effects.count("block") == 2
-          assert effects.count("require-evidence") == 26
-          assert effects.count("support-candidate") == 2
+          assert effects.count("block") == 3
+          assert effects.count("require-evidence") == 27
+          assert effects.count("support-candidate") == 5
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           initialized = subprocess.run(
@@ -120,7 +120,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.2.0"
+          assert initialized_payload["ruleset_version"] == "1.3.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -316,19 +316,22 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.2.0"
+          assert payload["ruleset_version"] == "1.3.0"
           decision = subprocess.run(
               [
                   python,
                   "-c",
                   (
                       "from pathlib import Path; import sys; "
-                      "from archsift.decision import evaluate_ordered_elimination; "
+                      "from archsift.decision import evaluate_assessment; "
                       "from archsift.validation import validate_workspace; "
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
                       "assert dossier is not None; "
-                      "result = evaluate_ordered_elimination(dossier); "
-                      "print(result.least_surviving_class.value)"
+                      "result = evaluate_assessment(dossier); "
+                      "assert result.recommended_class.value == 'fixed-ai-workflow'; "
+                      "assert result.active_hard_veto_ids == ('no-autonomous-release',); "
+                      "assert result.mandatory_human_control_ids == ('approve-release',); "
+                      "print(result.verdict.value)"
                   ),
                   str(case),
               ],
@@ -336,4 +339,4 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert decision.stdout.strip() == "fixed-ai-workflow"
+          assert decision.stdout.strip() == "supported"

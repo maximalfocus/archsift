@@ -780,7 +780,7 @@ def test_validate_json_reports_candidate_readiness_without_verdict(
     assert payload["candidate_comparison_ready"] is True
     assert payload["candidate_count"] == 2
     assert payload["comparison_count"] == 1
-    assert payload["ruleset_version"] == RULESET_VERSION == "1.2.0"
+    assert payload["ruleset_version"] == RULESET_VERSION == "1.3.0"
     assert "verdict" not in payload
     assert "recommendation" not in payload
     assert "score" not in payload

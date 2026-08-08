@@ -14,7 +14,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.2.0"
+RULESET_VERSION = "1.3.0"
 
 
 class RuleEffect(StrEnum):
@@ -75,6 +75,14 @@ class AssessmentPrerequisiteEvaluation:
     ruleset_version: str
     ready: bool
     findings: tuple[AssessmentPrerequisiteFinding, ...] = ()
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a deterministic JSON-compatible representation."""
+        return {
+            "findings": [finding.to_dict() for finding in self.findings],
+            "ready": self.ready,
+            "ruleset_version": self.ruleset_version,
+        }
 
 
 _PREREQUISITE_CONSEQUENCE = (
@@ -312,7 +320,73 @@ DECISION_RULES = tuple(
     )
 )
 
-RULES = tuple(sorted((*PREREQUISITE_RULES, *DECISION_RULES), key=lambda rule: rule.id))
+
+def _verdict_rule(
+    identifier: str,
+    effect: RuleEffect,
+    description: str,
+    consequence: str,
+    rationale: str,
+) -> RuleDefinition:
+    return RuleDefinition(
+        id=identifier,
+        requirement="FR-010",
+        effect=effect,
+        description=description,
+        consequence=consequence,
+        source_rationale=rationale,
+    )
+
+
+VERDICT_RULES = tuple(
+    sorted(
+        (
+            _verdict_rule(
+                "verdict-conditional",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Resolve a determined minimum-sufficient class with class-neutral "
+                "unmet conditions.",
+                "The determined class is conditional on every named unmet condition.",
+                "A condition is valid only when satisfying it cannot change the selected class.",
+            ),
+            _verdict_rule(
+                "verdict-insufficient-evidence",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Abstain when a prerequisite or potentially decisive class remains undetermined.",
+                "No architecture class is recommended until the material evidence gap is resolved.",
+                "Missing evidence must not promote a more complex architecture.",
+            ),
+            _verdict_rule(
+                "verdict-no-permissible-candidate",
+                RuleEffect.BLOCK,
+                "Resolve complete evidenced elimination of every represented control class.",
+                "No represented candidate is permissible under the current required "
+                "outcomes and constraints.",
+                "Complete blocking evidence is distinct from an unresolved evidence gap.",
+            ),
+            _verdict_rule(
+                "verdict-no-technology-change",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Resolve human-owned work or process redesign as the minimum-sufficient class.",
+                "No new automation architecture is recommended.",
+                "A simpler non-technology outcome is a positive decision, not an abstention.",
+            ),
+            _verdict_rule(
+                "verdict-supported",
+                RuleEffect.SUPPORT_CANDIDATE,
+                "Resolve an evidence-complete automation class as minimum sufficient.",
+                "The minimum-sufficient automation class is supported by current evidence.",
+                "The least surviving class is selected without ranking candidates or "
+                "scoring findings.",
+            ),
+        ),
+        key=lambda rule: rule.id,
+    )
+)
+
+RULES = tuple(
+    sorted((*PREREQUISITE_RULES, *DECISION_RULES, *VERDICT_RULES), key=lambda rule: rule.id)
+)
 _RULES_BY_ID = {rule.id: rule for rule in RULES}
 if len(_RULES_BY_ID) != len(RULES):  # pragma: no cover - package invariant
     raise RuntimeError("Packaged rule IDs must be unique.")

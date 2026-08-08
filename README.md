@@ -5,7 +5,7 @@
 ArchSift is an open-source, local-first decision-support project for comparing human-owned work, process redesign, deterministic automation, fixed AI workflows, and runtime model-directed agency. It is designed to make evidence and trade-offs inspectable, and it may abstain when the available evidence cannot support a defensible decision.
 
 > [!IMPORTANT]
-> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison facts, compose their prerequisite readiness, and inspect the packaged ruleset. The domain core can deterministically eliminate represented candidates by binding evidence; final architecture verdicts and decision records are not implemented yet.
+> ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison facts, compose their prerequisite readiness, and inspect the packaged ruleset. The domain core can deterministically eliminate represented candidates and resolve evidence-complete architecture verdicts. Authored conditional verdicts, the `assess` command, and decision records are not implemented yet.
 
 ## Install for development
 
@@ -31,7 +31,7 @@ archsift rules
 archsift rules --json
 ```
 
-`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged prerequisite rules without requiring a case workspace. Readiness is not an architecture verdict. See the [stable exit-code contract](docs/exit-codes.md).
+`init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged rules without requiring a case workspace. CLI readiness remains distinct from the domain verdict resolver and does not emit a recommendation. See the [stable exit-code contract](docs/exit-codes.md).
 
 No network service, model API, or telemetry is used by the current CLI.
 

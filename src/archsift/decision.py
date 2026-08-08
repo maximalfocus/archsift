@@ -1,11 +1,17 @@
-"""Deterministic ordered elimination for represented architecture candidates."""
+"""Deterministic candidate elimination and architecture verdict resolution."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
 
-from archsift.rules import RULESET_VERSION, RuleEffect, get_rule_definition
+from archsift.rules import (
+    RULESET_VERSION,
+    AssessmentPrerequisiteEvaluation,
+    RuleEffect,
+    evaluate_assessment_prerequisites,
+    get_rule_definition,
+)
 from archsift.validation import (
     Candidate,
     CandidateConstraintTest,
@@ -15,6 +21,7 @@ from archsift.validation import (
     Dossier,
     EstimateEvidence,
     Evidence,
+    HardVetoStatus,
     ObservedEvidence,
 )
 
@@ -40,6 +47,23 @@ class ControlClassDisposition(StrEnum):
     ELIMINATED = "eliminated"
     UNDETERMINED = "undetermined"
     SURVIVES = "survives"
+
+
+class ArchitectureVerdict(StrEnum):
+    """Mutually exclusive architecture outcomes defined by FR-010."""
+
+    SUPPORTED = "supported"
+    CONDITIONAL = "conditional"
+    INSUFFICIENT_EVIDENCE = "insufficient-evidence"
+    NO_PERMISSIBLE_CANDIDATE = "no-permissible-candidate"
+    NO_TECHNOLOGY_CHANGE = "no-technology-change"
+
+
+class EvidenceState(StrEnum):
+    """Qualitative completeness of the evidence used to resolve a verdict."""
+
+    COMPLETE = "evidence-complete"
+    INCOMPLETE = "evidence-incomplete"
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +151,41 @@ class OrderedEliminationEvaluation:
                 self.least_surviving_class.value if self.least_surviving_class is not None else None
             ),
             "ruleset_version": self.ruleset_version,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class AssessmentEvaluation:
+    """Evidence-calibrated verdict composed from existing deterministic evaluations."""
+
+    schema_version: int
+    ruleset_version: str
+    verdict: ArchitectureVerdict
+    verdict_rule_id: str
+    evidence_state: EvidenceState
+    recommended_class: ControlClass | None
+    surviving_candidate_ids: tuple[str, ...]
+    active_hard_veto_ids: tuple[str, ...]
+    mandatory_human_control_ids: tuple[str, ...]
+    prerequisite_evaluation: AssessmentPrerequisiteEvaluation
+    ordered_elimination_evaluation: OrderedEliminationEvaluation
+
+    def to_dict(self) -> dict[str, object]:
+        """Return a deterministic JSON-compatible representation."""
+        return {
+            "active_hard_veto_ids": list(self.active_hard_veto_ids),
+            "evidence_state": self.evidence_state.value,
+            "mandatory_human_control_ids": list(self.mandatory_human_control_ids),
+            "ordered_elimination_evaluation": self.ordered_elimination_evaluation.to_dict(),
+            "prerequisite_evaluation": self.prerequisite_evaluation.to_dict(),
+            "recommended_class": (
+                self.recommended_class.value if self.recommended_class is not None else None
+            ),
+            "ruleset_version": self.ruleset_version,
+            "schema_version": self.schema_version,
+            "surviving_candidate_ids": list(self.surviving_candidate_ids),
+            "verdict": self.verdict.value,
+            "verdict_rule_id": self.verdict_rule_id,
         }
 
 
@@ -351,4 +410,80 @@ def evaluate_ordered_elimination(dossier: Dossier) -> OrderedEliminationEvaluati
         control_classes=tuple(class_results),
         findings=findings,
         least_surviving_class=least_surviving_class,
+    )
+
+
+def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
+    """Resolve an FR-010 verdict without performing I/O or fabricating conditions."""
+    prerequisites = evaluate_assessment_prerequisites(dossier)
+    elimination = evaluate_ordered_elimination(dossier)
+    recommended_class: ControlClass | None = None
+    surviving_candidate_ids: tuple[str, ...] = ()
+
+    if not prerequisites.ready:
+        verdict = ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    elif elimination.least_surviving_class is not None:
+        recommended_class = elimination.least_surviving_class
+        surviving_candidate_ids = tuple(
+            candidate.candidate_id
+            for candidate in elimination.candidates
+            if candidate.control_class is recommended_class
+            and candidate.disposition is CandidateDisposition.SURVIVES
+        )
+        if recommended_class in {
+            ControlClass.HUMAN_OWNED_WORK,
+            ControlClass.PROCESS_REDESIGN,
+        }:
+            verdict = ArchitectureVerdict.NO_TECHNOLOGY_CHANGE
+        else:
+            verdict = ArchitectureVerdict.SUPPORTED
+    elif any(
+        result.disposition is ControlClassDisposition.UNDETERMINED
+        for result in elimination.control_classes
+    ):
+        verdict = ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    elif elimination.control_classes and all(
+        result.disposition is ControlClassDisposition.ELIMINATED
+        for result in elimination.control_classes
+    ):
+        verdict = ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+    else:
+        # Fail closed if a future elimination state does not establish a
+        # minimum-sufficient class or complete evidenced elimination.
+        verdict = ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+    evidence_state = (
+        EvidenceState.INCOMPLETE
+        if verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+        else EvidenceState.COMPLETE
+    )
+    verdict_rule_id = f"verdict-{verdict.value}"
+    get_rule_definition(verdict_rule_id)
+
+    autonomy = dossier.autonomy_permission
+    active_hard_veto_ids = (
+        tuple(
+            sorted(veto.id for veto in autonomy.hard_vetoes if veto.status is HardVetoStatus.ACTIVE)
+        )
+        if autonomy is not None
+        else ()
+    )
+    mandatory_human_control_ids = (
+        tuple(sorted(control.id for control in autonomy.mandatory_human_controls))
+        if autonomy is not None
+        else ()
+    )
+
+    return AssessmentEvaluation(
+        schema_version=dossier.schema_version,
+        ruleset_version=RULESET_VERSION,
+        verdict=verdict,
+        verdict_rule_id=verdict_rule_id,
+        evidence_state=evidence_state,
+        recommended_class=recommended_class,
+        surviving_candidate_ids=surviving_candidate_ids,
+        active_hard_veto_ids=active_hard_veto_ids,
+        mandatory_human_control_ids=mandatory_human_control_ids,
+        prerequisite_evaluation=prerequisites,
+        ordered_elimination_evaluation=elimination,
     )
