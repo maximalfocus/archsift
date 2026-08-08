@@ -350,6 +350,26 @@ class DecisionArea(StrEnum):
     COMPARATIVE_FIT = "comparative-fit"
 
 
+class DecisionConditionStatus(StrEnum):
+    """Authored state of a post-selection condition."""
+
+    MET = "met"
+    UNMET = "unmet"
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionCondition:
+    """One evidence-linked obligation that cannot participate in class selection."""
+
+    id: str
+    target_control_class: ControlClass
+    decision_area: DecisionArea
+    statement: str
+    status: DecisionConditionStatus
+    resolved_by: str
+    evidence_ids: tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class EvidenceEntry:
     """Fields shared by every immutable evidence entry."""
@@ -408,6 +428,7 @@ class Dossier:
     agency_necessity: AgencyNecessity | None = None
     autonomy_permission: AutonomyPermission | None = None
     candidate_comparison: CandidateComparison | None = None
+    decision_conditions: tuple[DecisionCondition, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -628,6 +649,8 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-007"
     elif base_field.startswith("$.candidate_comparison"):
         requirement = "FR-008"
+    elif base_field.startswith("$.decision_conditions"):
+        requirement = "FR-010"
     else:
         requirement = "FR-002"
     if error.validator == "additionalProperties" and isinstance(error.instance, Mapping):
@@ -1211,6 +1234,76 @@ def _candidate_comparison_semantic_diagnostics(
                 )
             )
     return tuple(diagnostics)
+
+
+def _decision_condition_semantic_diagnostics(
+    conditions: Sequence[Mapping[str, Any]],
+    evidence: Sequence[Mapping[str, Any]],
+) -> tuple[Diagnostic, ...]:
+    diagnostics: list[Diagnostic] = []
+    first_by_id: dict[str, int] = {}
+    evidence_by_id = {cast(str, entry["id"]): entry for entry in evidence}
+
+    for condition_index, condition in enumerate(conditions):
+        identifier = cast(str, condition["id"])
+        first = first_by_id.setdefault(identifier, condition_index)
+        if first != condition_index:
+            diagnostics.append(
+                _diagnostic(
+                    "duplicate-decision-condition-id",
+                    f"Decision condition ID {identifier!r} duplicates the entry at "
+                    f"$.decision_conditions[{first}].id.",
+                    f"$.decision_conditions[{condition_index}].id",
+                    "FR-010",
+                    "Give every decision condition a unique stable ID.",
+                )
+            )
+
+        area = cast(str, condition["decision_area"])
+        for evidence_index, evidence_id in enumerate(
+            cast(Sequence[str], condition["evidence_ids"])
+        ):
+            path = f"$.decision_conditions[{condition_index}].evidence_ids[{evidence_index}]"
+            entry = evidence_by_id.get(evidence_id)
+            if entry is None:
+                diagnostics.append(
+                    _diagnostic(
+                        "missing-decision-condition-evidence-reference",
+                        f"Evidence ID {evidence_id!r} does not exist in the evidence ledger.",
+                        path,
+                        "FR-010",
+                        "Add the evidence entry or use an existing evidence ID.",
+                    )
+                )
+            elif area not in cast(Sequence[str], entry["affects"]):
+                diagnostics.append(
+                    _diagnostic(
+                        "decision-condition-evidence-area-mismatch",
+                        f"Evidence ID {evidence_id!r} is not classified for {area}.",
+                        path,
+                        "FR-010",
+                        f"Add {area} to that evidence entry's affects list or cite "
+                        "relevant evidence.",
+                    )
+                )
+    return tuple(diagnostics)
+
+
+def _typed_decision_conditions(
+    conditions: Sequence[Mapping[str, Any]],
+) -> tuple[DecisionCondition, ...]:
+    return tuple(
+        DecisionCondition(
+            id=cast(str, raw["id"]),
+            target_control_class=ControlClass(cast(str, raw["target_control_class"])),
+            decision_area=DecisionArea(cast(str, raw["decision_area"])),
+            statement=cast(str, raw["statement"]),
+            status=DecisionConditionStatus(cast(str, raw["status"])),
+            resolved_by=cast(str, raw["resolved_by"]),
+            evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+        )
+        for raw in conditions
+    )
 
 
 def _typed_task(task: Mapping[str, Any] | None) -> TaskBoundary | None:
@@ -2140,6 +2233,9 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     raw_agency_necessity = cast(Mapping[str, Any] | None, loaded.get("agency_necessity"))
     raw_autonomy_permission = cast(Mapping[str, Any] | None, loaded.get("autonomy_permission"))
     raw_candidate_comparison = cast(Mapping[str, Any] | None, loaded.get("candidate_comparison"))
+    raw_decision_conditions = cast(
+        Sequence[Mapping[str, Any]], loaded.get("decision_conditions", ())
+    )
     semantic_diagnostics = sorted(
         (
             *_duplicate_evidence_diagnostics(raw_evidence),
@@ -2152,6 +2248,7 @@ def validate_workspace(workspace: Path) -> ValidationResult:
             *_candidate_comparison_semantic_diagnostics(
                 raw_candidate_comparison, raw_problem_value, raw_evidence
             ),
+            *_decision_condition_semantic_diagnostics(raw_decision_conditions, raw_evidence),
         ),
         key=lambda diagnostic: (diagnostic.field, diagnostic.id, diagnostic.message),
     )
@@ -2172,5 +2269,6 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         agency_necessity=_typed_agency_necessity(raw_agency_necessity),
         autonomy_permission=_typed_autonomy_permission(raw_autonomy_permission),
         candidate_comparison=_typed_candidate_comparison(raw_candidate_comparison),
+        decision_conditions=_typed_decision_conditions(raw_decision_conditions),
     )
     return ValidationResult(ExitCode.SUCCESS, dossier=dossier)

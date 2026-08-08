@@ -116,7 +116,7 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.3.0"
+          assert rules_payload["ruleset_version"] == "1.4.0"
           assert len(rules_payload["rules"]) == 35
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 3
@@ -133,7 +133,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.3.0"
+          assert initialized_payload["ruleset_version"] == "1.4.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -249,6 +249,15 @@ jobs:
                       "evidence_ids": ["autonomy-observed"],
                   }],
               },
+              "decision_conditions": [{
+                  "id": "verify-production-capacity",
+                  "target_control_class": "fixed-ai-workflow",
+                  "decision_area": "comparative-fit",
+                  "statement": "Verify production capacity before adoption.",
+                  "status": "unmet",
+                  "resolved_by": "Run the named production-capacity test.",
+                  "evidence_ids": ["agency-estimate"],
+              }],
               "candidate_comparison": {
                   "candidates": [{
                       "id": "current-review",
@@ -329,7 +338,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.3.0"
+          assert payload["ruleset_version"] == "1.4.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
@@ -364,6 +373,8 @@ jobs:
                       "assert result.recommended_class.value == 'fixed-ai-workflow'; "
                       "assert result.active_hard_veto_ids == ('no-autonomous-release',); "
                       "assert result.mandatory_human_control_ids == ('approve-release',); "
+                      "assert tuple(c.id for c in result.unmet_conditions) == "
+                      "('verify-production-capacity',); "
                       "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "
                       "'decision_record': canonical_decision_record_bytes(record).hex(), "
                       "'dossier_identity': dossier_content_identity(dossier), "
@@ -378,4 +389,4 @@ jobs:
           )
           installed_snapshot = json.loads(decision.stdout)
           assert installed_snapshot == source_snapshot
-          assert installed_snapshot["verdict"] == "supported"
+          assert installed_snapshot["verdict"] == "conditional"

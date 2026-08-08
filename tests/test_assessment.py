@@ -33,6 +33,8 @@ from archsift.validation import (
     ComparisonResult,
     ControlClass,
     DecisionArea,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EstimateEvidence,
     Evidence,
@@ -319,7 +321,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.3.0"
+    assert RULESET_VERSION == "1.4.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -359,6 +361,7 @@ def test_incomplete_prerequisites_abstain_with_exact_nested_findings() -> None:
         "ruleset_version",
         "schema_version",
         "surviving_candidate_ids",
+        "unmet_conditions",
         "verdict",
         "verdict_rule_id",
     }
@@ -496,6 +499,134 @@ def test_multiple_survivors_are_exposed_without_candidate_ranking() -> None:
     assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
     assert evaluation.recommended_class is ControlClass.DETERMINISTIC_AUTOMATION
     assert evaluation.surviving_candidate_ids == ("a-option", "z-option")
+
+
+def _condition(
+    identifier: str,
+    target: ControlClass,
+    status: DecisionConditionStatus = DecisionConditionStatus.UNMET,
+) -> DecisionCondition:
+    return DecisionCondition(
+        id=identifier,
+        target_control_class=target,
+        decision_area=DecisionArea.COMPARATIVE_FIT,
+        statement=f"Satisfy synthetic condition {identifier}.\x1b",
+        status=status,
+        resolved_by=f"Observe synthetic resolution {identifier}.",
+        evidence_ids=("decision-observed",),
+    )
+
+
+@pytest.mark.parametrize(
+    "selected_class",
+    [ControlClass.HUMAN_OWNED_WORK, ControlClass.FIXED_AI_WORKFLOW],
+)
+def test_matching_unmet_conditions_resolve_conditional_after_class_selection(
+    selected_class: ControlClass,
+) -> None:
+    if selected_class is ControlClass.HUMAN_OWNED_WORK:
+        dossier = _ready_dossier(
+            _candidate("human", selected_class, CandidateTestResult.MEETS),
+            _candidate("process", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS),
+            current_id="human",
+            proposed_id="human",
+            strongest_id=None,
+        )
+    else:
+        dossier = _ready_dossier(
+            _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+            _candidate("fixed", selected_class, CandidateTestResult.MEETS),
+            current_id="human",
+            proposed_id="fixed",
+            strongest_id="human",
+        )
+    dossier = replace(
+        dossier,
+        decision_conditions=(
+            _condition("z-condition", selected_class),
+            _condition("met-condition", selected_class, DecisionConditionStatus.MET),
+            _condition("a-condition", selected_class),
+            _condition("other-class", ControlClass.AGENTIC_CONTROL),
+        ),
+    )
+
+    without_conditions = evaluate_assessment(replace(dossier, decision_conditions=()))
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.prerequisite_evaluation == without_conditions.prerequisite_evaluation
+    assert (
+        evaluation.ordered_elimination_evaluation
+        == without_conditions.ordered_elimination_evaluation
+    )
+    assert evaluation.recommended_class == without_conditions.recommended_class
+    assert evaluation.surviving_candidate_ids == without_conditions.surviving_candidate_ids
+    assert evaluation.verdict is ArchitectureVerdict.CONDITIONAL
+    assert evaluation.verdict_rule_id == "verdict-conditional"
+    assert evaluation.recommended_class is selected_class
+    assert evaluation.evidence_state is EvidenceState.COMPLETE
+    assert [condition.id for condition in evaluation.unmet_conditions] == [
+        "a-condition",
+        "z-condition",
+    ]
+    payload = evaluation.to_dict()
+    assert [condition["id"] for condition in payload["unmet_conditions"]] == [  # type: ignore[index]
+        "a-condition",
+        "z-condition",
+    ]
+    assert payload["unmet_conditions"][0]["statement"].endswith(".\x1b")  # type: ignore[index]
+
+
+def test_met_and_non_selected_conditions_do_not_change_positive_verdict() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    dossier = replace(
+        dossier,
+        decision_conditions=(
+            _condition(
+                "met-fixed",
+                ControlClass.FIXED_AI_WORKFLOW,
+                DecisionConditionStatus.MET,
+            ),
+            _condition("unmet-agentic", ControlClass.AGENTIC_CONTROL),
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert evaluation.recommended_class is ControlClass.FIXED_AI_WORKFLOW
+    assert evaluation.unmet_conditions == ()
+
+
+def test_conditions_do_not_override_incomplete_evidence_or_complete_elimination() -> None:
+    incomplete = replace(
+        Dossier(schema_version=1, case=CaseIdentity("incomplete", "Incomplete")),
+        decision_conditions=(_condition("incomplete-condition", ControlClass.FIXED_AI_WORKFLOW),),
+    )
+    eliminated = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.FAILS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    eliminated = replace(
+        eliminated,
+        decision_conditions=(_condition("blocked-condition", ControlClass.FIXED_AI_WORKFLOW),),
+    )
+
+    incomplete_result = evaluate_assessment(incomplete)
+    eliminated_result = evaluate_assessment(eliminated)
+
+    assert incomplete_result.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert incomplete_result.unmet_conditions == ()
+    assert eliminated_result.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+    assert eliminated_result.unmet_conditions == ()
 
 
 def test_vetoes_controls_and_estimates_do_not_invent_conditional_verdict() -> None:

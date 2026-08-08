@@ -22,6 +22,7 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
         "schema_version": 1,
         "case": {"id": "my-first-case", "title": "My First Case"},
         "evidence": [],
+        "decision_conditions": [],
     }
     guidance = (target / "README.md").read_text()
     assert guidance.startswith("# ArchSift case workspace\n")
@@ -44,6 +45,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "candidate_comparison:" in guidance
     assert "strongest-simpler" in guidance
     assert "difficult_case_performance:" in guidance
+    assert "decision_conditions:" in guidance
+    assert "target_control_class:" in guidance
+    assert "If resolving an uncertainty could change the selected class" in guidance
     assert (target / "evidence").is_dir()
     assert (target / "output").is_dir()
 

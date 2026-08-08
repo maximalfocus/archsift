@@ -18,6 +18,8 @@ from archsift.validation import (
     CandidateOutcomeTest,
     CandidateTestResult,
     ControlClass,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EstimateEvidence,
     Evidence,
@@ -64,6 +66,18 @@ class EvidenceState(StrEnum):
 
     COMPLETE = "evidence-complete"
     INCOMPLETE = "evidence-incomplete"
+
+
+def _condition_dict(value: DecisionCondition) -> dict[str, object]:
+    return {
+        "decision_area": value.decision_area.value,
+        "evidence_ids": list(value.evidence_ids),
+        "id": value.id,
+        "resolved_by": value.resolved_by,
+        "statement": value.statement,
+        "status": value.status.value,
+        "target_control_class": value.target_control_class.value,
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,6 +179,7 @@ class AssessmentEvaluation:
     evidence_state: EvidenceState
     recommended_class: ControlClass | None
     surviving_candidate_ids: tuple[str, ...]
+    unmet_conditions: tuple[DecisionCondition, ...]
     active_hard_veto_ids: tuple[str, ...]
     mandatory_human_control_ids: tuple[str, ...]
     prerequisite_evaluation: AssessmentPrerequisiteEvaluation
@@ -184,6 +199,7 @@ class AssessmentEvaluation:
             "ruleset_version": self.ruleset_version,
             "schema_version": self.schema_version,
             "surviving_candidate_ids": list(self.surviving_candidate_ids),
+            "unmet_conditions": [_condition_dict(item) for item in self.unmet_conditions],
             "verdict": self.verdict.value,
             "verdict_rule_id": self.verdict_rule_id,
         }
@@ -419,6 +435,7 @@ def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
     elimination = evaluate_ordered_elimination(dossier)
     recommended_class: ControlClass | None = None
     surviving_candidate_ids: tuple[str, ...] = ()
+    unmet_conditions: tuple[DecisionCondition, ...] = ()
 
     if not prerequisites.ready:
         verdict = ArchitectureVerdict.INSUFFICIENT_EVIDENCE
@@ -430,7 +447,20 @@ def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
             if candidate.control_class is recommended_class
             and candidate.disposition is CandidateDisposition.SURVIVES
         )
-        if recommended_class in {
+        unmet_conditions = tuple(
+            sorted(
+                (
+                    condition
+                    for condition in dossier.decision_conditions
+                    if condition.target_control_class is recommended_class
+                    and condition.status is DecisionConditionStatus.UNMET
+                ),
+                key=lambda condition: condition.id,
+            )
+        )
+        if unmet_conditions:
+            verdict = ArchitectureVerdict.CONDITIONAL
+        elif recommended_class in {
             ControlClass.HUMAN_OWNED_WORK,
             ControlClass.PROCESS_REDESIGN,
         }:
@@ -482,6 +512,7 @@ def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
         evidence_state=evidence_state,
         recommended_class=recommended_class,
         surviving_candidate_ids=surviving_candidate_ids,
+        unmet_conditions=unmet_conditions,
         active_hard_veto_ids=active_hard_veto_ids,
         mandatory_human_control_ids=mandatory_human_control_ids,
         prerequisite_evaluation=prerequisites,

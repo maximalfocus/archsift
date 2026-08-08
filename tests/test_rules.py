@@ -173,7 +173,7 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.3.0"
+    assert RULESET_VERSION == "1.4.0"
     assert ids == sorted(ids)
     assert len(ids) == len(set(ids)) == 26
     assert set(ids) == {

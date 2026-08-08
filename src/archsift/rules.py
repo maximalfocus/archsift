@@ -14,7 +14,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.3.0"
+RULESET_VERSION = "1.4.0"
 
 
 class RuleEffect(StrEnum):
