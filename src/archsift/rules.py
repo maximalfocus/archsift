@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 
+from archsift.method import get_method_reference, validate_method_catalog
 from archsift.validation import (
     Dossier,
     PrerequisiteFinding,
@@ -37,10 +38,15 @@ class RuleDefinition:
     description: str
     consequence: str
     source_rationale: str
+    rationale_id: str
+    source_ids: tuple[str, ...]
 
-    def to_dict(self) -> dict[str, str]:
+    def to_dict(self) -> dict[str, object]:
         """Return a deterministic JSON-compatible representation."""
-        return {key: str(value) for key, value in asdict(self).items()}
+        payload: dict[str, object] = asdict(self)
+        payload["effect"] = self.effect.value
+        payload["source_ids"] = list(self.source_ids)
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +99,7 @@ _PREREQUISITE_CONSEQUENCE = (
 
 
 def _rule(identifier: str, requirement: str, description: str, rationale: str) -> RuleDefinition:
+    method = get_method_reference(identifier)
     return RuleDefinition(
         id=identifier,
         requirement=requirement,
@@ -100,6 +107,8 @@ def _rule(identifier: str, requirement: str, description: str, rationale: str) -
         description=description,
         consequence=_PREREQUISITE_CONSEQUENCE,
         source_rationale=rationale,
+        rationale_id=method.rationale_id,
+        source_ids=method.source_ids,
     )
 
 
@@ -111,6 +120,7 @@ def _decision_rule(
     rationale: str,
     requirement: str = "FR-009",
 ) -> RuleDefinition:
+    method = get_method_reference(identifier)
     return RuleDefinition(
         id=identifier,
         requirement=requirement,
@@ -118,6 +128,8 @@ def _decision_rule(
         description=description,
         consequence=consequence,
         source_rationale=rationale,
+        rationale_id=method.rationale_id,
+        source_ids=method.source_ids,
     )
 
 
@@ -518,6 +530,7 @@ def _verdict_rule(
     consequence: str,
     rationale: str,
 ) -> RuleDefinition:
+    method = get_method_reference(identifier)
     return RuleDefinition(
         id=identifier,
         requirement="FR-010",
@@ -525,6 +538,8 @@ def _verdict_rule(
         description=description,
         consequence=consequence,
         source_rationale=rationale,
+        rationale_id=method.rationale_id,
+        source_ids=method.source_ids,
     )
 
 
@@ -580,6 +595,7 @@ RULES = tuple(
 _RULES_BY_ID = {rule.id: rule for rule in RULES}
 if len(_RULES_BY_ID) != len(RULES):  # pragma: no cover - package invariant
     raise RuntimeError("Packaged rule IDs must be unique.")
+validate_method_catalog(RULESET_VERSION, tuple(rule.id for rule in RULES))
 
 
 def list_rules() -> tuple[RuleDefinition, ...]:

@@ -18,6 +18,7 @@ from archsift.artefacts import (
 from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.markdown_report import render_markdown_decision_report
+from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
 from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
@@ -369,17 +370,22 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
                 "ok",
                 ExitCode.SUCCESS,
                 (),
+                method=method_metadata(),
                 rules=[rule.to_dict() for rule in rules],
                 ruleset_version=RULESET_VERSION,
             ),
             stream=sys.stdout,
         )
         return int(ExitCode.SUCCESS)
-    _print(f"ArchSift ruleset {RULESET_VERSION}", stream=sys.stdout)
+    _print(
+        f"ArchSift ruleset {RULESET_VERSION} (method {METHOD_VERSION}; {METHOD_SPECIFICATION})",
+        stream=sys.stdout,
+    )
     for rule in rules:
         _print(
             f"{rule.id} [{rule.effect.value}; {rule.requirement}] {rule.description} "
-            f"Consequence: {rule.consequence} Rationale: {rule.source_rationale}",
+            f"Consequence: {rule.consequence} Rationale: {rule.source_rationale} "
+            f"Method: {rule.rationale_id} Sources: {','.join(rule.source_ids)}",
             stream=sys.stdout,
         )
     return int(ExitCode.SUCCESS)
