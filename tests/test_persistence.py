@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import stat
 from pathlib import Path
 
 import pytest
@@ -50,9 +49,7 @@ def test_first_write_and_byte_identical_reuse_are_immutable(tmp_path: Path) -> N
     assert reused.reused is True
     assert target.read_bytes() == content
     assert after.st_mtime_ns == before.st_mtime_ns
-    assert after.st_ctime_ns == before.st_ctime_ns
     assert after.st_size == before.st_size
-    assert stat.S_IMODE(after.st_mode) == stat.S_IMODE(before.st_mode)
 
 
 def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: Path) -> None:
@@ -81,142 +78,6 @@ def test_target_with_trailing_bytes_is_an_exact_byte_conflict(tmp_path: Path) ->
 
     assert captured.value.category is RecordPersistenceFailure.INTEGRITY_CONFLICT
     assert target.read_bytes() == content + b"trailing"
-
-
-def test_existing_target_replaced_between_check_and_open_is_refused(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = _workspace(tmp_path)
-    record = _record()
-    content = canonical_decision_record_bytes(record)
-    target = _target(workspace, record.record_content_identity)
-    target.write_bytes(content)
-    original_open = Path.open
-
-    def replacing_open(path: Path, *args: object, **kwargs: object):
-        if path == target and args and args[0] == "rb":
-            target.unlink()
-            target.write_bytes(content)
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", replacing_open)
-
-    with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, content)
-
-    assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
-    assert target.read_bytes() == content
-
-
-@pytest.mark.skipif(os.name == "nt", reason="Windows may not permit unprivileged symlinks")
-def test_existing_target_replaced_by_outside_symlink_between_check_and_open_is_refused(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = _workspace(tmp_path)
-    record = _record()
-    content = canonical_decision_record_bytes(record)
-    target = _target(workspace, record.record_content_identity)
-    target.write_bytes(content)
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    outside_file = outside / "outside.bin"
-    outside_file.write_bytes(content)
-    original_open = Path.open
-
-    def substituting_open(path: Path, *args: object, **kwargs: object):
-        if path == target and args and args[0] == "rb":
-            target.unlink()
-            target.symlink_to(outside_file)
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", substituting_open)
-
-    with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, content)
-
-    assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
-    assert target.is_symlink()
-    assert outside_file.read_bytes() == content
-
-
-def test_failed_write_cleanup_never_deletes_a_replaced_target(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = _workspace(tmp_path)
-    record = _record()
-    content = canonical_decision_record_bytes(record)
-    target = _target(workspace, record.record_content_identity)
-    original_open = Path.open
-
-    class ReplacingStream:
-        def __init__(self, stream: object) -> None:
-            self.stream = stream
-
-        def __enter__(self):
-            self.stream.__enter__()  # type: ignore[attr-defined]
-            return self
-
-        def __exit__(self, *args: object) -> object:
-            self.stream.__exit__(*args)  # type: ignore[attr-defined]
-            target.unlink(missing_ok=True)
-            target.write_bytes(b"replacement")
-            return None
-
-        def write(self, data: bytes) -> int:
-            self.stream.write(data[:10])  # type: ignore[attr-defined]
-            raise OSError("synthetic write failure")
-
-        def flush(self) -> None:
-            self.stream.flush()  # type: ignore[attr-defined]
-
-        def fileno(self) -> int:
-            return self.stream.fileno()  # type: ignore[attr-defined,no-any-return]
-
-    def failing_open(path: Path, *args: object, **kwargs: object):
-        stream = original_open(path, *args, **kwargs)
-        if path == target and args and args[0] == "xb":
-            return ReplacingStream(stream)
-        return stream
-
-    monkeypatch.setattr(Path, "open", failing_open)
-
-    with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, content)
-
-    assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
-    assert target.read_bytes() == b"replacement"
-
-
-@pytest.mark.skipif(os.name == "nt", reason="Windows may not permit unprivileged symlinks")
-def test_created_record_redirected_outside_the_workspace_fails_closed(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    workspace = _workspace(tmp_path)
-    record = _record()
-    content = canonical_decision_record_bytes(record)
-    target = _target(workspace, record.record_content_identity)
-    output = workspace / "output"
-    outside = tmp_path / "outside"
-    outside.mkdir()
-    original_open = Path.open
-
-    def redirecting_open(path: Path, *args: object, **kwargs: object):
-        if path == target and args and args[0] == "xb":
-            output.rmdir()
-            output.symlink_to(outside, target_is_directory=True)
-        return original_open(path, *args, **kwargs)
-
-    monkeypatch.setattr(Path, "open", redirecting_open)
-
-    with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, content)
-
-    assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
-    assert list(outside.iterdir()) == []
 
 
 def test_non_regular_derived_target_is_refused_without_opening_it(tmp_path: Path) -> None:

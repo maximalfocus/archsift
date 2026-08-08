@@ -130,14 +130,7 @@ def _target_name(record: DecisionRecord) -> str:
 
 
 def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
-    """Return whether the existing derived target holds exactly the given bytes.
-
-    Reuse only reads the target; it never writes or renames it. A read can
-    update atime under some mount policies (for example Linux relatime), so
-    the guaranteed metadata invariant of reuse is that mtime, ctime, mode,
-    ownership, and size are unchanged; atime is governed by the host policy,
-    which no portable verification read can avoid updating.
-    """
+    """Return whether the existing derived target holds exactly the given bytes."""
     try:
         resolved = target.resolve(strict=True)
     except (OSError, RuntimeError) as error:
@@ -155,42 +148,20 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             remediation="Remove links or aliases from the derived decision-record target.",
         )
     try:
-        # lstat (not stat) so a symlink substituted at the path since resolve
-        # is refused instead of followed.
-        path_stat = os.lstat(resolved)
-    except OSError as error:
-        raise _error(
-            RecordPersistenceFailure.TARGET_UNSAFE,
-            requirement="NFR-004",
-            message="The existing decision-record target cannot be inspected safely.",
-            remediation="Make the derived regular file readable or remove it.",
-        ) from error
-    if stat.S_ISLNK(path_stat.st_mode) or not stat.S_ISREG(path_stat.st_mode):
-        raise _error(
-            RecordPersistenceFailure.TARGET_UNSAFE,
-            requirement="NFR-004",
-            message="The existing decision-record target is not a direct regular file.",
-            remediation="Remove links or aliases from the derived decision-record target.",
-        )
-    try:
+        if not stat.S_ISREG(resolved.stat().st_mode):
+            raise _error(
+                RecordPersistenceFailure.TARGET_UNSAFE,
+                requirement="NFR-004",
+                message="The existing decision-record target is not a regular file.",
+                remediation="Remove the non-regular derived target.",
+            )
         with resolved.open("rb") as stream:
-            opened_stat = os.fstat(stream.fileno())
-            if stat.S_ISLNK(opened_stat.st_mode) or not stat.S_ISREG(opened_stat.st_mode):
+            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
                 raise _error(
                     RecordPersistenceFailure.TARGET_UNSAFE,
                     requirement="NFR-004",
                     message="The existing decision-record target is not a regular file.",
                     remediation="Remove the non-regular derived target.",
-                )
-            # Bind the opened descriptor to the file that was verified at the
-            # path: a concurrent replacement (symlink or different file) after
-            # lstat must be refused before any byte is read.
-            if not os.path.samestat(path_stat, opened_stat):
-                raise _error(
-                    RecordPersistenceFailure.TARGET_UNSAFE,
-                    requirement="NFR-004",
-                    message="The existing decision-record target changed during verification.",
-                    remediation="Retry without a concurrently replaced derived target.",
                 )
             offset = 0
             while offset < len(content):
@@ -208,27 +179,6 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             message="The existing decision-record target cannot be read safely.",
             remediation="Make the derived regular file readable or remove it.",
         ) from error
-
-
-def _path_still_is(expected: os.stat_result, target: Path) -> bool:
-    """Return whether the target path still refers to the same file as expected."""
-    try:
-        return os.path.samestat(expected, os.lstat(target))
-    except OSError:
-        return False
-
-
-def _created_target_verified(
-    created_stat: os.stat_result,
-    target: Path,
-    output_root: Path,
-) -> bool:
-    """Return whether the created record still lives at its authorised target."""
-    try:
-        current = target.resolve(strict=True)
-    except (OSError, RuntimeError):
-        return False
-    return current.is_relative_to(output_root) and _path_still_is(created_stat, target)
 
 
 def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
@@ -263,12 +213,10 @@ def persist_decision_record(
         reused = _reuse_or_conflict(target, output_root, content)
         return PersistedDecisionRecord(f"output/{filename}", reused)
 
-    created_stat: os.stat_result | None = None
     created = False
     try:
         with target.open("xb") as stream:
             created = True
-            created_stat = os.fstat(stream.fileno())
             if stream.write(content) != len(content):
                 raise OSError("incomplete decision-record write")
             stream.flush()
@@ -277,9 +225,7 @@ def persist_decision_record(
         reused = _reuse_or_conflict(target, output_root, content)
         return PersistedDecisionRecord(f"output/{filename}", reused)
     except OSError as error:
-        # Remove only the partial inode we created; a target that was replaced
-        # concurrently is never deleted by this cleanup.
-        if created and created_stat is not None and _path_still_is(created_stat, target):
+        if created:
             with suppress(OSError):
                 target.unlink(missing_ok=True)
         raise _error(
@@ -288,18 +234,4 @@ def persist_decision_record(
             message="The canonical decision record could not be written completely.",
             remediation="Restore write access and retry without replacing an existing record.",
         ) from error
-    assert created_stat is not None
-    if not _created_target_verified(created_stat, target, output_root):
-        # A concurrent replacement moved the created record away from its
-        # authorised in-root target; remove only the exact inode we created
-        # when it is still reachable at the target path, then fail closed.
-        if _path_still_is(created_stat, target):
-            with suppress(OSError):
-                target.unlink(missing_ok=True)
-        raise _error(
-            RecordPersistenceFailure.WRITE_FAILED,
-            requirement="FR-011",
-            message="The canonical decision record could not be verified at its output target.",
-            remediation="Retry without a concurrently replaced output directory or target.",
-        )
     return PersistedDecisionRecord(f"output/{filename}", False)

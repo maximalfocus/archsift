@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import stat
 from dataclasses import dataclass
 from enum import StrEnum
@@ -280,46 +279,14 @@ def _hash_stream(stream: BinaryIO) -> tuple[int, str]:
 def _identify(root: Path, pending: _PendingArtefact) -> EvidenceArtefactIdentity:
     resolved = _resolve_target(root, pending)
     try:
-        # lstat (not stat) so a symlink substituted at the path since
-        # _resolve_target is refused instead of followed.
-        path_stat = os.lstat(resolved)
-    except OSError as error:
-        raise _error(
-            EvidenceArtefactFailure.TARGET_UNRESOLVABLE,
-            field=pending.path_field,
-            requirement="NFR-004",
-            message="The referenced evidence artefact cannot be inspected safely.",
-            remediation="Provide a resolvable regular file inside the authorised root.",
-        ) from error
-    if stat.S_ISLNK(path_stat.st_mode) or not stat.S_ISREG(path_stat.st_mode):
-        raise _error(
-            EvidenceArtefactFailure.TARGET_NOT_REGULAR,
-            field=pending.path_field,
-            requirement="NFR-004",
-            message="The referenced evidence artefact is not a regular file.",
-            remediation="Reference a regular file rather than a directory or special file.",
-        )
-    try:
         with resolved.open("rb") as stream:
-            opened_stat = fstat(stream.fileno())
-            if not stat.S_ISREG(opened_stat.st_mode):
+            if not stat.S_ISREG(fstat(stream.fileno()).st_mode):
                 raise _error(
                     EvidenceArtefactFailure.TARGET_NOT_REGULAR,
                     field=pending.path_field,
                     requirement="NFR-004",
                     message="The referenced evidence artefact is not a regular file.",
                     remediation="Reference a regular file rather than a directory or special file.",
-                )
-            # Bind the opened descriptor to the file verified at the path: a
-            # concurrent replacement (symlink or different file) after lstat
-            # must be refused before any byte is hashed.
-            if not os.path.samestat(path_stat, opened_stat):
-                raise _error(
-                    EvidenceArtefactFailure.TARGET_UNRESOLVABLE,
-                    field=pending.path_field,
-                    requirement="NFR-004",
-                    message="The referenced evidence artefact changed during identification.",
-                    remediation="Retry without a concurrently replaced evidence artefact.",
                 )
             byte_length, content_identity = _hash_stream(stream)
     except EvidenceArtefactError:
