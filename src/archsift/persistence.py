@@ -147,7 +147,14 @@ def _target_name(record: DecisionRecord, extension: str = "json") -> str:
 
 
 def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
-    """Return whether the existing derived target holds exactly the given bytes."""
+    """Return whether the existing derived target holds exactly the given bytes.
+
+    Verification binds the opened descriptor to the path identity it was opened
+    from: the direct target is lstat'ed before open, the opened file must be
+    the same file via os.path.samestat, and the path must still name that file
+    after the exact-length byte comparison. Same-byte replacements and symlink
+    swaps are therefore never accepted as reuse.
+    """
     try:
         resolved = target.resolve(strict=True)
     except (OSError, RuntimeError) as error:
@@ -165,7 +172,8 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             remediation="Remove links or aliases from the derived decision-record target.",
         )
     try:
-        if not stat.S_ISREG(resolved.stat().st_mode):
+        before = resolved.lstat()
+        if not stat.S_ISREG(before.st_mode):
             raise _error(
                 RecordPersistenceFailure.TARGET_UNSAFE,
                 requirement="NFR-004",
@@ -173,12 +181,13 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
                 remediation="Remove the non-regular derived target.",
             )
         with resolved.open("rb") as stream:
-            if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            opened = os.fstat(stream.fileno())
+            if not stat.S_ISREG(opened.st_mode) or not os.path.samestat(before, opened):
                 raise _error(
                     RecordPersistenceFailure.TARGET_UNSAFE,
                     requirement="NFR-004",
-                    message="The existing decision-record target is not a regular file.",
-                    remediation="Remove the non-regular derived target.",
+                    message="The existing decision-record target changed while being verified.",
+                    remediation="Remove the replaced target and retry without concurrent changes.",
                 )
             offset = 0
             while offset < len(content):
@@ -186,7 +195,16 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
                 if not chunk or chunk != content[offset : offset + len(chunk)]:
                     return False
                 offset += len(chunk)
-            return stream.read(1) == b""
+            if stream.read(1) != b"":
+                return False
+        after = resolved.lstat()
+        if not os.path.samestat(after, opened):
+            raise _error(
+                RecordPersistenceFailure.TARGET_UNSAFE,
+                requirement="NFR-004",
+                message="The existing decision-record target changed while being verified.",
+                remediation="Remove the replaced target and retry without concurrent changes.",
+            )
     except RecordPersistenceError:
         raise
     except OSError as error:
@@ -196,6 +214,7 @@ def _existing_target_matches(target: Path, output_root: Path, content: bytes) ->
             message="The existing decision-record target cannot be read safely.",
             remediation="Make the derived regular file readable or remove it.",
         ) from error
+    return True
 
 
 def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:

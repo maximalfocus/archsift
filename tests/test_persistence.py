@@ -246,6 +246,114 @@ def test_target_with_trailing_bytes_is_an_exact_byte_conflict(tmp_path: Path) ->
     assert target.read_bytes() == content + b"trailing"
 
 
+def test_same_byte_replacement_between_stat_and_open_is_never_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    content = canonical_decision_record_bytes(record)
+    target = _target(workspace, record.record_content_identity)
+    target.write_bytes(content)
+    original_open = Path.open
+
+    def replacing_open(path: Path, *args: object, **kwargs: object):
+        if path == target and args and args[0] == "rb":
+            # Land a different file at the same content address with identical
+            # bytes between the pre-open identity check and the open itself.
+            target.unlink(missing_ok=True)
+            target.write_bytes(content)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", replacing_open)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_record(workspace, record, content)
+
+    assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
+    assert target.read_bytes() == content
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows may not permit unprivileged symlinks")
+def test_outside_symlink_swap_between_check_and_open_is_never_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    content = canonical_decision_record_bytes(record)
+    target = _target(workspace, record.record_content_identity)
+    target.write_bytes(content)
+    outside = tmp_path / "outside-record.json"
+    outside.write_bytes(content)
+    original_open = Path.open
+
+    def symlinking_open(path: Path, *args: object, **kwargs: object):
+        if path == target and args and args[0] == "rb":
+            # Swap the direct target for a symlink to an outside regular file
+            # holding identical bytes between the check and the open.
+            target.unlink(missing_ok=True)
+            target.symlink_to(outside)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", symlinking_open)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_record(workspace, record, content)
+
+    assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
+    assert target.is_symlink()
+    assert outside.read_bytes() == content
+
+
+def test_replacement_during_reading_is_never_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    content = canonical_decision_record_bytes(record)
+    target = _target(workspace, record.record_content_identity)
+    replacement = b"concurrent replacement bytes"
+    target.write_bytes(content)
+    original_open = Path.open
+
+    class SwappingStream:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self):
+            self.stream.__enter__()  # type: ignore[attr-defined]
+            return self
+
+        def __exit__(self, *args: object) -> object:
+            # Replace the path only after our own file is closed (required for
+            # Windows), after the exact-length byte comparison completed.
+            self.stream.__exit__(*args)  # type: ignore[attr-defined]
+            target.unlink(missing_ok=True)
+            target.write_bytes(replacement)
+
+        def read(self, size: int = -1) -> bytes:
+            return self.stream.read(size)  # type: ignore[attr-defined,no-any-return]
+
+        def fileno(self) -> int:
+            return self.stream.fileno()  # type: ignore[attr-defined,no-any-return]
+
+    def swapping_open(path: Path, *args: object, **kwargs: object):
+        stream = original_open(path, *args, **kwargs)
+        if path == target and args and args[0] == "rb":
+            return SwappingStream(stream)
+        return stream
+
+    monkeypatch.setattr(Path, "open", swapping_open)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_record(workspace, record, content)
+
+    assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
+    assert target.read_bytes() == replacement
+
+
 def test_non_regular_derived_target_is_refused_without_opening_it(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
