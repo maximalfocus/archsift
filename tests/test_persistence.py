@@ -6,9 +6,11 @@ from pathlib import Path
 import pytest
 
 from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
+from archsift.markdown_report import render_markdown_decision_report
 from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
+    persist_decision_outputs,
     persist_decision_record,
 )
 from archsift.validation import CaseIdentity, Dossier
@@ -27,8 +29,8 @@ def _workspace(tmp_path: Path) -> Path:
     return workspace
 
 
-def _target(workspace: Path, identity: str) -> Path:
-    return workspace / "output" / f"sha256-{identity[7:]}.json"
+def _target(workspace: Path, identity: str, extension: str = "json") -> Path:
+    return workspace / "output" / f"sha256-{identity[7:]}.{extension}"
 
 
 def test_first_write_and_byte_identical_reuse_are_immutable(tmp_path: Path) -> None:
@@ -50,6 +52,100 @@ def test_first_write_and_byte_identical_reuse_are_immutable(tmp_path: Path) -> N
     assert target.read_bytes() == content
     assert after.st_mtime_ns == before.st_mtime_ns
     assert after.st_size == before.st_size
+
+
+def test_paired_outputs_first_write_and_byte_identical_reuse_are_immutable(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_content = canonical_decision_record_bytes(record)
+    markdown_content = render_markdown_decision_report(record)
+
+    created = persist_decision_outputs(workspace, record, json_content, markdown_content)
+    targets = [workspace / created.json.relative_path, workspace / created.markdown.relative_path]
+    for target in targets:
+        os.utime(target, (1_700_000_000, 1_700_000_000))
+    before = [target.stat().st_mtime_ns for target in targets]
+
+    reused = persist_decision_outputs(workspace, record, json_content, markdown_content)
+
+    assert created.json.relative_path.endswith(".json")
+    assert created.markdown.relative_path.endswith(".md")
+    assert created.json.reused is created.markdown.reused is False
+    assert reused.json.reused is reused.markdown.reused is True
+    assert [target.read_bytes() for target in targets] == [json_content, markdown_content]
+    assert [target.stat().st_mtime_ns for target in targets] == before
+
+
+def test_paired_outputs_add_missing_markdown_without_rewriting_landed_json(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_content = canonical_decision_record_bytes(record)
+    markdown_content = render_markdown_decision_report(record)
+    persisted_json = persist_decision_record(workspace, record, json_content)
+    json_target = workspace / persisted_json.relative_path
+    os.utime(json_target, (1_700_000_000, 1_700_000_000))
+    before = json_target.stat().st_mtime_ns
+
+    outputs = persist_decision_outputs(workspace, record, json_content, markdown_content)
+
+    assert outputs.json.reused is True
+    assert outputs.markdown.reused is False
+    assert json_target.stat().st_mtime_ns == before
+    assert (workspace / outputs.markdown.relative_path).read_bytes() == markdown_content
+
+
+def test_paired_preflight_conflict_creates_neither_missing_output(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_target = _target(workspace, record.record_content_identity)
+    markdown_target = _target(workspace, record.record_content_identity, "md")
+    markdown_target.write_bytes(b"different")
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_outputs(
+            workspace,
+            record,
+            canonical_decision_record_bytes(record),
+            render_markdown_decision_report(record),
+        )
+
+    assert captured.value.category is RecordPersistenceFailure.INTEGRITY_CONFLICT
+    assert not json_target.exists()
+    assert markdown_target.read_bytes() == b"different"
+
+
+def test_paired_write_failure_removes_outputs_created_by_the_attempt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_target = _target(workspace, record.record_content_identity)
+    markdown_target = _target(workspace, record.record_content_identity, "md")
+    original_open = Path.open
+
+    def failing_open(path: Path, *args: object, **kwargs: object):
+        if path == markdown_target and args and args[0] == "xb":
+            raise OSError("synthetic Markdown write failure")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_outputs(
+            workspace,
+            record,
+            canonical_decision_record_bytes(record),
+            render_markdown_decision_report(record),
+        )
+
+    assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
+    assert not json_target.exists()
+    assert not markdown_target.exists()
 
 
 def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: Path) -> None:

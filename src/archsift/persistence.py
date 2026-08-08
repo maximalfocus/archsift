@@ -10,6 +10,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from archsift.decision_record import DecisionRecord, canonical_decision_record_bytes
+from archsift.markdown_report import render_markdown_decision_report
 
 _CHUNK_SIZE = 1024 * 1024
 
@@ -59,6 +60,14 @@ class PersistedDecisionRecord:
 
     relative_path: str
     reused: bool
+
+
+@dataclass(frozen=True, slots=True)
+class PersistedDecisionOutputs:
+    """The canonical JSON source and deterministic Markdown review view."""
+
+    json: PersistedDecisionRecord
+    markdown: PersistedDecisionRecord
 
 
 def _error(
@@ -112,7 +121,7 @@ def _resolve_output_root(workspace: Path) -> Path:
     return output_root
 
 
-def _target_name(record: DecisionRecord) -> str:
+def _target_name(record: DecisionRecord, extension: str = "json") -> str:
     identity = record.record_content_identity
     if (
         type(identity) is not str
@@ -126,7 +135,14 @@ def _target_name(record: DecisionRecord) -> str:
             message="The decision record has no valid portable content identity.",
             remediation="Compose and validate the final decision record before persistence.",
         )
-    return f"sha256-{identity[7:]}.json"
+    if extension not in {"json", "md"}:
+        raise _error(
+            RecordPersistenceFailure.TARGET_UNSAFE,
+            requirement="FR-011",
+            message="The decision-record output format is unsupported.",
+            remediation="Persist only the canonical JSON record or its Markdown review view.",
+        )
+    return f"sha256-{identity[7:]}.{extension}"
 
 
 def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
@@ -192,22 +208,11 @@ def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
     )
 
 
-def persist_decision_record(
-    workspace: Path,
-    record: DecisionRecord,
+def _persist_content(
+    output_root: Path,
+    filename: str,
     content: bytes,
 ) -> PersistedDecisionRecord:
-    """Create or byte-identically reuse one derived in-workspace JSON record."""
-    expected = canonical_decision_record_bytes(record)
-    if type(content) is not bytes or content != expected:
-        raise _error(
-            RecordPersistenceFailure.INTEGRITY_CONFLICT,
-            requirement="FR-011",
-            message="Persistence content does not match the canonical decision record.",
-            remediation="Persist only bytes produced from the same validated record.",
-        )
-    output_root = _resolve_output_root(workspace)
-    filename = _target_name(record)
     target = output_root / filename
     if target.exists() or target.is_symlink():
         reused = _reuse_or_conflict(target, output_root, content)
@@ -231,7 +236,84 @@ def persist_decision_record(
         raise _error(
             RecordPersistenceFailure.WRITE_FAILED,
             requirement="FR-011",
-            message="The canonical decision record could not be written completely.",
+            message="A decision-record output could not be written completely.",
             remediation="Restore write access and retry without replacing an existing record.",
         ) from error
     return PersistedDecisionRecord(f"output/{filename}", False)
+
+
+def persist_decision_record(
+    workspace: Path,
+    record: DecisionRecord,
+    content: bytes,
+) -> PersistedDecisionRecord:
+    """Create or byte-identically reuse one derived in-workspace JSON record."""
+    expected = canonical_decision_record_bytes(record)
+    if type(content) is not bytes or content != expected:
+        raise _error(
+            RecordPersistenceFailure.INTEGRITY_CONFLICT,
+            requirement="FR-011",
+            message="Persistence content does not match the canonical decision record.",
+            remediation="Persist only bytes produced from the same validated record.",
+        )
+    return _persist_content(_resolve_output_root(workspace), _target_name(record), content)
+
+
+def persist_decision_outputs(
+    workspace: Path,
+    record: DecisionRecord,
+    json_content: bytes,
+    markdown_content: bytes,
+) -> PersistedDecisionOutputs:
+    """Safely create or reuse the JSON record and its Markdown review view as one pair."""
+    expected_json = canonical_decision_record_bytes(record)
+    expected_markdown = render_markdown_decision_report(record)
+    if type(json_content) is not bytes or json_content != expected_json:
+        raise _error(
+            RecordPersistenceFailure.INTEGRITY_CONFLICT,
+            requirement="FR-011",
+            message="Persistence content does not match the canonical decision record.",
+            remediation="Persist only bytes produced from the same validated record.",
+        )
+    if type(markdown_content) is not bytes or markdown_content != expected_markdown:
+        raise _error(
+            RecordPersistenceFailure.INTEGRITY_CONFLICT,
+            requirement="FR-011",
+            message="Persistence content does not match the decision record's Markdown view.",
+            remediation="Persist only Markdown bytes rendered from the same validated record.",
+        )
+
+    output_root = _resolve_output_root(workspace)
+    json_name = _target_name(record, "json")
+    markdown_name = _target_name(record, "md")
+    expected = ((json_name, json_content), (markdown_name, markdown_content))
+
+    # Detect every existing conflict before creating either missing half of the pair.
+    for filename, content in expected:
+        target = output_root / filename
+        if target.exists() or target.is_symlink():
+            _reuse_or_conflict(target, output_root, content)
+
+    created: list[Path] = []
+    try:
+        persisted_json = _persist_content(output_root, json_name, json_content)
+        if not persisted_json.reused:
+            created.append(output_root / json_name)
+        persisted_markdown = _persist_content(output_root, markdown_name, markdown_content)
+        if not persisted_markdown.reused:
+            created.append(output_root / markdown_name)
+        for filename, content in expected:
+            if not _existing_target_matches(output_root / filename, output_root, content):
+                raise _error(
+                    RecordPersistenceFailure.INTEGRITY_CONFLICT,
+                    requirement="FR-011",
+                    message="A persisted decision-record output failed byte verification.",
+                    remediation="Preserve existing records and investigate the integrity conflict.",
+                )
+    except OSError:
+        for target in created:
+            with suppress(OSError):
+                target.unlink(missing_ok=True)
+        raise
+
+    return PersistedDecisionOutputs(persisted_json, persisted_markdown)

@@ -17,10 +17,11 @@ from archsift.artefacts import (
 )
 from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.markdown_report import render_markdown_decision_report
 from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
-    persist_decision_record,
+    persist_decision_outputs,
 )
 from archsift.rules import (
     RULESET_VERSION,
@@ -71,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
     _output_options(rules_parser)
 
     assess_parser = subparsers.add_parser(
-        "assess", help="produce an immutable canonical JSON decision record"
+        "assess", help="produce immutable JSON and Markdown decision records"
     )
     assess_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
     assess_parser.add_argument(
@@ -338,7 +339,8 @@ def _run_assess(
             artefact_identities=artefacts,
         )
         content = canonical_decision_record_bytes(record)
-        persisted = persist_decision_record(path, record, content)
+        report = render_markdown_decision_report(record)
+        persisted = persist_decision_outputs(path, record, content, report)
     except (EvidenceArtefactError, RecordPersistenceError) as error:
         return _emit_assess_failure(error, json_output=json_output, quiet=quiet)
     except Exception as error:  # defensive CLI boundary
@@ -351,7 +353,7 @@ def _run_assess(
         return int(ExitCode.SUCCESS)
     _print(
         f"Assessment {record.assessment.verdict.value}: {record.record_content_identity} "
-        f"-> {persisted.relative_path}",
+        f"-> {persisted.json.relative_path}; report -> {persisted.markdown.relative_path}",
         stream=sys.stdout,
     )
     return int(ExitCode.SUCCESS)
