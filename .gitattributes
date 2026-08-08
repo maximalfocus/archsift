@@ -1,1 +1,2 @@
 tests/golden/*.json text eol=lf
+tests/golden/*.md text eol=lf

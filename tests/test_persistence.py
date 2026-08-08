@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+import archsift.persistence as persistence
 from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.persistence import (
@@ -146,6 +147,43 @@ def test_paired_write_failure_removes_outputs_created_by_the_attempt(
     assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
     assert not json_target.exists()
     assert not markdown_target.exists()
+
+
+def test_paired_post_write_verification_failure_cleans_pair_and_stays_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_content = canonical_decision_record_bytes(record)
+    markdown_content = render_markdown_decision_report(record)
+    json_target = _target(workspace, record.record_content_identity)
+    markdown_target = _target(workspace, record.record_content_identity, "md")
+    original_matches = persistence._existing_target_matches
+
+    def failing_verification(target: Path, output_root: Path, content: bytes) -> bool:
+        # Only the post-write verification reads the freshly created JSON target;
+        # a False result simulates a pair that failed byte verification.
+        if target == json_target:
+            return False
+        return original_matches(target, output_root, content)
+
+    monkeypatch.setattr(persistence, "_existing_target_matches", failing_verification)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_outputs(workspace, record, json_content, markdown_content)
+
+    assert captured.value.category is RecordPersistenceFailure.INTEGRITY_CONFLICT
+    assert not json_target.exists()
+    assert not markdown_target.exists()
+
+    monkeypatch.undo()
+    outputs = persist_decision_outputs(workspace, record, json_content, markdown_content)
+
+    assert outputs.json.reused is False
+    assert outputs.markdown.reused is False
+    assert json_target.read_bytes() == json_content
+    assert markdown_target.read_bytes() == markdown_content
 
 
 def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: Path) -> None:

@@ -305,6 +305,11 @@ def test_incomplete_report_matches_exact_golden_and_marks_absent_sections() -> N
     assert "(abstention)" in text
 
 
+def test_golden_report_is_pinned_to_lf_line_endings_on_every_platform() -> None:
+    attributes = Path(__file__).parent.parent / ".gitattributes"
+    assert "tests/golden/*.md text eol=lf" in attributes.read_text(encoding="utf-8")
+
+
 def test_positive_report_covers_the_decision_and_trade_off_trace() -> None:
     record = _positive_record()
     content = render_markdown_decision_report(record)
