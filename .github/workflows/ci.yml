@@ -66,6 +66,7 @@ jobs:
           assert wheel.name.endswith("-py3-none-any.whl"), wheel
           with ZipFile(wheel) as archive:
               names = set(archive.namelist())
+          assert "archsift/canonical.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/rules.py" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
@@ -81,6 +82,13 @@ jobs:
           import tempfile
           import venv
           from pathlib import Path
+          from archsift.canonical import (
+              canonical_dossier_bytes,
+              dossier_content_identity,
+              evidence_content_identities,
+          )
+          from archsift.decision import evaluate_assessment
+          from archsift.validation import validate_workspace
           wheel = next(Path("dist").glob("*.whl")).resolve()
           root = Path(tempfile.mkdtemp())
           environment = root / "venv"
@@ -317,12 +325,23 @@ jobs:
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
           assert payload["ruleset_version"] == "1.3.0"
+          source_result = validate_workspace(case)
+          assert source_result.dossier is not None
+          source_dossier = source_result.dossier
+          source_snapshot = {
+              "canonical_bytes": canonical_dossier_bytes(source_dossier).hex(),
+              "dossier_identity": dossier_content_identity(source_dossier),
+              "evidence_identities": evidence_content_identities(source_dossier),
+              "verdict": evaluate_assessment(source_dossier).verdict.value,
+          }
           decision = subprocess.run(
               [
                   python,
                   "-c",
                   (
-                      "from pathlib import Path; import sys; "
+                      "import json; from pathlib import Path; import sys; "
+                      "from archsift.canonical import canonical_dossier_bytes, "
+                      "dossier_content_identity, evidence_content_identities; "
                       "from archsift.decision import evaluate_assessment; "
                       "from archsift.validation import validate_workspace; "
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
@@ -331,7 +350,10 @@ jobs:
                       "assert result.recommended_class.value == 'fixed-ai-workflow'; "
                       "assert result.active_hard_veto_ids == ('no-autonomous-release',); "
                       "assert result.mandatory_human_control_ids == ('approve-release',); "
-                      "print(result.verdict.value)"
+                      "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "
+                      "'dossier_identity': dossier_content_identity(dossier), "
+                      "'evidence_identities': evidence_content_identities(dossier), "
+                      "'verdict': result.verdict.value}, sort_keys=True))"
                   ),
                   str(case),
               ],
@@ -339,4 +361,6 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert decision.stdout.strip() == "supported"
+          installed_snapshot = json.loads(decision.stdout)
+          assert installed_snapshot == source_snapshot
+          assert installed_snapshot["verdict"] == "supported"
