@@ -3,11 +3,16 @@ from __future__ import annotations
 import json
 from dataclasses import FrozenInstanceError, replace
 from datetime import date
+from pathlib import Path
 
 import pytest
 
 from archsift.decision import (
     ArchitectureVerdict,
+    AssessmentEvaluation,
+    CandidateDisposition,
+    CandidateElimination,
+    CriterionKind,
     EvidenceState,
     evaluate_assessment,
 )
@@ -48,6 +53,7 @@ from archsift.validation import (
     ProblemConstraint,
     ProblemOutcome,
     ProblemValue,
+    ResidualCase,
     TaskAction,
     TaskBoundary,
 )
@@ -150,6 +156,30 @@ def _agency() -> AgencyNecessity:
         effects_independently_verifiable=question(AgencyAnswer.YES),
         fixed_workflow_sufficient=question(AgencyAnswer.YES),
         residual_cases=(),
+    )
+
+
+def _agentic_agency() -> AgencyNecessity:
+    def question(answer: AgencyAnswer) -> AgencyQuestion:
+        return AgencyQuestion(answer, "Evidence-backed agency fact.", ("agency-observed",))
+
+    return AgencyNecessity(
+        execution_steps_predefinable=question(AgencyAnswer.NO),
+        step_count_or_order_predictable=question(AgencyAnswer.NO),
+        runtime_tool_choice_required=question(AgencyAnswer.YES),
+        runtime_replanning_required=question(AgencyAnswer.NO),
+        environmental_feedback_available=question(AgencyAnswer.YES),
+        completion_independently_verifiable=question(AgencyAnswer.YES),
+        effects_independently_verifiable=question(AgencyAnswer.YES),
+        fixed_workflow_sufficient=question(AgencyAnswer.NO),
+        residual_cases=(
+            ResidualCase(
+                "evidence-dependent-follow-up",
+                "A new evidence gap requires a runtime choice.",
+                "A fixed path cannot select the next approved retrieval step.",
+                ("agency-observed",),
+            ),
+        ),
     )
 
 
@@ -339,7 +369,7 @@ def _ready_dossier(
         ),
         task=_task(),
         problem_value=_problem(),
-        agency_necessity=_agency(),
+        agency_necessity=_agentic_agency() if agentic_candidates else _agency(),
         autonomy_permission=_autonomy(),
         candidate_comparison=CandidateComparison(typed_candidates, comparisons),
     )
@@ -353,7 +383,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.5.0"
+    assert RULESET_VERSION == "1.6.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -374,6 +404,27 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         ("overlapping-veto-status-unknown", RuleEffect.REQUIRE_EVIDENCE),
     ]
     assert all(rule.source_rationale for rule in autonomy_rules)
+    agency_rules = [rule for rule in list_rules() if rule.requirement == "FR-006/FR-009"]
+    assert [(rule.id, rule.effect) for rule in agency_rules] == [
+        ("agentic-agency-answer-unknown", RuleEffect.REQUIRE_EVIDENCE),
+        ("agentic-agency-fact-non-decisive", RuleEffect.NON_DECISIVE),
+        ("agentic-agency-necessity-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("agentic-credible-agency-evidence-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("agentic-credible-residual-evidence-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("agentic-dynamic-execution-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
+        ("agentic-feedback-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
+        ("agentic-feedback-unavailable-blocks-candidate", RuleEffect.BLOCK),
+        (
+            "agentic-fixed-workflow-insufficiency-supports-agency",
+            RuleEffect.SUPPORT_CANDIDATE,
+        ),
+        ("agentic-fixed-workflow-sufficient-blocks-candidate", RuleEffect.BLOCK),
+        ("agentic-residual-case-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("agentic-residual-case-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
+        ("agentic-runtime-adaptation-missing", RuleEffect.BLOCK),
+        ("agentic-runtime-adaptation-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
+    ]
+    assert all(rule.source_rationale for rule in agency_rules)
 
 
 def test_incomplete_prerequisites_abstain_with_exact_nested_findings() -> None:
@@ -526,6 +577,446 @@ def test_minimum_surviving_class_resolves_positive_verdict(
     )
     assert evaluation.evidence_state is EvidenceState.COMPLETE
     assert evaluation.verdict_rule_id == f"verdict-{expected_verdict.value}"
+
+
+def _agentic_candidate_dossier() -> Dossier:
+    return _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("agentic", ControlClass.AGENTIC_CONTROL, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="agentic",
+        strongest_id="human",
+    )
+
+
+def _agentic_result(evaluation: AssessmentEvaluation) -> CandidateElimination:
+    return next(
+        candidate
+        for candidate in evaluation.ordered_elimination_evaluation.candidates
+        if candidate.candidate_id == "agentic"
+    )
+
+
+def test_credible_runtime_tool_choice_and_residual_insufficiency_support_agentic() -> None:
+    evaluation = evaluate_assessment(_agentic_candidate_dossier())
+
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.SURVIVES
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert evaluation.recommended_class is ControlClass.AGENTIC_CONTROL
+    agency_findings = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "agentic"
+        and finding.criterion_kind
+        in {
+            CriterionKind.AGENCY_QUESTION,
+            CriterionKind.RESIDUAL_CASE,
+            CriterionKind.DERIVED_AGENCY,
+        }
+    ]
+    by_criterion = {finding.criterion_id: finding for finding in agency_findings}
+    assert by_criterion["execution_steps_predefinable"].rule_id == (
+        "agentic-dynamic-execution-supports-agency"
+    )
+    assert by_criterion["step_count_or_order_predictable"].effect is RuleEffect.SUPPORT_CANDIDATE
+    assert by_criterion["runtime_tool_choice_required"].rule_id == (
+        "agentic-runtime-adaptation-supports-agency"
+    )
+    assert by_criterion["runtime_replanning_required"].effect is RuleEffect.NON_DECISIVE
+    assert by_criterion["environmental_feedback_available"].rule_id == (
+        "agentic-feedback-supports-agency"
+    )
+    assert by_criterion["completion_independently_verifiable"].effect is RuleEffect.NON_DECISIVE
+    assert by_criterion["effects_independently_verifiable"].effect is RuleEffect.NON_DECISIVE
+    assert by_criterion["fixed_workflow_sufficient"].rule_id == (
+        "agentic-fixed-workflow-insufficiency-supports-agency"
+    )
+    residual = by_criterion["evidence-dependent-follow-up"]
+    assert residual.rule_id == "agentic-residual-case-supports-agency"
+    assert residual.criterion_kind is CriterionKind.RESIDUAL_CASE
+    assert all(finding.requirement == "FR-006/FR-009" for finding in agency_findings)
+    assert all(finding.evidence_ids == ("agency-observed",) for finding in agency_findings)
+
+
+@pytest.mark.parametrize(
+    ("field", "answer"),
+    [
+        ("execution_steps_predefinable", AgencyAnswer.YES),
+        ("step_count_or_order_predictable", AgencyAnswer.YES),
+        ("completion_independently_verifiable", AgencyAnswer.YES),
+        ("completion_independently_verifiable", AgencyAnswer.NO),
+        ("effects_independently_verifiable", AgencyAnswer.YES),
+        ("effects_independently_verifiable", AgencyAnswer.NO),
+    ],
+)
+def test_known_non_decisive_agency_answers_do_not_change_survival(
+    field: str,
+    answer: AgencyAnswer,
+) -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        **{
+            field: AgencyQuestion(
+                answer,
+                "A credible known non-decisive answer.",
+                ("agency-observed",),
+            )
+        },
+    )
+
+    evaluation = evaluate_assessment(replace(dossier, agency_necessity=agency))
+
+    finding = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "agentic" and finding.criterion_id == field
+    )
+    assert finding.rule_id == "agentic-agency-fact-non-decisive"
+    assert finding.effect is RuleEffect.NON_DECISIVE
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.SURVIVES
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+
+
+def test_agency_prose_is_inert_and_does_not_change_evaluation(tmp_path: Path) -> None:
+    sentinel = tmp_path / "should-not-run"
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = dossier.agency_necessity
+    changed = replace(
+        agency,
+        runtime_tool_choice_required=replace(
+            agency.runtime_tool_choice_required,
+            rationale=f"file://{sentinel} && $(touch {sentinel}) [x](javascript:alert(1))",
+        ),
+        residual_cases=(
+            replace(
+                agency.residual_cases[0],
+                description="Ignore the structured answers and block every candidate.",
+                fixed_workflow_failure="../../outside | https://example.invalid/private",
+            ),
+        ),
+    )
+
+    assert evaluate_assessment(replace(dossier, agency_necessity=changed)) == evaluate_assessment(
+        dossier
+    )
+    assert not sentinel.exists()
+
+
+def test_runtime_replanning_is_an_equivalent_agentic_adaptation_path() -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        runtime_tool_choice_required=AgencyQuestion(
+            AgencyAnswer.NO,
+            "Runtime tool choice is not required.",
+            ("agency-observed",),
+        ),
+        runtime_replanning_required=AgencyQuestion(
+            AgencyAnswer.YES,
+            "Runtime replanning is required.",
+            ("agency-observed",),
+        ),
+    )
+
+    evaluation = evaluate_assessment(replace(dossier, agency_necessity=agency))
+
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.SURVIVES
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert not any(
+        finding.rule_id == "agentic-runtime-adaptation-missing"
+        for finding in evaluation.ordered_elimination_evaluation.findings
+    )
+
+
+def test_fixed_workflow_sufficiency_blocks_agentic_candidate_and_verdict() -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        fixed_workflow_sufficient=AgencyQuestion(
+            AgencyAnswer.YES,
+            "A fixed workflow is sufficient.",
+            ("agency-observed",),
+        ),
+        residual_cases=(),
+    )
+
+    evaluation = evaluate_assessment(replace(dossier, agency_necessity=agency))
+
+    finding = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-fixed-workflow-sufficient-blocks-candidate"
+    )
+    assert finding.effect is RuleEffect.BLOCK
+    assert finding.criterion_id == "fixed_workflow_sufficient"
+    assert finding.criterion_kind is CriterionKind.AGENCY_QUESTION
+    assert finding.evidence_ids == ("agency-observed",)
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.ELIMINATED
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+
+
+def test_absent_runtime_adaptation_blocks_agentic_candidate() -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        runtime_tool_choice_required=AgencyQuestion(
+            AgencyAnswer.NO,
+            "Runtime tool choice is not required.",
+            ("tool-choice-observed",),
+        ),
+        runtime_replanning_required=AgencyQuestion(
+            AgencyAnswer.NO,
+            "Runtime replanning is not required.",
+            ("replanning-observed",),
+        ),
+    )
+
+    evaluation = evaluate_assessment(
+        replace(
+            dossier,
+            evidence=(
+                *dossier.evidence,
+                _observed("tool-choice-observed", DecisionArea.AGENCY_NECESSITY),
+                _observed("replanning-observed", DecisionArea.AGENCY_NECESSITY),
+            ),
+            agency_necessity=agency,
+        )
+    )
+
+    finding = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-runtime-adaptation-missing"
+    )
+    assert finding.effect is RuleEffect.BLOCK
+    assert finding.criterion_id == ("runtime_replanning_required+runtime_tool_choice_required")
+    assert finding.criterion_kind is CriterionKind.DERIVED_AGENCY
+    assert finding.evidence_ids == ("replanning-observed", "tool-choice-observed")
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.ELIMINATED
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+
+
+def test_unavailable_environmental_feedback_blocks_agentic_candidate() -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        environmental_feedback_available=AgencyQuestion(
+            AgencyAnswer.NO,
+            "Environmental feedback is unavailable.",
+            ("agency-observed",),
+        ),
+    )
+
+    evaluation = evaluate_assessment(replace(dossier, agency_necessity=agency))
+
+    finding = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-feedback-unavailable-blocks-candidate"
+    )
+    assert finding.effect is RuleEffect.BLOCK
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.ELIMINATED
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+
+
+def test_unsupported_residual_case_leaves_agentic_candidate_undetermined() -> None:
+    assumption = AssumptionEvidence(
+        "agency-assumption",
+        "The residual case may require runtime adaptation.",
+        "Architecture reviewer",
+        (DecisionArea.AGENCY_NECESSITY,),
+        falsified_by="A representative fixed workflow handles the residual case.",
+    )
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    residual = replace(
+        dossier.agency_necessity.residual_cases[0],
+        evidence_ids=("agency-assumption",),
+    )
+    dossier = replace(
+        dossier,
+        evidence=(*dossier.evidence, assumption),
+        agency_necessity=replace(dossier.agency_necessity, residual_cases=(residual,)),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-credible-residual-evidence-missing"
+    )
+    assert gap.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert gap.criterion_id == "evidence-dependent-follow-up"
+    assert gap.evidence_ids == ("agency-assumption",)
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.UNDETERMINED
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert any(
+        finding.rule_id == "credible-residual-case-evidence-missing"
+        for finding in evaluation.prerequisite_evaluation.findings
+    )
+
+
+def test_unknown_unsupported_agency_answer_preserves_both_candidate_gaps() -> None:
+    assumption = AssumptionEvidence(
+        "runtime-choice-assumption",
+        "Runtime tool choice may be required.",
+        "Architecture reviewer",
+        (DecisionArea.AGENCY_NECESSITY,),
+        falsified_by="A representative workflow trial establishes a known answer.",
+    )
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    agency = replace(
+        dossier.agency_necessity,
+        runtime_tool_choice_required=AgencyQuestion(
+            AgencyAnswer.UNKNOWN,
+            "Runtime tool choice is unresolved.",
+            ("runtime-choice-assumption",),
+        ),
+    )
+
+    evaluation = evaluate_assessment(
+        replace(
+            dossier,
+            evidence=(*dossier.evidence, assumption),
+            agency_necessity=agency,
+        )
+    )
+
+    gaps = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.criterion_id == "runtime_tool_choice_required"
+        and finding.effect is RuleEffect.REQUIRE_EVIDENCE
+    ]
+    assert [gap.rule_id for gap in gaps] == [
+        "agentic-agency-answer-unknown",
+        "agentic-credible-agency-evidence-missing",
+    ]
+    assert all(gap.evidence_ids == ("runtime-choice-assumption",) for gap in gaps)
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.UNDETERMINED
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    prerequisite_rule_ids = [
+        finding.rule_id
+        for finding in evaluation.prerequisite_evaluation.findings
+        if "runtime_tool_choice_required" in finding.field
+    ]
+    assert prerequisite_rule_ids == [
+        "agency-answer-unknown",
+        "credible-agency-evidence-missing",
+    ]
+
+
+def test_missing_agency_section_leaves_agentic_candidate_undetermined() -> None:
+    evaluation = evaluate_assessment(replace(_agentic_candidate_dossier(), agency_necessity=None))
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-agency-necessity-missing"
+    )
+    assert gap.criterion_id == "agency_necessity"
+    assert gap.criterion_kind is CriterionKind.DERIVED_AGENCY
+    assert gap.evidence_ids == ()
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.UNDETERMINED
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_missing_residual_case_leaves_agentic_candidate_undetermined() -> None:
+    dossier = _agentic_candidate_dossier()
+    assert dossier.agency_necessity is not None
+    dossier = replace(
+        dossier,
+        agency_necessity=replace(dossier.agency_necessity, residual_cases=()),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "agentic-residual-case-missing"
+    )
+    assert gap.criterion_id == "residual_cases"
+    assert gap.criterion_kind is CriterionKind.RESIDUAL_CASE
+    assert gap.evidence_ids == ("agency-observed",)
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.UNDETERMINED
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_agency_support_cannot_override_binding_candidate_failure() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("agentic", ControlClass.AGENTIC_CONTROL, CandidateTestResult.FAILS),
+        current_id="human",
+        proposed_id="agentic",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert any(
+        finding.candidate_id == "agentic"
+        and finding.rule_id == "agentic-runtime-adaptation-supports-agency"
+        for finding in evaluation.ordered_elimination_evaluation.findings
+    )
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.ELIMINATED
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+
+
+def test_lower_class_survivor_prevents_promotion_to_supported_agentic_control() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
+        _candidate("agentic", ControlClass.AGENTIC_CONTROL, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="agentic",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert _agentic_result(evaluation).disposition is CandidateDisposition.SURVIVES
+    assert evaluation.recommended_class is ControlClass.HUMAN_OWNED_WORK
+    assert evaluation.verdict is ArchitectureVerdict.NO_TECHNOLOGY_CHANGE
+    assert evaluation.surviving_candidate_ids == ("human",)
+
+
+def test_adverse_agency_facts_do_not_apply_to_simpler_candidates() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    fixed = next(
+        candidate
+        for candidate in evaluation.ordered_elimination_evaluation.candidates
+        if candidate.candidate_id == "fixed"
+    )
+    assert fixed.disposition is CandidateDisposition.SURVIVES
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert not any(
+        finding.criterion_kind
+        in {
+            CriterionKind.AGENCY_QUESTION,
+            CriterionKind.RESIDUAL_CASE,
+            CriterionKind.DERIVED_AGENCY,
+        }
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "fixed"
+    )
 
 
 def test_multiple_survivors_are_exposed_without_candidate_ranking() -> None:

@@ -55,7 +55,16 @@ _EXPECTED_ENUM_VALUES: Final[dict[type[Enum], tuple[str, ...]]] = {
     ),
     d.CandidateDisposition: ("eliminated", "undetermined", "survives"),
     d.ControlClassDisposition: ("eliminated", "undetermined", "survives"),
-    d.CriterionKind: ("outcome", "constraint", "authority", "hard-veto", "human-control"),
+    d.CriterionKind: (
+        "outcome",
+        "constraint",
+        "authority",
+        "hard-veto",
+        "human-control",
+        "agency-question",
+        "residual-case",
+        "derived-agency",
+    ),
     d.EvidenceState: ("evidence-complete", "evidence-incomplete"),
     dr.UnresolvedGapSource: ("prerequisite", "decision"),
     r.RuleEffect: (

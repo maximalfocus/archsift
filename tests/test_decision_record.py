@@ -19,7 +19,12 @@ from archsift.canonical import (
     dossier_content_identity,
     evidence_content_identities,
 )
-from archsift.decision import ArchitectureVerdict, EvidenceState, evaluate_assessment
+from archsift.decision import (
+    ArchitectureVerdict,
+    CriterionKind,
+    EvidenceState,
+    evaluate_assessment,
+)
 from archsift.decision_record import (
     CONFIGURATION_SCHEMA_VERSION,
     RECORD_SCHEMA_VERSION,
@@ -37,6 +42,7 @@ from archsift.decision_record import (
     compose_decision_record,
     decision_record_content_identity,
 )
+from archsift.markdown_report import render_markdown_decision_report
 from archsift.rules import RULESET_VERSION
 from archsift.validation import (
     AgencyAnswer,
@@ -76,6 +82,7 @@ from archsift.validation import (
     ProblemConstraint,
     ProblemOutcome,
     ProblemValue,
+    ResidualCase,
     TaskAction,
     TaskBoundary,
 )
@@ -351,6 +358,63 @@ def positive_dossier() -> Dossier:
     )
 
 
+def agentic_dossier(*, unknown_runtime_choice: bool = False) -> Dossier:
+    dossier = positive_dossier()
+    assert dossier.candidate_comparison is not None
+    assert dossier.agency_necessity is not None
+    assert dossier.autonomy_permission is not None
+    candidates = dossier.candidate_comparison.candidates
+    agentic = replace(
+        candidates[-1],
+        control_class=ControlClass.AGENTIC_CONTROL,
+        roles=(CandidateRole.PROPOSED, CandidateRole.AGENTIC_COMPARATOR),
+    )
+    agency = dossier.agency_necessity
+    agency = replace(
+        agency,
+        execution_steps_predefinable=replace(
+            agency.execution_steps_predefinable,
+            answer=AgencyAnswer.NO,
+        ),
+        step_count_or_order_predictable=replace(
+            agency.step_count_or_order_predictable,
+            answer=AgencyAnswer.NO,
+        ),
+        runtime_tool_choice_required=replace(
+            agency.runtime_tool_choice_required,
+            answer=(AgencyAnswer.UNKNOWN if unknown_runtime_choice else AgencyAnswer.YES),
+        ),
+        fixed_workflow_sufficient=replace(
+            agency.fixed_workflow_sufficient,
+            answer=AgencyAnswer.NO,
+        ),
+        residual_cases=(
+            ResidualCase(
+                "record-residual",
+                "A synthetic residual requires a runtime choice.",
+                "A fixed path cannot select the next approved step.",
+                ("agency-observed",),
+            ),
+        ),
+    )
+    autonomy = replace(
+        dossier.autonomy_permission,
+        hard_vetoes=tuple(
+            replace(veto, status=HardVetoStatus.INACTIVE)
+            for veto in dossier.autonomy_permission.hard_vetoes
+        ),
+    )
+    return replace(
+        dossier,
+        agency_necessity=agency,
+        autonomy_permission=autonomy,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            candidates=(*candidates[:-1], agentic),
+        ),
+    )
+
+
 def incomplete_dossier() -> Dossier:
     return Dossier(
         schema_version=1,
@@ -395,7 +459,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.5.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.6.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
     assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
@@ -426,6 +490,70 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert b"\x1b" not in content
     assert b"datetime.date" not in content
     assert b"<object at" not in content
+
+
+def test_agentic_findings_persist_in_record_json_and_markdown() -> None:
+    record = compose_decision_record(agentic_dossier(), tool_version=_TOOL_VERSION)
+    payload = canonical_decision_record_dict(record)
+
+    assert record.assessment.verdict is ArchitectureVerdict.SUPPORTED
+    assert record.assessment.recommended_class is ControlClass.AGENTIC_CONTROL
+    findings = [
+        finding
+        for finding in record.assessment.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "fixed"
+        and finding.criterion_kind
+        in {
+            CriterionKind.AGENCY_QUESTION,
+            CriterionKind.RESIDUAL_CASE,
+            CriterionKind.DERIVED_AGENCY,
+        }
+    ]
+    assert findings
+    assert all(finding.requirement == "FR-006/FR-009" for finding in findings)
+    serialized_findings = payload["assessment"]["ordered_elimination_evaluation"]["findings"]
+    assert any(
+        finding["criterion_kind"] == "agency-question"
+        and finding["criterion_id"] == "runtime_tool_choice_required"
+        for finding in serialized_findings
+    )
+    assert any(
+        finding["criterion_kind"] == "residual-case"
+        and finding["criterion_id"] == "record-residual"
+        for finding in serialized_findings
+    )
+    report = render_markdown_decision_report(record)
+    assert b"agency-question" in report
+    assert b"residual-case" in report
+    assert b"agentic-runtime-adaptation-supports-agency" in report
+
+
+def test_agentic_decision_gap_persists_with_prerequisite_gap() -> None:
+    record = compose_decision_record(
+        agentic_dossier(unknown_runtime_choice=True),
+        tool_version=_TOOL_VERSION,
+    )
+
+    assert record.assessment.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    decision_gap = next(
+        gap
+        for gap in record.unresolved_gaps
+        if isinstance(gap, DecisionGap) and gap.rule_id == "agentic-agency-answer-unknown"
+    )
+    assert decision_gap.criterion_id == "runtime_tool_choice_required"
+    assert decision_gap.criterion_kind is CriterionKind.AGENCY_QUESTION
+    assert decision_gap.evidence_ids == ("agency-observed",)
+    assert any(
+        isinstance(gap, PrerequisiteGap) and gap.rule_id == "agency-answer-unknown"
+        for gap in record.unresolved_gaps
+    )
+    payload = canonical_decision_record_dict(record)
+    serialized_gap = next(
+        gap
+        for gap in payload["unresolved_gaps"]
+        if gap["source"] == "decision" and gap["rule_id"] == "agentic-agency-answer-unknown"
+    )
+    assert serialized_gap["criterion_kind"] == "agency-question"
 
 
 def test_incomplete_record_matches_exact_golden_with_structured_gaps() -> None:
@@ -664,7 +792,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
             "assessment ruleset_version",
             replace(
                 record,
-                assessment=replace(assessment, ruleset_version=twin("1.5.0")),
+                assessment=replace(assessment, ruleset_version=twin("1.6.0")),
             ),
         ),
         (
@@ -682,7 +810,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     prerequisite_evaluation=replace(
                         prerequisites,
-                        ruleset_version=twin("1.5.0"),
+                        ruleset_version=twin("1.6.0"),
                     ),
                 ),
             ),
@@ -695,7 +823,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     ordered_elimination_evaluation=replace(
                         elimination,
-                        ruleset_version=twin("1.5.0"),
+                        ruleset_version=twin("1.6.0"),
                     ),
                 ),
             ),

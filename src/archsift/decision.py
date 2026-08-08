@@ -13,6 +13,8 @@ from archsift.rules import (
     get_rule_definition,
 )
 from archsift.validation import (
+    AgencyAnswer,
+    AgencyQuestion,
     Candidate,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -36,6 +38,9 @@ class CriterionKind(StrEnum):
     AUTHORITY = "authority"
     HARD_VETO = "hard-veto"
     HUMAN_CONTROL = "human-control"
+    AGENCY_QUESTION = "agency-question"
+    RESIDUAL_CASE = "residual-case"
+    DERIVED_AGENCY = "derived-agency"
 
 
 class CandidateDisposition(StrEnum):
@@ -309,6 +314,257 @@ def _test_finding(
     )
 
 
+_AGENCY_QUESTION_FIELDS = (
+    "execution_steps_predefinable",
+    "step_count_or_order_predictable",
+    "runtime_tool_choice_required",
+    "runtime_replanning_required",
+    "environmental_feedback_available",
+    "completion_independently_verifiable",
+    "effects_independently_verifiable",
+    "fixed_workflow_sufficient",
+)
+
+_DYNAMIC_EXECUTION_FIELDS = {
+    "execution_steps_predefinable",
+    "step_count_or_order_predictable",
+}
+_RUNTIME_ADAPTATION_FIELDS = {
+    "runtime_tool_choice_required",
+    "runtime_replanning_required",
+}
+_MONITORABILITY_FIELDS = {
+    "completion_independently_verifiable",
+    "effects_independently_verifiable",
+}
+
+
+def _agency_question_findings(
+    candidate: Candidate,
+    name: str,
+    question: AgencyQuestion,
+    evidence_by_id: dict[str, Evidence],
+) -> tuple[DecisionFinding, ...]:
+    gaps: list[DecisionFinding] = []
+    if question.answer is AgencyAnswer.UNKNOWN:
+        gaps.append(
+            _finding(
+                "agentic-agency-answer-unknown",
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"Agentic candidate {candidate.id!r} has an unknown answer for agency question "
+                f"{name!r}.",
+            )
+        )
+    if not _has_credible_evidence(evidence_by_id, question.evidence_ids):
+        gaps.append(
+            _finding(
+                "agentic-credible-agency-evidence-missing",
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"Agentic candidate {candidate.id!r} has no observed or method-backed estimate "
+                f"evidence for agency question {name!r}.",
+            )
+        )
+    if gaps:
+        return tuple(gaps)
+
+    if name in _DYNAMIC_EXECUTION_FIELDS and question.answer is AgencyAnswer.NO:
+        return (
+            _finding(
+                "agentic-dynamic-execution-supports-agency",
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"Agency question {name!r} credibly supports dynamic execution for agentic "
+                f"candidate {candidate.id!r}.",
+            ),
+        )
+    if name in _RUNTIME_ADAPTATION_FIELDS and question.answer is AgencyAnswer.YES:
+        return (
+            _finding(
+                "agentic-runtime-adaptation-supports-agency",
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"Agency question {name!r} credibly supports runtime model-directed adaptation "
+                f"for agentic candidate {candidate.id!r}.",
+            ),
+        )
+    if name == "environmental_feedback_available":
+        rule_id = (
+            "agentic-feedback-supports-agency"
+            if question.answer is AgencyAnswer.YES
+            else "agentic-feedback-unavailable-blocks-candidate"
+        )
+        state = "available" if question.answer is AgencyAnswer.YES else "unavailable"
+        return (
+            _finding(
+                rule_id,
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"Environmental feedback is credibly {state} for agentic candidate "
+                f"{candidate.id!r}.",
+            ),
+        )
+    if name == "fixed_workflow_sufficient":
+        rule_id = (
+            "agentic-fixed-workflow-insufficiency-supports-agency"
+            if question.answer is AgencyAnswer.NO
+            else "agentic-fixed-workflow-sufficient-blocks-candidate"
+        )
+        state = "insufficient" if question.answer is AgencyAnswer.NO else "sufficient"
+        return (
+            _finding(
+                rule_id,
+                candidate,
+                name,
+                CriterionKind.AGENCY_QUESTION,
+                question.evidence_ids,
+                f"A fixed workflow is credibly {state} for agentic candidate {candidate.id!r}.",
+            ),
+        )
+
+    assert name in _DYNAMIC_EXECUTION_FIELDS | _RUNTIME_ADAPTATION_FIELDS | _MONITORABILITY_FIELDS
+    return (
+        _finding(
+            "agentic-agency-fact-non-decisive",
+            candidate,
+            name,
+            CriterionKind.AGENCY_QUESTION,
+            question.evidence_ids,
+            f"Agency question {name!r} is non-decisive for agentic candidate {candidate.id!r} "
+            "under the runtime-agency survival contract.",
+        ),
+    )
+
+
+def _agency_findings(
+    dossier: Dossier,
+    candidate: Candidate,
+    evidence_by_id: dict[str, Evidence],
+) -> tuple[DecisionFinding, ...]:
+    if candidate.control_class is not ControlClass.AGENTIC_CONTROL:
+        return ()
+
+    agency = dossier.agency_necessity
+    if agency is None:
+        return (
+            _finding(
+                "agentic-agency-necessity-missing",
+                candidate,
+                "agency_necessity",
+                CriterionKind.DERIVED_AGENCY,
+                (),
+                f"Agentic candidate {candidate.id!r} has no agency-necessity fact section.",
+            ),
+        )
+
+    questions = {name: getattr(agency, name) for name in _AGENCY_QUESTION_FIELDS}
+    findings = [
+        finding
+        for name in _AGENCY_QUESTION_FIELDS
+        for finding in _agency_question_findings(
+            candidate,
+            name,
+            questions[name],
+            evidence_by_id,
+        )
+    ]
+
+    runtime_questions = tuple(questions[name] for name in sorted(_RUNTIME_ADAPTATION_FIELDS))
+    if all(
+        question.answer is AgencyAnswer.NO
+        and _has_credible_evidence(evidence_by_id, question.evidence_ids)
+        for question in runtime_questions
+    ):
+        evidence_ids = tuple(
+            sorted(
+                {
+                    identifier
+                    for question in runtime_questions
+                    for identifier in question.evidence_ids
+                }
+            )
+        )
+        findings.append(
+            _finding(
+                "agentic-runtime-adaptation-missing",
+                candidate,
+                "runtime_replanning_required+runtime_tool_choice_required",
+                CriterionKind.DERIVED_AGENCY,
+                evidence_ids,
+                f"Agentic candidate {candidate.id!r} credibly requires neither runtime tool "
+                "choice nor runtime replanning.",
+            )
+        )
+
+    fixed_question = questions["fixed_workflow_sufficient"]
+    fixed_workflow_insufficient = (
+        fixed_question.answer is AgencyAnswer.NO
+        and _has_credible_evidence(evidence_by_id, fixed_question.evidence_ids)
+    )
+    if fixed_workflow_insufficient and not agency.residual_cases:
+        findings.append(
+            _finding(
+                "agentic-residual-case-missing",
+                candidate,
+                "residual_cases",
+                CriterionKind.RESIDUAL_CASE,
+                fixed_question.evidence_ids,
+                f"Agentic candidate {candidate.id!r} asserts fixed-workflow insufficiency "
+                "without a residual case.",
+            )
+        )
+
+    for residual in sorted(agency.residual_cases, key=lambda item: item.id):
+        if not _has_credible_evidence(evidence_by_id, residual.evidence_ids):
+            findings.append(
+                _finding(
+                    "agentic-credible-residual-evidence-missing",
+                    candidate,
+                    residual.id,
+                    CriterionKind.RESIDUAL_CASE,
+                    residual.evidence_ids,
+                    f"Residual case {residual.id!r} lacks observed or method-backed estimate "
+                    f"support for agentic candidate {candidate.id!r}.",
+                )
+            )
+        elif fixed_workflow_insufficient:
+            findings.append(
+                _finding(
+                    "agentic-residual-case-supports-agency",
+                    candidate,
+                    residual.id,
+                    CriterionKind.RESIDUAL_CASE,
+                    residual.evidence_ids,
+                    f"Residual case {residual.id!r} credibly supports fixed-workflow "
+                    f"insufficiency for agentic candidate {candidate.id!r}.",
+                )
+            )
+        else:
+            findings.append(
+                _finding(
+                    "agentic-agency-fact-non-decisive",
+                    candidate,
+                    residual.id,
+                    CriterionKind.RESIDUAL_CASE,
+                    residual.evidence_ids,
+                    f"Residual case {residual.id!r} is non-decisive because credible "
+                    "fixed-workflow insufficiency is not established.",
+                )
+            )
+    return tuple(findings)
+
+
 _AUTOMATION_CLASSES = {
     ControlClass.DETERMINISTIC_AUTOMATION,
     ControlClass.FIXED_AI_WORKFLOW,
@@ -490,7 +746,10 @@ def _candidate_findings(
 ) -> tuple[DecisionFinding, ...]:
     findings: list[DecisionFinding] = []
     if dossier.problem_value is None:
-        return _autonomy_findings(dossier, candidate, evidence_by_id)
+        return (
+            *_agency_findings(dossier, candidate, evidence_by_id),
+            *_autonomy_findings(dossier, candidate, evidence_by_id),
+        )
 
     outcome_tests = {test.outcome_id: test for test in candidate.outcome_tests}
     constraint_tests = {test.constraint_id: test for test in candidate.constraint_tests}
@@ -529,6 +788,7 @@ def _candidate_findings(
             )
         )
 
+    findings.extend(_agency_findings(dossier, candidate, evidence_by_id))
     findings.extend(_autonomy_findings(dossier, candidate, evidence_by_id))
     return tuple(findings)
 

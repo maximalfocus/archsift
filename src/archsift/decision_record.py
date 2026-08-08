@@ -332,7 +332,16 @@ def _decision_finding_dict(value: DecisionFinding) -> JsonObject:
     _enum_value(
         value.criterion_kind,
         CriterionKind,
-        ("outcome", "constraint", "authority", "hard-veto", "human-control"),
+        (
+            "outcome",
+            "constraint",
+            "authority",
+            "hard-veto",
+            "human-control",
+            "agency-question",
+            "residual-case",
+            "derived-agency",
+        ),
     )
     _require_string_tuple(value.evidence_ids, "Decision-finding evidence IDs")
     _require_string_tuple(value.action_ids, "Decision-finding action IDs")
@@ -615,7 +624,16 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "criterion_kind": _enum_value(
                 value.criterion_kind,
                 CriterionKind,
-                ("outcome", "constraint", "authority", "hard-veto", "human-control"),
+                (
+                    "outcome",
+                    "constraint",
+                    "authority",
+                    "hard-veto",
+                    "human-control",
+                    "agency-question",
+                    "residual-case",
+                    "derived-agency",
+                ),
             ),
             "effect": _rule_effect(value.effect),
             "evidence_ids": list(value.evidence_ids),

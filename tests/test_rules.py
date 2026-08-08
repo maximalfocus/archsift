@@ -174,7 +174,7 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.5.0"
+    assert RULESET_VERSION == "1.6.0"
     assert ids == sorted(ids)
     assert len(ids) == len(set(ids)) == 26
     assert set(ids) == {
@@ -215,13 +215,13 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         for rule in rules
     )
     catalog = list_rules()
-    assert len(catalog) == 43
+    assert len(catalog) == 57
     assert len(catalog) == len({rule.id for rule in catalog})
-    assert [rule.effect.value for rule in catalog].count("block") == 5
-    assert [rule.effect.value for rule in catalog].count("require-evidence") == 31
-    assert [rule.effect.value for rule in catalog].count("support-candidate") == 5
+    assert [rule.effect.value for rule in catalog].count("block") == 8
+    assert [rule.effect.value for rule in catalog].count("require-evidence") == 36
+    assert [rule.effect.value for rule in catalog].count("support-candidate") == 10
     assert [rule.effect.value for rule in catalog].count("constrain-autonomy") == 1
-    assert [rule.effect.value for rule in catalog].count("non-decisive") == 1
+    assert [rule.effect.value for rule in catalog].count("non-decisive") == 2
     with pytest.raises(FrozenInstanceError):
         rules[0].description = "changed"  # type: ignore[misc]
 
@@ -237,6 +237,10 @@ def test_rules_cli_human_json_and_quiet_are_deterministic(
     assert human_first.err == ""
     assert f"ArchSift ruleset {RULESET_VERSION}" in human_first.out
     assert "binding-outcome-failed [block; FR-009]" in human_first.out
+    assert (
+        "agentic-fixed-workflow-sufficient-blocks-candidate [block; FR-006/FR-009]"
+        in human_first.out
+    )
     assert "task-boundary-missing [require-evidence; FR-003]" in human_first.out
     assert "verdict-supported [support-candidate; FR-010]" in human_first.out
 
