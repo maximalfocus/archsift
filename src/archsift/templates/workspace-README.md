@@ -227,7 +227,9 @@ autonomy_permission:
       evidence_ids: [autonomy-control-observation]
 ```
 
-Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Candidates that inform the comparison without holding one of those decision-boundary roles use the required explicit form `roles: []`. Every named role still belongs to at most one candidate. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
+Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Candidates that inform the comparison without holding one of those decision-boundary roles use the required explicit form `roles: []`. Every named role still belongs to at most one candidate. For a proposal above human-owned work, `strongest_simpler_boundary` records the authored search scope and rationale, covers every represented candidate below the proposal, and cites comparative-fit evidence. The selected candidate must be compared directionally with each other represented simpler candidate.
+
+ArchSift validates that local boundary and its references; it does not prove global optimality, discover omitted alternatives, establish the external truth of the rationale, or rank candidates. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
 
 Every deterministic-automation, fixed-AI-workflow, or agentic-control candidate must declare an evidence-backed `authority` scope before it can survive assessment. `action_ids` identify the task actions controlled by that candidate. `retained_human_control_ids` explicitly identifies which applicable mandatory controls remain in the architecture; an empty list means none are retained. Active hard vetoes block only declared `prohibited_control_classes` whose action IDs intersect the candidate authority. Missing authority or overlapping veto applicability leaves the candidate undetermined, while inactive or non-overlapping boundaries are reported as non-decisive. ArchSift validates these declarations and their provenance but does not prove their external truth.
 
@@ -271,6 +273,12 @@ candidate_comparison:
           result: meets
           rationale: Estimated capacity is recorded on the same case boundary.
           evidence_ids: [workflow-estimate]
+  strongest_simpler_boundary:
+    strongest_candidate_id: current-review
+    scope: The represented alternatives below the fixed workflow contain current human review.
+    rationale: Current human review is the strongest represented simpler option for this case.
+    considered_candidate_ids: [current-review]
+    evidence_ids: [workflow-estimate]
   comparisons:
     - subject_candidate_id: fixed-review-workflow
       comparator_candidate_id: current-review

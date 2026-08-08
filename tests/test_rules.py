@@ -175,9 +175,9 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.6.0"
+    assert RULESET_VERSION == "1.7.0"
     assert ids == sorted(ids)
-    assert len(ids) == len(set(ids)) == 26
+    assert len(ids) == len(set(ids)) == 30
     assert set(ids) == {
         "agency-answer-unknown",
         "agency-necessity-missing",
@@ -199,11 +199,15 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         "credible-hard-veto-evidence-missing",
         "credible-human-control-evidence-missing",
         "credible-residual-case-evidence-missing",
+        "credible-strongest-simpler-evidence-missing",
         "hard-veto-status-unknown",
         "comparison-result-unknown",
         "problem-value-missing",
         "required-candidate-role-missing",
         "required-comparison-missing",
+        "strongest-simpler-boundary-coverage-missing",
+        "strongest-simpler-boundary-incompatible",
+        "strongest-simpler-boundary-missing",
         "task-boundary-missing",
     }
     assert all(rule.effect is RuleEffect.REQUIRE_EVIDENCE for rule in rules)
@@ -216,10 +220,10 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         for rule in rules
     )
     catalog = list_rules()
-    assert len(catalog) == 57
+    assert len(catalog) == 61
     assert len(catalog) == len({rule.id for rule in catalog})
     assert [rule.effect.value for rule in catalog].count("block") == 8
-    assert [rule.effect.value for rule in catalog].count("require-evidence") == 36
+    assert [rule.effect.value for rule in catalog].count("require-evidence") == 40
     assert [rule.effect.value for rule in catalog].count("support-candidate") == 10
     assert [rule.effect.value for rule in catalog].count("constrain-autonomy") == 1
     assert [rule.effect.value for rule in catalog].count("non-decisive") == 2

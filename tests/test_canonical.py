@@ -61,13 +61,14 @@ from archsift.validation import (
     ProblemOutcome,
     ProblemValue,
     ResidualCase,
+    StrongestSimplerBoundary,
     TaskAction,
     TaskBoundary,
     validate_workspace,
 )
 
 _GOLDEN = Path(__file__).parent / "golden" / "canonical-dossier-v1.json"
-_EXPECTED_DOSSIER_ID = "sha256:58333c3684783bab0224d481e168ba861158c3fa505a8c4d94304784ffd62234"
+_EXPECTED_DOSSIER_ID = "sha256:5bee7dec6f1be06abe53a70cd79573701052017071e5e7501f035ed01cd2d8e5"
 _EXPECTED_EVIDENCE_IDS = {
     "assumption": "sha256:10f6a22ef04cbac6a98c1d08b0966210e309d839fd7940373c7ed7644066c3ae",
     "estimate": "sha256:fff5c0155ee12491114a94548601a551ee293c00c2c7002978628d5a269d1245",
@@ -439,11 +440,19 @@ def full_dossier() -> Dossier:
         candidate_comparison=CandidateComparison(
             candidates,
             (
-                CandidatePairComparison(
-                    "fixed",
-                    "human",
-                    _dimensions(),
-                ),
+                CandidatePairComparison("process", "human", _dimensions()),
+                CandidatePairComparison("deterministic", "human", _dimensions()),
+                CandidatePairComparison("fixed", "human", _dimensions()),
+                CandidatePairComparison("agentic", "human", _dimensions()),
+                CandidatePairComparison("fixed", "process", _dimensions()),
+                CandidatePairComparison("process", "deterministic", _dimensions()),
+            ),
+            StrongestSimplerBoundary(
+                strongest_candidate_id="process",
+                scope="All represented candidates below the fixed workflow.",
+                rationale="Process redesign is the strongest represented simpler option.",
+                considered_candidate_ids=("human", "process", "deterministic"),
+                evidence_ids=("observed",),
             ),
         ),
         decision_conditions=(
@@ -484,7 +493,21 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
     assert identity == _EXPECTED_DOSSIER_ID
     assert dossier_content_identity(dossier) == identity
     assert evidence_content_identities(dossier) == _EXPECTED_EVIDENCE_IDS
-    assert RULESET_VERSION == "1.6.0"
+    assert dossier.candidate_comparison is not None
+    assert dossier.candidate_comparison.strongest_simpler_boundary is not None
+    changed_boundary = replace(
+        dossier.candidate_comparison.strongest_simpler_boundary,
+        scope="A changed represented-candidate scope.",
+    )
+    changed_dossier = replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            strongest_simpler_boundary=changed_boundary,
+        ),
+    )
+    assert dossier_content_identity(changed_dossier) != identity
+    assert RULESET_VERSION == "1.7.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:

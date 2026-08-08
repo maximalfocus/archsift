@@ -83,6 +83,7 @@ from archsift.validation import (
     ProblemOutcome,
     ProblemValue,
     ResidualCase,
+    StrongestSimplerBoundary,
     TaskAction,
     TaskBoundary,
 )
@@ -343,6 +344,13 @@ def positive_dossier() -> Dossier:
                 CandidatePairComparison("fixed", "deterministic", _dimensions()),
                 CandidatePairComparison("fixed", "human", _dimensions()),
             ),
+            StrongestSimplerBoundary(
+                strongest_candidate_id="deterministic",
+                scope="All represented candidates below the fixed workflow.",
+                rationale="Deterministic automation is the strongest represented simpler option.",
+                considered_candidate_ids=("human", "deterministic"),
+                evidence_ids=("decision-observed",),
+            ),
         ),
         decision_conditions=(
             DecisionCondition(
@@ -459,7 +467,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.6.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.7.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
     assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
@@ -792,7 +800,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
             "assessment ruleset_version",
             replace(
                 record,
-                assessment=replace(assessment, ruleset_version=twin("1.6.0")),
+                assessment=replace(assessment, ruleset_version=twin("1.7.0")),
             ),
         ),
         (
@@ -810,7 +818,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     prerequisite_evaluation=replace(
                         prerequisites,
-                        ruleset_version=twin("1.6.0"),
+                        ruleset_version=twin("1.7.0"),
                     ),
                 ),
             ),
@@ -823,7 +831,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     ordered_elimination_evaluation=replace(
                         elimination,
-                        ruleset_version=twin("1.6.0"),
+                        ruleset_version=twin("1.7.0"),
                     ),
                 ),
             ),

@@ -170,6 +170,10 @@ def build_large_dossier() -> dict[str, Any]:
     comparisons = [
         _comparison(f"candidate-{index:02d}", current_id) for index in range(1, CANDIDATE_COUNT)
     ]
+    comparisons.extend(
+        _comparison("candidate-18", f"candidate-{index:02d}")
+        for index in range(1, CANDIDATE_COUNT - 2)
+    )
     comparisons.append(_comparison("candidate-19", "candidate-18"))
     return {
         "schema_version": 1,
@@ -277,6 +281,17 @@ def build_large_dossier() -> dict[str, Any]:
         "candidate_comparison": {
             "candidates": candidates,
             "comparisons": comparisons,
+            "strongest_simpler_boundary": {
+                "strongest_candidate_id": "candidate-18",
+                "scope": "All represented synthetic candidates below agentic control.",
+                "rationale": (
+                    "The fixed workflow is the strongest represented simpler benchmark option."
+                ),
+                "considered_candidate_ids": [
+                    f"candidate-{index:02d}" for index in range(CANDIDATE_COUNT - 1)
+                ],
+                "evidence_ids": ["agency-estimate"],
+            },
         },
     }
 
