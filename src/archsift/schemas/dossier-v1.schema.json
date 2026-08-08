@@ -513,8 +513,8 @@
           ]
         },
         "roles": {
+          "description": "Named decision-boundary roles; auxiliary candidates use an explicit empty array.",
           "type": "array",
-          "minItems": 1,
           "items": {
             "type": "string",
             "enum": [

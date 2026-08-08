@@ -203,7 +203,7 @@ autonomy_permission:
       evidence_ids: [autonomy-control-observation]
 ```
 
-Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
+Compare explicit candidates only after the problem, agency, and autonomy facts are recorded. Roles identify the current baseline, proposal, strongest simpler alternative, and (when present) one agentic comparator; they do not identify a winner. Candidates that inform the comparison without holding one of those decision-boundary roles use the required explicit form `roles: []`. Every named role still belongs to at most one candidate. Every result is directional from `subject_candidate_id` to `comparator_candidate_id`. `unknown` and assumptions remain visible but cannot make the comparison ready, and readiness is not a recommendation.
 
 ```yaml
 candidate_comparison:
