@@ -444,8 +444,10 @@ jobs:
           assert record_path.read_bytes() == first_assess.stdout
           os.utime(record_path, (1_700_000_000, 1_700_000_000))
           recorded_mtime = record_path.stat().st_mtime_ns
+          recorded_ctime = record_path.stat().st_ctime_ns
           second_assess = subprocess.run(assess_command, check=True, capture_output=True)
           assert second_assess.stdout == first_assess.stdout
           assert second_assess.stderr == b""
           assert record_path.stat().st_mtime_ns == recorded_mtime
+          assert record_path.stat().st_ctime_ns == recorded_ctime
           assert len(list((case / "output").glob("*.json"))) == 1

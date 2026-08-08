@@ -302,6 +302,44 @@ def test_workspace_and_external_files_hash_in_canonical_pair_order(tmp_path: Pat
     }
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows may not permit unprivileged symlinks")
+def test_target_replaced_between_check_and_open_is_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "case"
+    evidence_root = workspace / "evidence"
+    evidence_root.mkdir(parents=True)
+    target = evidence_root / "sample.bin"
+    target.write_bytes(b"original workspace bytes")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    outside_file = outside / "outside.bin"
+    outside_file.write_bytes(b"outside secret bytes")
+    dossier = _typed_dossier(
+        _observed(
+            "evidence",
+            EvidenceArtefactReference("sample", EvidenceArtefactRoot.WORKSPACE, "sample.bin"),
+        )
+    )
+    original_open = Path.open
+
+    def substituting_open(path: Path, *args: object, **kwargs: object):
+        if path == target and args and args[0] == "rb":
+            target.unlink()
+            target.symlink_to(outside_file)
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", substituting_open)
+
+    with pytest.raises(EvidenceArtefactError) as captured:
+        evidence_artefact_identities(dossier, workspace=workspace)
+
+    assert captured.value.category is EvidenceArtefactFailure.TARGET_UNRESOLVABLE
+    assert target.is_symlink()
+    assert outside_file.read_bytes() == b"outside secret bytes"
+
+
 def test_changing_one_file_changes_only_its_identity(tmp_path: Path) -> None:
     workspace = tmp_path / "case"
     evidence_root = workspace / "evidence"
