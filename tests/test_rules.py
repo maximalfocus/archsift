@@ -13,6 +13,7 @@ from archsift.rules import (
     RuleEffect,
     evaluate_assessment_prerequisites,
     list_prerequisite_rules,
+    list_rules,
 )
 from archsift.validation import (
     AgencyAnswer,
@@ -213,6 +214,14 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         and rule.source_rationale.strip()
         for rule in rules
     )
+    catalog = list_rules()
+    assert len(catalog) == 43
+    assert len(catalog) == len({rule.id for rule in catalog})
+    assert [rule.effect.value for rule in catalog].count("block") == 5
+    assert [rule.effect.value for rule in catalog].count("require-evidence") == 31
+    assert [rule.effect.value for rule in catalog].count("support-candidate") == 5
+    assert [rule.effect.value for rule in catalog].count("constrain-autonomy") == 1
+    assert [rule.effect.value for rule in catalog].count("non-decisive") == 1
     with pytest.raises(FrozenInstanceError):
         rules[0].description = "changed"  # type: ignore[misc]
 

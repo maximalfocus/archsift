@@ -127,7 +127,7 @@ jobs:
           assert len(rules_payload["rules"]) == 43
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 5
-          assert effects.count("require-evidence") == 30
+          assert effects.count("require-evidence") == 31
           assert effects.count("support-candidate") == 5
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 1
