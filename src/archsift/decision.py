@@ -29,10 +29,13 @@ from archsift.validation import (
 
 
 class CriterionKind(StrEnum):
-    """Binding criterion kinds evaluated without combining them into a score."""
+    """Candidate-specific decision fact kinds evaluated without a score."""
 
     OUTCOME = "outcome"
     CONSTRAINT = "constraint"
+    AUTHORITY = "authority"
+    HARD_VETO = "hard-veto"
+    HUMAN_CONTROL = "human-control"
 
 
 class CandidateDisposition(StrEnum):
@@ -94,10 +97,12 @@ class DecisionFinding:
     evidence_ids: tuple[str, ...]
     message: str
     consequence: str
+    action_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, object]:
         """Return a deterministic JSON-compatible representation."""
         return {
+            "action_ids": list(self.action_ids),
             "candidate_id": self.candidate_id,
             "consequence": self.consequence,
             "control_class": self.control_class.value,
@@ -223,6 +228,7 @@ def _finding(
     criterion_kind: CriterionKind,
     evidence_ids: tuple[str, ...],
     message: str,
+    action_ids: tuple[str, ...] = (),
 ) -> DecisionFinding:
     rule = get_rule_definition(rule_id)
     return DecisionFinding(
@@ -236,6 +242,7 @@ def _finding(
         evidence_ids=evidence_ids,
         message=message,
         consequence=rule.consequence,
+        action_ids=action_ids,
     )
 
 
@@ -302,17 +309,191 @@ def _test_finding(
     )
 
 
+_AUTOMATION_CLASSES = {
+    ControlClass.DETERMINISTIC_AUTOMATION,
+    ControlClass.FIXED_AI_WORKFLOW,
+    ControlClass.AGENTIC_CONTROL,
+}
+
+
+def _autonomy_findings(
+    dossier: Dossier,
+    candidate: Candidate,
+    evidence_by_id: dict[str, Evidence],
+) -> tuple[DecisionFinding, ...]:
+    if candidate.control_class not in _AUTOMATION_CLASSES:
+        return ()
+
+    authority = candidate.authority
+    if authority is None:
+        return (
+            _finding(
+                "automation-authority-missing",
+                candidate,
+                "candidate-authority",
+                CriterionKind.AUTHORITY,
+                (),
+                f"Automation candidate {candidate.id!r} has no task-action authority scope.",
+            ),
+        )
+    if not _has_credible_evidence(evidence_by_id, authority.evidence_ids):
+        return (
+            _finding(
+                "credible-authority-evidence-missing",
+                candidate,
+                "candidate-authority",
+                CriterionKind.AUTHORITY,
+                authority.evidence_ids,
+                f"Automation candidate {candidate.id!r} has no observed or method-backed "
+                "authority evidence.",
+                tuple(sorted(authority.action_ids)),
+            ),
+        )
+
+    autonomy = dossier.autonomy_permission
+    if autonomy is None:
+        return ()
+
+    candidate_actions = set(authority.action_ids)
+    retained_controls = set(authority.retained_human_control_ids)
+    findings: list[DecisionFinding] = []
+    for veto in sorted(autonomy.hard_vetoes, key=lambda item: item.id):
+        intersecting_actions = tuple(sorted(candidate_actions.intersection(veto.action_ids)))
+        evidence_ids = tuple(sorted({*authority.evidence_ids, *veto.evidence_ids}))
+        if not intersecting_actions:
+            findings.append(
+                _finding(
+                    "autonomy-boundary-non-decisive",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Hard veto {veto.id!r} does not overlap candidate {candidate.id!r}.",
+                    (),
+                )
+            )
+        elif veto.status is HardVetoStatus.UNKNOWN:
+            # Unknown applicability of an overlapping boundary is an unresolved
+            # evidence state, not a non-decisive boundary: the candidate must
+            # not survive with a possibly applicable veto left unaccounted for.
+            findings.append(
+                _finding(
+                    "overlapping-veto-status-unknown",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Hard veto {veto.id!r} has unknown applicability for candidate "
+                    f"{candidate.id!r}.",
+                    intersecting_actions,
+                )
+            )
+        elif veto.status is not HardVetoStatus.ACTIVE:
+            findings.append(
+                _finding(
+                    "autonomy-boundary-non-decisive",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Hard veto {veto.id!r} is inactive for candidate {candidate.id!r}.",
+                    intersecting_actions,
+                )
+            )
+        elif veto.prohibited_control_classes is None:
+            findings.append(
+                _finding(
+                    "active-veto-applicability-missing",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Active hard veto {veto.id!r} overlaps candidate {candidate.id!r} but "
+                    "does not declare prohibited control classes.",
+                    intersecting_actions,
+                )
+            )
+        elif candidate.control_class in veto.prohibited_control_classes:
+            findings.append(
+                _finding(
+                    "active-veto-blocks-candidate",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Active hard veto {veto.id!r} prohibits candidate {candidate.id!r} on "
+                    "the intersecting task actions.",
+                    intersecting_actions,
+                )
+            )
+        else:
+            findings.append(
+                _finding(
+                    "autonomy-boundary-non-decisive",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Active hard veto {veto.id!r} does not prohibit candidate "
+                    f"{candidate.id!r}'s control class.",
+                    intersecting_actions,
+                )
+            )
+
+    for control in sorted(autonomy.mandatory_human_controls, key=lambda item: item.id):
+        intersecting_actions = tuple(sorted(candidate_actions.intersection(control.action_ids)))
+        evidence_ids = tuple(sorted({*authority.evidence_ids, *control.evidence_ids}))
+        if not intersecting_actions:
+            findings.append(
+                _finding(
+                    "autonomy-boundary-non-decisive",
+                    candidate,
+                    control.id,
+                    CriterionKind.HUMAN_CONTROL,
+                    evidence_ids,
+                    f"Mandatory human control {control.id!r} does not overlap candidate "
+                    f"{candidate.id!r}.",
+                    (),
+                )
+            )
+        elif control.id in retained_controls:
+            findings.append(
+                _finding(
+                    "mandatory-human-control-retained",
+                    candidate,
+                    control.id,
+                    CriterionKind.HUMAN_CONTROL,
+                    evidence_ids,
+                    f"Candidate {candidate.id!r} retains mandatory human control {control.id!r}.",
+                    intersecting_actions,
+                )
+            )
+        else:
+            findings.append(
+                _finding(
+                    "mandatory-human-control-omitted",
+                    candidate,
+                    control.id,
+                    CriterionKind.HUMAN_CONTROL,
+                    evidence_ids,
+                    f"Candidate {candidate.id!r} omits mandatory human control {control.id!r}.",
+                    intersecting_actions,
+                )
+            )
+    return tuple(findings)
+
+
 def _candidate_findings(
     dossier: Dossier,
     candidate: Candidate,
     evidence_by_id: dict[str, Evidence],
 ) -> tuple[DecisionFinding, ...]:
+    findings: list[DecisionFinding] = []
     if dossier.problem_value is None:
-        return ()
+        return _autonomy_findings(dossier, candidate, evidence_by_id)
 
     outcome_tests = {test.outcome_id: test for test in candidate.outcome_tests}
     constraint_tests = {test.constraint_id: test for test in candidate.constraint_tests}
-    findings: list[DecisionFinding] = []
 
     for outcome in sorted(
         (outcome for outcome in dossier.problem_value.outcomes if outcome.binding),
@@ -348,6 +529,7 @@ def _candidate_findings(
             )
         )
 
+    findings.extend(_autonomy_findings(dossier, candidate, evidence_by_id))
     return tuple(findings)
 
 

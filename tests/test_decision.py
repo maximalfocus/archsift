@@ -15,6 +15,7 @@ from archsift.rules import RULESET_VERSION, RuleEffect, list_rules
 from archsift.validation import (
     AssumptionEvidence,
     Candidate,
+    CandidateAuthority,
     CandidateComparison,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -42,6 +43,17 @@ def _observed(identifier: str = "observed") -> ObservedEvidence:
         "Architecture reviewer",
         (DecisionArea.COMPARATIVE_FIT,),
         provenance="evidence/sanitised-result.txt",
+        observed_at=date(2026, 8, 8),
+    )
+
+
+def _authority_observed() -> ObservedEvidence:
+    return ObservedEvidence(
+        "authority-observed",
+        "A sanitised candidate-authority observation.",
+        "Architecture reviewer",
+        (DecisionArea.AUTONOMY_PERMISSION,),
+        provenance="evidence/sanitised-authority.txt",
         observed_at=date(2026, 8, 8),
     )
 
@@ -175,6 +187,16 @@ def _candidate(
             *extra_outcome_tests,
         ),
         constraint_tests=(_constraint_test(constraint_result, evidence_id),),
+        authority=(
+            CandidateAuthority(("decision-action",), (), ("authority-observed",))
+            if control_class
+            in {
+                ControlClass.DETERMINISTIC_AUTOMATION,
+                ControlClass.FIXED_AI_WORKFLOW,
+                ControlClass.AGENTIC_CONTROL,
+            }
+            else None
+        ),
     )
 
 
@@ -183,10 +205,11 @@ def _dossier(
     evidence: tuple[Evidence, ...] | None = None,
     problem: ProblemValue | None = None,
 ) -> Dossier:
+    supplied_evidence = evidence if evidence is not None else (_observed(),)
     return Dossier(
         schema_version=1,
         case=CaseIdentity("ordered-elimination", "Ordered elimination"),
-        evidence=evidence if evidence is not None else (_observed(),),
+        evidence=(*supplied_evidence, _authority_observed()),
         problem_value=problem or _problem(),
         candidate_comparison=CandidateComparison(candidates, ()),
     )
@@ -196,7 +219,7 @@ def test_decision_rules_are_versioned_canonical_and_non_scoring() -> None:
     rules = list_rules()
     decision_rules = [rule for rule in rules if rule.requirement == "FR-009"]
 
-    assert RULESET_VERSION == "1.4.0"
+    assert RULESET_VERSION == "1.5.0"
     assert [rule.id for rule in rules] == sorted(rule.id for rule in rules)
     assert [(rule.id, rule.effect) for rule in decision_rules] == [
         ("binding-constraint-failed", RuleEffect.BLOCK),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import FrozenInstanceError
 from importlib.resources import files
@@ -14,6 +15,7 @@ from archsift.cli import main
 from archsift.diagnostics import ExitCode
 from archsift.rules import RULESET_VERSION, evaluate_assessment_prerequisites
 from archsift.validation import (
+    CandidateAuthority,
     CandidateComparison,
     CandidateRole,
     CandidateTestResult,
@@ -187,6 +189,49 @@ def _dossier(comparison: dict[str, object] | None = None) -> dict[str, object]:
     }
 
 
+def _dossier_with_candidate_authority() -> dict[str, object]:
+    dossier = _dossier()
+    evidence = cast(list[dict[str, object]], dossier["evidence"])
+    evidence.append(
+        _evidence(
+            "authority-observed",
+            affects=["autonomy-permission"],
+        )
+    )
+    dossier["task"] = {
+        "operation": "Prepare one bounded disposition.",
+        "starts_when": "A complete synthetic case arrives.",
+        "completes_when": "The disposition is ready for release.",
+        "accountable_owner": "Synthetic owner",
+        "actors": ["Reviewer"],
+        "systems_and_tools": [],
+        "information_read": ["Synthetic case"],
+        "actions": [
+            {
+                "id": "release-disposition",
+                "description": "Release the approved disposition.",
+                "consequential": True,
+                "approval_boundary": "An approver must approve release.",
+            }
+        ],
+        "exclusions": ["Changing policy"],
+    }
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[1]["authority"] = {
+        "action_ids": ["release-disposition"],
+        "retained_human_control_ids": [],
+        "evidence_ids": ["authority-observed"],
+    }
+    return dossier
+
+
+def _candidate_authority_payload(dossier: dict[str, object]) -> dict[str, object]:
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    return cast(dict[str, object], candidates[1]["authority"])
+
+
 def test_packaged_schema_exposes_optional_candidate_comparison() -> None:
     schema = json.loads(
         files("archsift").joinpath("schemas/dossier-v1.schema.json").read_text(encoding="utf-8")
@@ -199,6 +244,12 @@ def test_packaged_schema_exposes_optional_candidate_comparison() -> None:
         "deterministic-automation",
         "fixed-ai-workflow",
         "agentic-control",
+    ]
+    assert "authority" not in schema["$defs"]["candidate"]["required"]
+    assert schema["$defs"]["candidateAuthority"]["required"] == [
+        "action_ids",
+        "retained_human_control_ids",
+        "evidence_ids",
     ]
     dimensions = schema["$defs"]["candidatePairComparison"]["properties"]["dimensions"]
     assert tuple(dimensions["required"]) == _DIMENSIONS
@@ -232,6 +283,106 @@ def test_complete_comparison_is_typed_immutable_ordered_and_ready(tmp_path: Path
     assert evaluate_candidate_comparison_readiness(result.dossier).ready is True
     with pytest.raises(FrozenInstanceError):
         facts.candidates[0].name = "changed"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize("value", [None, [], "authority"])
+def test_present_candidate_authority_must_be_a_strict_object(tmp_path: Path, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier_with_candidate_authority()
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[1]["authority"] = value
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.candidate_comparison.candidates[1].authority"
+    assert result.diagnostics[0].requirement == "FR-007"
+
+
+def test_candidate_authority_is_typed_immutable_and_evidence_backed(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    _write_case(workspace, _dossier_with_candidate_authority())
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    assert result.dossier.candidate_comparison is not None
+    authority = result.dossier.candidate_comparison.candidates[1].authority
+    assert isinstance(authority, CandidateAuthority)
+    assert authority.action_ids == ("release-disposition",)
+    assert authority.retained_human_control_ids == ()
+    assert authority.evidence_ids == ("authority-observed",)
+    with pytest.raises(FrozenInstanceError):
+        authority.action_ids = ()  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_id", "expected_field"),
+    [
+        (
+            lambda dossier: _candidate_authority_payload(dossier).update(
+                action_ids=["missing-action"]
+            ),
+            "missing-candidate-authority-task-action-reference",
+            "$.candidate_comparison.candidates[1].authority.action_ids[0]",
+        ),
+        (
+            lambda dossier: _candidate_authority_payload(dossier).update(
+                evidence_ids=["missing-evidence"]
+            ),
+            "missing-candidate-authority-evidence-reference",
+            "$.candidate_comparison.candidates[1].authority.evidence_ids[0]",
+        ),
+        (
+            lambda dossier: _candidate_authority_payload(dossier).update(
+                retained_human_control_ids=["missing-control"]
+            ),
+            "missing-retained-human-control-reference",
+            "$.candidate_comparison.candidates[1].authority.retained_human_control_ids[0]",
+        ),
+    ],
+)
+def test_candidate_authority_references_fail_closed(
+    tmp_path: Path,
+    mutation: Callable[[dict[str, object]], None],
+    expected_id: str,
+    expected_field: str,
+) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier_with_candidate_authority()
+    mutation(dossier)
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert [(item.id, item.field, item.requirement) for item in result.diagnostics] == [
+        (expected_id, expected_field, "FR-007")
+    ]
+
+
+def test_candidate_authority_evidence_must_be_classified_for_autonomy(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier_with_candidate_authority()
+    evidence = cast(list[dict[str, object]], dossier["evidence"])
+    evidence[1]["affects"] = ["comparative-fit"]
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert [(item.id, item.field, item.requirement) for item in result.diagnostics] == [
+        (
+            "candidate-authority-evidence-area-mismatch",
+            "$.candidate_comparison.candidates[1].authority.evidence_ids[0]",
+            "FR-007",
+        )
+    ]
 
 
 def test_absent_candidate_comparison_is_valid_but_not_ready(tmp_path: Path) -> None:
@@ -780,7 +931,7 @@ def test_validate_json_reports_candidate_readiness_without_verdict(
     assert payload["candidate_comparison_ready"] is True
     assert payload["candidate_count"] == 2
     assert payload["comparison_count"] == 1
-    assert payload["ruleset_version"] == RULESET_VERSION == "1.4.0"
+    assert payload["ruleset_version"] == RULESET_VERSION == "1.5.0"
     assert "verdict" not in payload
     assert "recommendation" not in payload
     assert "score" not in payload
@@ -796,13 +947,57 @@ def test_template_candidate_example_is_valid_and_ready(tmp_path: Path) -> None:
     problem = cast(dict[str, object], dossier["problem_value"])
     cast(list[dict[str, object]], problem["outcomes"])[0]["id"] = "reduce-handling-time"
     cast(list[dict[str, object]], problem["constraints"])[0]["id"] = "demand-capacity"
-    cast(list[dict[str, object]], dossier["evidence"]).append(
+    dossier_evidence = cast(list[dict[str, object]], dossier["evidence"])
+    dossier_evidence.append(
         _evidence(
             "workflow-estimate",
             kind="estimate",
             affects=["agency-necessity", "comparative-fit"],
         )
     )
+    dossier_evidence.append(
+        _evidence(
+            "autonomy-control-observation",
+            affects=["autonomy-permission"],
+        )
+    )
+    dossier["task"] = _dossier_with_candidate_authority()["task"]
+    autonomy_question = {
+        "answer": "yes",
+        "rationale": "The sanitised example supplies a known answer.",
+        "evidence_ids": ["autonomy-control-observation"],
+    }
+    dossier["autonomy_permission"] = {
+        "actions_reversible": autonomy_question,
+        "failure_blast_radius_bounded": autonomy_question,
+        "regulatory_automation_permitted": {**autonomy_question, "answer": "no"},
+        "data_confidence_sufficient": autonomy_question,
+        "accountable_owner_assigned": autonomy_question,
+        "decision_path_auditable": autonomy_question,
+        "timely_human_intervention_available": autonomy_question,
+        "safe_degradation_available": autonomy_question,
+        "hard_vetoes": [
+            {
+                "id": "no-autonomous-release",
+                "status": "active",
+                "condition": "Release lacks approval.",
+                "consequence": "Autonomous release is prohibited.",
+                "action_ids": ["release-disposition"],
+                "evidence_ids": ["autonomy-control-observation"],
+                "prohibited_control_classes": ["agentic-control"],
+            }
+        ],
+        "mandatory_human_controls": [
+            {
+                "id": "approve-release",
+                "description": "Approve before release.",
+                "control_point": "Immediately before release.",
+                "responsible_role": "Approver",
+                "action_ids": ["release-disposition"],
+                "evidence_ids": ["autonomy-control-observation"],
+            }
+        ],
+    }
     _write_case(workspace, dossier)
 
     result = validate_workspace(workspace)

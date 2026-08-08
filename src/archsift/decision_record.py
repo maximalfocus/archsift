@@ -123,6 +123,7 @@ class DecisionGap:
     evidence_ids: tuple[str, ...]
     message: str
     consequence: str
+    action_ids: tuple[str, ...]
 
 
 UnresolvedGap: TypeAlias = PrerequisiteGap | DecisionGap
@@ -236,7 +237,13 @@ def _rule_effect(value: RuleEffect) -> str:
     return _enum_value(
         value,
         RuleEffect,
-        ("block", "require-evidence", "support-candidate"),
+        (
+            "block",
+            "require-evidence",
+            "support-candidate",
+            "constrain-autonomy",
+            "non-decisive",
+        ),
     )
 
 
@@ -311,6 +318,7 @@ def _decision_finding_dict(value: DecisionFinding) -> JsonObject:
         "evidence_ids",
         "message",
         "consequence",
+        "action_ids",
     )
     _checked_dataclass(value, DecisionFinding, expected)
     _require_string(value.rule_id, "Decision-finding rule_id")
@@ -321,8 +329,13 @@ def _decision_finding_dict(value: DecisionFinding) -> JsonObject:
     _require_string(value.consequence, "Decision-finding consequence")
     _rule_effect(value.effect)
     _control_class(value.control_class)
-    _enum_value(value.criterion_kind, CriterionKind, ("outcome", "constraint"))
+    _enum_value(
+        value.criterion_kind,
+        CriterionKind,
+        ("outcome", "constraint", "authority", "hard-veto", "human-control"),
+    )
     _require_string_tuple(value.evidence_ids, "Decision-finding evidence IDs")
+    _require_string_tuple(value.action_ids, "Decision-finding action IDs")
     return _checked_payload(value.to_dict(), expected, "decision-finding")
 
 
@@ -582,6 +595,7 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "evidence_ids",
             "message",
             "consequence",
+            "action_ids",
         )
         _checked_dataclass(value, DecisionGap, expected)
         _require_string(value.rule_id, "Decision-gap rule_id")
@@ -591,7 +605,9 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
         _require_string(value.message, "Decision-gap message")
         _require_string(value.consequence, "Decision-gap consequence")
         _require_string_tuple(value.evidence_ids, "Decision-gap evidence IDs")
+        _require_string_tuple(value.action_ids, "Decision-gap action IDs")
         return {
+            "action_ids": list(value.action_ids),
             "candidate_id": value.candidate_id,
             "consequence": value.consequence,
             "control_class": _control_class(value.control_class),
@@ -599,7 +615,7 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "criterion_kind": _enum_value(
                 value.criterion_kind,
                 CriterionKind,
-                ("outcome", "constraint"),
+                ("outcome", "constraint", "authority", "hard-veto", "human-control"),
             ),
             "effect": _rule_effect(value.effect),
             "evidence_ids": list(value.evidence_ids),
@@ -665,6 +681,7 @@ def _unresolved_gaps(assessment: AssessmentEvaluation) -> tuple[UnresolvedGap, .
             evidence_ids=finding.evidence_ids,
             message=finding.message,
             consequence=finding.consequence,
+            action_ids=finding.action_ids,
         )
         for finding in assessment.ordered_elimination_evaluation.findings
         if finding.effect is RuleEffect.REQUIRE_EVIDENCE

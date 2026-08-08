@@ -47,6 +47,7 @@ from archsift.validation import (
     AutonomyPermission,
     AutonomyQuestion,
     Candidate,
+    CandidateAuthority,
     CandidateComparison,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -196,6 +197,7 @@ def _autonomy() -> AutonomyPermission:
                 "Release is prohibited until review completes.",
                 ("release",),
                 ("autonomy-observed",),
+                (ControlClass.AGENTIC_CONTROL,),
             ),
         ),
         mandatory_human_controls=(
@@ -239,6 +241,20 @@ def _candidate(
                 f"Synthetic approval result for {identifier}.",
                 ("decision-observed",),
             ),
+        ),
+        authority=(
+            CandidateAuthority(
+                ("release",),
+                ("approve-release",),
+                ("autonomy-observed",),
+            )
+            if control_class
+            in {
+                ControlClass.DETERMINISTIC_AUTOMATION,
+                ControlClass.FIXED_AI_WORKFLOW,
+                ControlClass.AGENTIC_CONTROL,
+            }
+            else None
         ),
     )
 
@@ -379,7 +395,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.4.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.5.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
     assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
@@ -648,7 +664,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
             "assessment ruleset_version",
             replace(
                 record,
-                assessment=replace(assessment, ruleset_version=twin("1.4.0")),
+                assessment=replace(assessment, ruleset_version=twin("1.5.0")),
             ),
         ),
         (
@@ -666,7 +682,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     prerequisite_evaluation=replace(
                         prerequisites,
-                        ruleset_version=twin("1.4.0"),
+                        ruleset_version=twin("1.5.0"),
                     ),
                 ),
             ),
@@ -679,7 +695,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     ordered_elimination_evaluation=replace(
                         elimination,
-                        ruleset_version=twin("1.4.0"),
+                        ruleset_version=twin("1.5.0"),
                     ),
                 ),
             ),

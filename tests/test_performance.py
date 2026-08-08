@@ -35,6 +35,14 @@ def test_large_dossier_fixture_is_deterministic_and_has_prd_scale() -> None:
     assert role_lists[0] == ["current-baseline"]
     assert role_lists[-2] == ["strongest-simpler"]
     assert role_lists[-1] == ["proposed", "agentic-comparator"]
+    automation_candidates = comparison["candidates"][6:]
+    assert all(
+        candidate["authority"]["action_ids"] == ["release-disposition"]
+        for candidate in automation_candidates
+    )
+    assert first["autonomy_permission"]["hard_vetoes"][0]["prohibited_control_classes"] == [
+        "agentic-control"
+    ]
 
 
 def test_large_dossier_is_valid_typed_and_assessment_prerequisite_ready(tmp_path: Path) -> None:
@@ -57,6 +65,8 @@ def test_large_dossier_is_valid_typed_and_assessment_prerequisite_ready(tmp_path
         CandidateRole.PROPOSED,
         CandidateRole.AGENTIC_COMPARATOR,
     )
+    assert comparison.candidates[-1].authority is not None
+    assert comparison.candidates[-1].authority.retained_human_control_ids == ("approve-release",)
     prerequisites = evaluate_assessment_prerequisites(result.dossier)
     assert prerequisites.ready is True
     assert prerequisites.findings == ()

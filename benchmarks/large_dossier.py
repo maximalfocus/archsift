@@ -108,7 +108,7 @@ def _candidate(index: int) -> dict[str, Any]:
     else:
         control_class = "fixed-ai-workflow"
         roles = []
-    return {
+    candidate: dict[str, Any] = {
         "id": f"candidate-{index:02d}",
         "name": f"Synthetic candidate {index:02d}",
         "description": "A public synthetic architecture candidate for performance testing.",
@@ -125,6 +125,17 @@ def _candidate(index: int) -> dict[str, Any]:
         ],
         "constraint_tests": [],
     }
+    if control_class in {
+        "deterministic-automation",
+        "fixed-ai-workflow",
+        "agentic-control",
+    }:
+        candidate["authority"] = {
+            "action_ids": ["release-disposition"],
+            "retained_human_control_ids": ["approve-release"],
+            "evidence_ids": ["autonomy-observed"],
+        }
+    return candidate
 
 
 def _comparison(subject: str, comparator: str) -> dict[str, Any]:
@@ -249,6 +260,7 @@ def build_large_dossier() -> dict[str, Any]:
                     "consequence": "Autonomous release is prohibited.",
                     "action_ids": ["release-disposition"],
                     "evidence_ids": ["autonomy-observed"],
+                    "prohibited_control_classes": ["agentic-control"],
                 }
             ],
             "mandatory_human_controls": [

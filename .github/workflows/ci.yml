@@ -123,12 +123,14 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.4.0"
-          assert len(rules_payload["rules"]) == 35
+          assert rules_payload["ruleset_version"] == "1.5.0"
+          assert len(rules_payload["rules"]) == 43
           effects = [rule["effect"] for rule in rules_payload["rules"]]
-          assert effects.count("block") == 3
-          assert effects.count("require-evidence") == 27
+          assert effects.count("block") == 5
+          assert effects.count("require-evidence") == 31
           assert effects.count("support-candidate") == 5
+          assert effects.count("constrain-autonomy") == 1
+          assert effects.count("non-decisive") == 1
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")
@@ -147,7 +149,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.4.0"
+          assert initialized_payload["ruleset_version"] == "1.5.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -263,6 +265,7 @@ jobs:
                       "consequence": "Autonomous release is prohibited.",
                       "action_ids": ["release-disposition"],
                       "evidence_ids": ["autonomy-observed"],
+                      "prohibited_control_classes": ["agentic-control"],
                   }],
                   "mandatory_human_controls": [{
                       "id": "approve-release",
@@ -304,6 +307,11 @@ jobs:
                       "control_class": "fixed-ai-workflow",
                       "roles": ["proposed"],
                       "material_deviations": ["Release remains human-approved."],
+                      "authority": {
+                          "action_ids": ["release-disposition"],
+                          "retained_human_control_ids": ["approve-release"],
+                          "evidence_ids": ["autonomy-observed"],
+                      },
                       "outcome_tests": [{
                           "outcome_id": "reduce-time",
                           "result": "meets",
@@ -362,7 +370,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.4.0"
+          assert payload["ruleset_version"] == "1.5.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
@@ -390,7 +398,8 @@ jobs:
                   python,
                   "-c",
                   (
-                      "import json; from pathlib import Path; import sys; "
+                      "import json; from dataclasses import replace; "
+                      "from pathlib import Path; import sys; "
                       "from archsift.artefacts import evidence_artefact_identities; "
                       "from archsift.canonical import canonical_dossier_bytes, "
                       "dossier_content_identity, evidence_content_identities; "
@@ -398,7 +407,7 @@ jobs:
                       "from archsift.decision_record import canonical_decision_record_bytes, "
                       "compose_decision_record; "
                       "from archsift.markdown_report import render_markdown_decision_report; "
-                      "from archsift.validation import validate_workspace; "
+                      "from archsift.validation import ControlClass, validate_workspace; "
                       "dossier = validate_workspace(Path(sys.argv[1])).dossier; "
                       "assert dossier is not None; "
                       "result = evaluate_assessment(dossier); "
@@ -409,6 +418,16 @@ jobs:
                       "assert result.recommended_class.value == 'fixed-ai-workflow'; "
                       "assert result.active_hard_veto_ids == ('no-autonomous-release',); "
                       "assert result.mandatory_human_control_ids == ('approve-release',); "
+                      "assert any(f.rule_id == 'mandatory-human-control-retained' "
+                      "for f in result.ordered_elimination_evaluation.findings); "
+                      "autonomy = dossier.autonomy_permission; assert autonomy is not None; "
+                      "blocked_veto = replace(autonomy.hard_vetoes[0], "
+                      "prohibited_control_classes=(ControlClass.FIXED_AI_WORKFLOW,)); "
+                      "blocked = replace(dossier, autonomy_permission=replace(autonomy, "
+                      "hard_vetoes=(blocked_veto,))); blocked_result = evaluate_assessment(blocked); "
+                      "assert blocked_result.verdict.value == 'no-permissible-candidate'; "
+                      "assert any(f.rule_id == 'active-veto-blocks-candidate' "
+                      "for f in blocked_result.ordered_elimination_evaluation.findings); "
                       "assert tuple(c.id for c in result.unmet_conditions) == "
                       "('verify-production-capacity',); "
                       "print(json.dumps({'canonical_bytes': canonical_dossier_bytes(dossier).hex(), "

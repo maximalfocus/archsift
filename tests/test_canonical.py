@@ -32,6 +32,7 @@ from archsift.validation import (
     AutonomyPermission,
     AutonomyQuestion,
     Candidate,
+    CandidateAuthority,
     CandidateComparison,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -66,7 +67,7 @@ from archsift.validation import (
 )
 
 _GOLDEN = Path(__file__).parent / "golden" / "canonical-dossier-v1.json"
-_EXPECTED_DOSSIER_ID = "sha256:c73d3443dc50df4fd6e6504e4a3d4bc6a8431669d07ded488d17e2dcb2de9067"
+_EXPECTED_DOSSIER_ID = "sha256:58333c3684783bab0224d481e168ba861158c3fa505a8c4d94304784ffd62234"
 _EXPECTED_EVIDENCE_IDS = {
     "assumption": "sha256:10f6a22ef04cbac6a98c1d08b0966210e309d839fd7940373c7ed7644066c3ae",
     "estimate": "sha256:fff5c0155ee12491114a94548601a551ee293c00c2c7002978628d5a269d1245",
@@ -278,6 +279,7 @@ def _autonomy() -> AutonomyPermission:
                 "Release is prohibited.",
                 ("release",),
                 ("observed",),
+                (ControlClass.FIXED_AI_WORKFLOW, ControlClass.AGENTIC_CONTROL),
             ),
             HardVeto(
                 "inactive-veto",
@@ -349,6 +351,16 @@ def _candidate(
                 f"Synthetic preference result for {identifier}.",
                 ("assumption",),
             ),
+        ),
+        authority=(
+            CandidateAuthority(("record",), (), ("observed",))
+            if control_class
+            in {
+                ControlClass.DETERMINISTIC_AUTOMATION,
+                ControlClass.FIXED_AI_WORKFLOW,
+                ControlClass.AGENTIC_CONTROL,
+            }
+            else None
         ),
     )
 
@@ -472,7 +484,7 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
     assert identity == _EXPECTED_DOSSIER_ID
     assert dossier_content_identity(dossier) == identity
     assert evidence_content_identities(dossier) == _EXPECTED_EVIDENCE_IDS
-    assert RULESET_VERSION == "1.4.0"
+    assert RULESET_VERSION == "1.5.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:

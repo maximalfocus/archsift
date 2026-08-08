@@ -189,6 +189,7 @@ class HardVeto:
     consequence: str
     action_ids: tuple[str, ...]
     evidence_ids: tuple[str, ...]
+    prohibited_control_classes: tuple[ControlClass, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -267,6 +268,15 @@ class CandidateConstraintTest:
 
 
 @dataclass(frozen=True, slots=True)
+class CandidateAuthority:
+    """Evidence-backed task actions and human controls retained by an automation candidate."""
+
+    action_ids: tuple[str, ...]
+    retained_human_control_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class Candidate:
     """One explicitly classified architecture candidate."""
 
@@ -278,6 +288,7 @@ class Candidate:
     material_deviations: tuple[str, ...]
     outcome_tests: tuple[CandidateOutcomeTest, ...]
     constraint_tests: tuple[CandidateConstraintTest, ...]
+    authority: CandidateAuthority | None = None
 
 
 class ComparisonResult(StrEnum):
@@ -667,7 +678,9 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         requirement = "FR-005"
     elif base_field.startswith("$.agency_necessity"):
         requirement = "FR-006"
-    elif base_field.startswith("$.autonomy_permission"):
+    elif base_field.startswith("$.autonomy_permission") or (
+        base_field.startswith("$.candidate_comparison") and ".authority" in base_field
+    ):
         requirement = "FR-007"
     elif base_field.startswith("$.candidate_comparison"):
         requirement = "FR-008"
@@ -1139,6 +1152,8 @@ def _autonomy_permission_semantic_diagnostics(
 def _candidate_comparison_semantic_diagnostics(
     comparison: Mapping[str, Any] | None,
     problem: Mapping[str, Any] | None,
+    task: Mapping[str, Any] | None,
+    autonomy: Mapping[str, Any] | None,
     evidence: Sequence[Mapping[str, Any]],
 ) -> tuple[Diagnostic, ...]:
     if comparison is None:
@@ -1150,6 +1165,22 @@ def _candidate_comparison_semantic_diagnostics(
     first_candidate: dict[str, int] = {}
     first_role: dict[str, str] = {}
     evidence_references: list[tuple[str, str]] = []
+    authority_evidence_references: list[tuple[str, str]] = []
+    task_action_ids = (
+        {cast(str, action["id"]) for action in cast(Sequence[Mapping[str, Any]], task["actions"])}
+        if task is not None
+        else set()
+    )
+    human_controls = (
+        {
+            cast(str, control["id"]): {
+                action_id for action_id in cast(Sequence[str], control["action_ids"])
+            }
+            for control in cast(Sequence[Mapping[str, Any]], autonomy["mandatory_human_controls"])
+        }
+        if autonomy is not None
+        else {}
+    )
 
     outcome_ids = (
         {
@@ -1209,6 +1240,55 @@ def _candidate_comparison_semantic_diagnostics(
                         "FR-008",
                         "Assign each comparison role to at most one candidate.",
                     )
+                )
+
+        authority = cast(Mapping[str, Any] | None, candidate.get("authority"))
+        if authority is not None:
+            authority_path = f"$.candidate_comparison.candidates[{candidate_index}].authority"
+            authority_action_ids = tuple(cast(Sequence[str], authority["action_ids"]))
+            for action_index, action_id in enumerate(authority_action_ids):
+                if action_id not in task_action_ids:
+                    diagnostics.append(
+                        _diagnostic(
+                            "missing-candidate-authority-task-action-reference",
+                            f"Task action ID {action_id!r} does not exist in task.actions.",
+                            f"{authority_path}.action_ids[{action_index}]",
+                            "FR-007",
+                            "Add the referenced task action or use an existing task action ID.",
+                        )
+                    )
+            for control_index, control_id in enumerate(
+                cast(Sequence[str], authority["retained_human_control_ids"])
+            ):
+                control_actions = human_controls.get(control_id)
+                control_path = f"{authority_path}.retained_human_control_ids[{control_index}]"
+                if control_actions is None:
+                    diagnostics.append(
+                        _diagnostic(
+                            "missing-retained-human-control-reference",
+                            f"Mandatory human control ID {control_id!r} does not exist.",
+                            control_path,
+                            "FR-007",
+                            "Add the referenced mandatory control or use an existing control ID.",
+                        )
+                    )
+                elif not set(authority_action_ids).intersection(control_actions):
+                    diagnostics.append(
+                        _diagnostic(
+                            "retained-human-control-action-mismatch",
+                            f"Mandatory human control {control_id!r} does not apply to any "
+                            f"action controlled by candidate {identifier!r}.",
+                            control_path,
+                            "FR-007",
+                            "Retain only controls whose task actions intersect candidate "
+                            "authority.",
+                        )
+                    )
+            for evidence_index, evidence_id in enumerate(
+                cast(Sequence[str], authority["evidence_ids"])
+            ):
+                authority_evidence_references.append(
+                    (f"{authority_path}.evidence_ids[{evidence_index}]", evidence_id)
                 )
 
         for collection, reference_field, expected_ids, other_ids in (
@@ -1350,6 +1430,29 @@ def _candidate_comparison_semantic_diagnostics(
                     path,
                     "FR-008",
                     "Add comparative-fit to that evidence entry's affects list or cite "
+                    "relevant evidence.",
+                )
+            )
+    for path, identifier in authority_evidence_references:
+        referenced_entry = evidence_by_id.get(identifier)
+        if referenced_entry is None:
+            diagnostics.append(
+                _diagnostic(
+                    "missing-candidate-authority-evidence-reference",
+                    f"Evidence ID {identifier!r} does not exist in the evidence ledger.",
+                    path,
+                    "FR-007",
+                    "Add the evidence entry or use an existing evidence ID.",
+                )
+            )
+        elif "autonomy-permission" not in cast(Sequence[str], referenced_entry["affects"]):
+            diagnostics.append(
+                _diagnostic(
+                    "candidate-authority-evidence-area-mismatch",
+                    f"Evidence ID {identifier!r} is not classified for autonomy-permission.",
+                    path,
+                    "FR-007",
+                    "Add autonomy-permission to that evidence entry's affects list or cite "
                     "relevant evidence.",
                 )
             )
@@ -1562,6 +1665,14 @@ def _typed_autonomy_permission(
             consequence=cast(str, raw["consequence"]),
             action_ids=tuple(cast(Sequence[str], raw["action_ids"])),
             evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+            prohibited_control_classes=(
+                tuple(
+                    ControlClass(value)
+                    for value in cast(Sequence[str], raw["prohibited_control_classes"])
+                )
+                if raw.get("prohibited_control_classes") is not None
+                else None
+            ),
         )
         for raw in cast(Sequence[Mapping[str, Any]], autonomy["hard_vetoes"])
     )
@@ -1621,6 +1732,17 @@ def _typed_candidate_comparison(
                     evidence_ids=tuple(cast(Sequence[str], test["evidence_ids"])),
                 )
                 for test in cast(Sequence[Mapping[str, Any]], raw["constraint_tests"])
+            ),
+            authority=(
+                CandidateAuthority(
+                    action_ids=tuple(cast(Sequence[str], raw["authority"]["action_ids"])),
+                    retained_human_control_ids=tuple(
+                        cast(Sequence[str], raw["authority"]["retained_human_control_ids"])
+                    ),
+                    evidence_ids=tuple(cast(Sequence[str], raw["authority"]["evidence_ids"])),
+                )
+                if raw.get("authority") is not None
+                else None
             ),
         )
         for raw in cast(Sequence[Mapping[str, Any]], comparison["candidates"])
@@ -2381,7 +2503,11 @@ def validate_workspace(workspace: Path) -> ValidationResult:
                 raw_autonomy_permission, raw_task, raw_evidence
             ),
             *_candidate_comparison_semantic_diagnostics(
-                raw_candidate_comparison, raw_problem_value, raw_evidence
+                raw_candidate_comparison,
+                raw_problem_value,
+                raw_task,
+                raw_autonomy_permission,
+                raw_evidence,
             ),
             *_decision_condition_semantic_diagnostics(raw_decision_conditions, raw_evidence),
         ),

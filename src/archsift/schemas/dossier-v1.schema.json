@@ -444,7 +444,22 @@
         "condition": { "$ref": "#/$defs/nonBlankString" },
         "consequence": { "$ref": "#/$defs/nonBlankString" },
         "action_ids": { "$ref": "#/$defs/actionIds" },
-        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" },
+        "prohibited_control_classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "human-owned-work",
+              "process-redesign",
+              "deterministic-automation",
+              "fixed-ai-workflow",
+              "agentic-control"
+            ]
+          }
+        }
       }
     },
     "mandatoryHumanControl": {
@@ -576,7 +591,22 @@
         "constraint_tests": {
           "type": "array",
           "items": { "$ref": "#/$defs/candidateConstraintTest" }
-        }
+        },
+        "authority": { "$ref": "#/$defs/candidateAuthority" }
+      }
+    },
+    "candidateAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_ids", "retained_human_control_ids", "evidence_ids"],
+      "properties": {
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "retained_human_control_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
       }
     },
     "candidateOutcomeTest": {

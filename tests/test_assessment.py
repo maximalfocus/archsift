@@ -21,6 +21,7 @@ from archsift.validation import (
     AutonomyPermission,
     AutonomyQuestion,
     Candidate,
+    CandidateAuthority,
     CandidateComparison,
     CandidateConstraintTest,
     CandidateOutcomeTest,
@@ -119,6 +120,12 @@ def _task() -> TaskBoundary:
         information_read=("Synthetic case data",),
         actions=(
             TaskAction(
+                "prepare-disposition",
+                "Prepare the bounded disposition.",
+                False,
+                "A reviewer remains responsible for the draft.",
+            ),
+            TaskAction(
                 "release-disposition",
                 "Release the approved disposition.",
                 True,
@@ -167,6 +174,11 @@ def _autonomy() -> AutonomyPermission:
                 "Autonomous release is prohibited.",
                 ("release-disposition",),
                 ("autonomy-observed",),
+                (
+                    ControlClass.DETERMINISTIC_AUTOMATION,
+                    ControlClass.FIXED_AI_WORKFLOW,
+                    ControlClass.AGENTIC_CONTROL,
+                ),
             ),
             HardVeto(
                 "ignored-inactive-veto",
@@ -175,6 +187,7 @@ def _autonomy() -> AutonomyPermission:
                 "No current restriction.",
                 ("release-disposition",),
                 ("autonomy-observed",),
+                (ControlClass.DETERMINISTIC_AUTOMATION,),
             ),
             HardVeto(
                 "a-active-veto",
@@ -183,6 +196,11 @@ def _autonomy() -> AutonomyPermission:
                 "Release is prohibited until approval exists.",
                 ("release-disposition",),
                 ("autonomy-observed",),
+                (
+                    ControlClass.DETERMINISTIC_AUTOMATION,
+                    ControlClass.FIXED_AI_WORKFLOW,
+                    ControlClass.AGENTIC_CONTROL,
+                ),
             ),
         ),
         mandatory_human_controls=(
@@ -236,6 +254,20 @@ def _candidate(
                 "Synthetic approval-boundary result.",
                 (constraint_evidence_id,),
             ),
+        ),
+        authority=(
+            CandidateAuthority(
+                ("prepare-disposition",),
+                (),
+                ("autonomy-observed",),
+            )
+            if control_class
+            in {
+                ControlClass.DETERMINISTIC_AUTOMATION,
+                ControlClass.FIXED_AI_WORKFLOW,
+                ControlClass.AGENTIC_CONTROL,
+            }
+            else None
         ),
     )
 
@@ -321,7 +353,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.4.0"
+    assert RULESET_VERSION == "1.5.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -330,6 +362,18 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         ("verdict-no-technology-change", RuleEffect.SUPPORT_CANDIDATE),
         ("verdict-supported", RuleEffect.SUPPORT_CANDIDATE),
     ]
+    autonomy_rules = [rule for rule in list_rules() if rule.requirement == "FR-007/FR-009"]
+    assert [(rule.id, rule.effect) for rule in autonomy_rules] == [
+        ("active-veto-applicability-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("active-veto-blocks-candidate", RuleEffect.BLOCK),
+        ("automation-authority-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("autonomy-boundary-non-decisive", RuleEffect.NON_DECISIVE),
+        ("credible-authority-evidence-missing", RuleEffect.REQUIRE_EVIDENCE),
+        ("mandatory-human-control-omitted", RuleEffect.BLOCK),
+        ("mandatory-human-control-retained", RuleEffect.CONSTRAIN_AUTONOMY),
+        ("overlapping-veto-status-unknown", RuleEffect.REQUIRE_EVIDENCE),
+    ]
+    assert all(rule.source_rationale for rule in autonomy_rules)
 
 
 def test_incomplete_prerequisites_abstain_with_exact_nested_findings() -> None:
@@ -661,6 +705,294 @@ def test_vetoes_controls_and_estimates_do_not_invent_conditional_verdict() -> No
         "a-approval-control",
         "z-review-control",
     )
+    fixed_findings = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "fixed"
+        and finding.criterion_kind.value in {"hard-veto", "human-control"}
+    ]
+    assert fixed_findings
+    assert all(finding.effect is RuleEffect.NON_DECISIVE for finding in fixed_findings)
+    assert all(finding.action_ids == () for finding in fixed_findings)
+
+
+def _release_authority_candidate(*, retained_controls: tuple[str, ...]) -> Candidate:
+    candidate = _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS)
+    assert candidate.authority is not None
+    return replace(
+        candidate,
+        authority=replace(
+            candidate.authority,
+            action_ids=("release-disposition",),
+            retained_human_control_ids=retained_controls,
+        ),
+    )
+
+
+def _inactive_veto_autonomy(autonomy: AutonomyPermission) -> AutonomyPermission:
+    return replace(
+        autonomy,
+        hard_vetoes=tuple(
+            replace(veto, status=HardVetoStatus.INACTIVE) for veto in autonomy.hard_vetoes
+        ),
+    )
+
+
+def test_retained_human_controls_constrain_without_inventing_a_condition() -> None:
+    fixed = _release_authority_candidate(
+        retained_controls=("a-approval-control", "z-review-control")
+    )
+    assert fixed.authority is not None
+    fixed = replace(
+        fixed,
+        authority=replace(fixed.authority, evidence_ids=("authority-distinct",)),
+    )
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        fixed,
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+        extra_evidence=(_observed("authority-distinct", DecisionArea.AUTONOMY_PERMISSION),),
+    )
+    assert dossier.autonomy_permission is not None
+    dossier = replace(
+        dossier,
+        autonomy_permission=_inactive_veto_autonomy(dossier.autonomy_permission),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    retained = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "mandatory-human-control-retained"
+    ]
+    assert [finding.criterion_id for finding in retained] == [
+        "a-approval-control",
+        "z-review-control",
+    ]
+    assert all(finding.effect is RuleEffect.CONSTRAIN_AUTONOMY for finding in retained)
+    assert all(finding.action_ids == ("release-disposition",) for finding in retained)
+    assert all(
+        finding.evidence_ids == ("authority-distinct", "autonomy-observed") for finding in retained
+    )
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert evaluation.unmet_conditions == ()
+
+
+def test_omitted_mandatory_human_control_blocks_the_candidate() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _release_authority_candidate(retained_controls=()),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    assert dossier.autonomy_permission is not None
+    dossier = replace(
+        dossier,
+        autonomy_permission=_inactive_veto_autonomy(dossier.autonomy_permission),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    omitted = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "mandatory-human-control-omitted"
+    ]
+    assert [finding.criterion_id for finding in omitted] == [
+        "a-approval-control",
+        "z-review-control",
+    ]
+    assert all(finding.effect is RuleEffect.BLOCK for finding in omitted)
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+
+
+def test_missing_automation_authority_leaves_candidate_undetermined() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        replace(
+            _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+            authority=None,
+        ),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "automation-authority-missing"
+    )
+    assert gap.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert gap.criterion_kind.value == "authority"
+    assert gap.action_ids == ()
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_assumption_only_authority_evidence_leaves_candidate_undetermined() -> None:
+    assumption = AssumptionEvidence(
+        "authority-assumption",
+        "The fixed workflow may control the release action.",
+        "Architecture reviewer",
+        (DecisionArea.AUTONOMY_PERMISSION,),
+        falsified_by="Observe the candidate's actual task-action authority boundary.",
+    )
+    fixed = _release_authority_candidate(
+        retained_controls=("a-approval-control", "z-review-control")
+    )
+    assert fixed.authority is not None
+    fixed = replace(
+        fixed,
+        authority=replace(fixed.authority, evidence_ids=("authority-assumption",)),
+    )
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        fixed,
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+        extra_evidence=(assumption,),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "credible-authority-evidence-missing"
+    )
+    assert gap.evidence_ids == ("authority-assumption",)
+    assert gap.action_ids == ("release-disposition",)
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_missing_overlapping_veto_applicability_leaves_candidate_undetermined() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _release_authority_candidate(retained_controls=("a-approval-control", "z-review-control")),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    assert dossier.autonomy_permission is not None
+    inactive = _inactive_veto_autonomy(dossier.autonomy_permission)
+    first_veto = replace(
+        inactive.hard_vetoes[0],
+        status=HardVetoStatus.ACTIVE,
+        prohibited_control_classes=None,
+    )
+    dossier = replace(
+        dossier,
+        autonomy_permission=replace(
+            inactive,
+            hard_vetoes=(first_veto, *inactive.hard_vetoes[1:]),
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    gap = next(
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "active-veto-applicability-missing"
+    )
+    assert gap.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert gap.action_ids == ("release-disposition",)
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_overlapping_unknown_veto_status_leaves_candidate_undetermined() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _release_authority_candidate(retained_controls=("a-approval-control", "z-review-control")),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    assert dossier.autonomy_permission is not None
+    inactive = _inactive_veto_autonomy(dossier.autonomy_permission)
+    first_veto = replace(
+        inactive.hard_vetoes[0],
+        status=HardVetoStatus.UNKNOWN,
+        prohibited_control_classes=(ControlClass.FIXED_AI_WORKFLOW,),
+    )
+    dossier = replace(
+        dossier,
+        autonomy_permission=replace(
+            inactive,
+            hard_vetoes=(first_veto, *inactive.hard_vetoes[1:]),
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    unknown = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "overlapping-veto-status-unknown"
+    ]
+    assert [finding.candidate_id for finding in unknown] == ["fixed"]
+    assert all(finding.requirement == "FR-007/FR-009" for finding in unknown)
+    assert all(finding.effect is RuleEffect.REQUIRE_EVIDENCE for finding in unknown)
+    assert all(finding.criterion_kind.value == "hard-veto" for finding in unknown)
+    assert all(finding.action_ids == ("release-disposition",) for finding in unknown)
+    assert all("unknown applicability" in finding.message for finding in unknown)
+    assert all("inactive" not in finding.message for finding in unknown)
+    fixed_result = next(
+        candidate
+        for candidate in evaluation.ordered_elimination_evaluation.candidates
+        if candidate.candidate_id == "fixed"
+    )
+    assert fixed_result.disposition.value == "undetermined"
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_active_veto_overlap_blocks_a_prohibited_automation_candidate() -> None:
+    human = _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS)
+    fixed = _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS)
+    assert fixed.authority is not None
+    fixed = replace(
+        fixed,
+        authority=replace(
+            fixed.authority,
+            action_ids=("release-disposition",),
+            retained_human_control_ids=("a-approval-control", "z-review-control"),
+        ),
+    )
+    dossier = _ready_dossier(
+        human,
+        fixed,
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    fixed_result = next(
+        candidate
+        for candidate in evaluation.ordered_elimination_evaluation.candidates
+        if candidate.candidate_id == "fixed"
+    )
+    assert fixed_result.disposition.value == "eliminated"
+    veto_findings = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.candidate_id == "fixed" and finding.criterion_kind.value == "hard-veto"
+    ]
+    assert [finding.rule_id for finding in veto_findings] == [
+        "active-veto-blocks-candidate",
+        "autonomy-boundary-non-decisive",
+        "active-veto-blocks-candidate",
+    ]
+    assert all(finding.action_ids == ("release-disposition",) for finding in veto_findings)
+    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
 
 
 def test_unmet_prerequisite_precedes_complete_candidate_elimination() -> None:
