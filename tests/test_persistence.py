@@ -186,6 +186,38 @@ def test_paired_post_write_verification_failure_cleans_pair_and_stays_retryable(
     assert markdown_target.read_bytes() == markdown_content
 
 
+def test_pair_rollback_preserves_a_concurrent_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    json_content = canonical_decision_record_bytes(record)
+    markdown_content = render_markdown_decision_report(record)
+    json_target = _target(workspace, record.record_content_identity)
+    markdown_target = _target(workspace, record.record_content_identity, "md")
+    replacement = b"concurrent replacement bytes"
+    original_matches = persistence._existing_target_matches
+
+    def replacing_verification(target: Path, output_root: Path, content: bytes) -> bool:
+        # The first post-write verification of the freshly created JSON target
+        # simulates a concurrent process replacing the path before it is read.
+        if target == json_target:
+            json_target.unlink(missing_ok=True)
+            json_target.write_bytes(replacement)
+            return False
+        return original_matches(target, output_root, content)
+
+    monkeypatch.setattr(persistence, "_existing_target_matches", replacing_verification)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_outputs(workspace, record, json_content, markdown_content)
+
+    assert captured.value.category is RecordPersistenceFailure.INTEGRITY_CONFLICT
+    assert json_target.read_bytes() == replacement
+    assert not markdown_target.exists()
+
+
 def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
@@ -320,6 +352,58 @@ def test_write_failure_removes_partial_final_target(
 
     assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
     assert not target.exists()
+
+
+def test_partial_write_cleanup_preserves_a_concurrent_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    content = canonical_decision_record_bytes(record)
+    target = _target(workspace, record.record_content_identity)
+    replacement = b"concurrent replacement bytes"
+    original_open = Path.open
+
+    class ReplacingStream:
+        def __init__(self, stream: object) -> None:
+            self.stream = stream
+
+        def __enter__(self):
+            self.stream.__enter__()  # type: ignore[attr-defined]
+            return self
+
+        def __exit__(self, *args: object) -> object:
+            # Replace the path only after our own file is closed (required for
+            # Windows), simulating a concurrent process that lands a different
+            # file at the same content address before the attempt fails.
+            self.stream.__exit__(*args)  # type: ignore[attr-defined]
+            target.unlink(missing_ok=True)
+            target.write_bytes(replacement)
+            raise OSError("synthetic failure after concurrent replacement")
+
+        def write(self, data: bytes) -> int:
+            return self.stream.write(data)  # type: ignore[attr-defined,no-any-return]
+
+        def flush(self) -> None:
+            self.stream.flush()  # type: ignore[attr-defined]
+
+        def fileno(self) -> int:
+            return self.stream.fileno()  # type: ignore[attr-defined,no-any-return]
+
+    def failing_open(path: Path, *args: object, **kwargs: object):
+        stream = original_open(path, *args, **kwargs)
+        if path == target and args and args[0] == "xb":
+            return ReplacingStream(stream)
+        return stream
+
+    monkeypatch.setattr(Path, "open", failing_open)
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_record(workspace, record, content)
+
+    assert captured.value.category is RecordPersistenceFailure.WRITE_FAILED
+    assert target.read_bytes() == replacement
 
 
 def test_errors_are_stable_and_do_not_leak_host_paths(tmp_path: Path) -> None:

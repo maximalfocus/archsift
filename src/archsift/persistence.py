@@ -8,6 +8,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import BinaryIO
 
 from archsift.decision_record import DecisionRecord, canonical_decision_record_bytes
 from archsift.markdown_report import render_markdown_decision_report
@@ -208,38 +209,79 @@ def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
     )
 
 
+def _opened_file_identity(stream: BinaryIO) -> tuple[int, int] | None:
+    """Return the (device, inode) identity of the just-created open file.
+
+    The identity later proves that a path still names the file created by this
+    attempt before any cleanup deletes it. Filesystems without a usable file
+    index report a zero inode, which is treated as unknown so cleanup fails
+    closed instead of risking a concurrent replacement.
+    """
+    try:
+        status = os.fstat(stream.fileno())
+    except OSError:
+        return None
+    if status.st_ino == 0:
+        return None
+    return (status.st_dev, status.st_ino)
+
+
+def _same_created_file(target: Path, identity: tuple[int, int] | None) -> bool:
+    """Return whether the path still names the exact file opened this attempt."""
+    if identity is None:
+        return False
+    try:
+        status = target.stat()
+    except OSError:
+        return False
+    return (status.st_dev, status.st_ino) == identity
+
+
+def _unlink_created_file(target: Path, identity: tuple[int, int] | None) -> None:
+    """Remove a file this attempt created, never a concurrent replacement."""
+    if _same_created_file(target, identity):
+        with suppress(OSError):
+            target.unlink(missing_ok=True)
+
+
 def _persist_content(
     output_root: Path,
     filename: str,
     content: bytes,
-) -> PersistedDecisionRecord:
+) -> tuple[PersistedDecisionRecord, tuple[int, int] | None]:
+    """Create or byte-identically reuse one derived target.
+
+    Returns the persistence result and, for a freshly created file, the opened
+    file identity used to clean up only that exact file on any later failure.
+    """
     target = output_root / filename
     if target.exists() or target.is_symlink():
-        reused = _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", reused)
+        _reuse_or_conflict(target, output_root, content)
+        return PersistedDecisionRecord(f"output/{filename}", True), None
 
+    created_identity: tuple[int, int] | None = None
     created = False
     try:
         with target.open("xb") as stream:
             created = True
+            created_identity = _opened_file_identity(stream)
             if stream.write(content) != len(content):
                 raise OSError("incomplete decision-record write")
             stream.flush()
             os.fsync(stream.fileno())
     except FileExistsError:
-        reused = _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", reused)
+        _reuse_or_conflict(target, output_root, content)
+        return PersistedDecisionRecord(f"output/{filename}", True), None
     except OSError as error:
         if created:
-            with suppress(OSError):
-                target.unlink(missing_ok=True)
+            _unlink_created_file(target, created_identity)
         raise _error(
             RecordPersistenceFailure.WRITE_FAILED,
             requirement="FR-011",
             message="A decision-record output could not be written completely.",
             remediation="Restore write access and retry without replacing an existing record.",
         ) from error
-    return PersistedDecisionRecord(f"output/{filename}", False)
+    return PersistedDecisionRecord(f"output/{filename}", False), created_identity
 
 
 def persist_decision_record(
@@ -256,7 +298,7 @@ def persist_decision_record(
             message="Persistence content does not match the canonical decision record.",
             remediation="Persist only bytes produced from the same validated record.",
         )
-    return _persist_content(_resolve_output_root(workspace), _target_name(record), content)
+    return _persist_content(_resolve_output_root(workspace), _target_name(record), content)[0]
 
 
 def persist_decision_outputs(
@@ -294,14 +336,16 @@ def persist_decision_outputs(
         if target.exists() or target.is_symlink():
             _reuse_or_conflict(target, output_root, content)
 
-    created: list[Path] = []
+    created: list[tuple[Path, tuple[int, int] | None]] = []
     try:
-        persisted_json = _persist_content(output_root, json_name, json_content)
+        persisted_json, json_identity = _persist_content(output_root, json_name, json_content)
         if not persisted_json.reused:
-            created.append(output_root / json_name)
-        persisted_markdown = _persist_content(output_root, markdown_name, markdown_content)
+            created.append((output_root / json_name, json_identity))
+        persisted_markdown, markdown_identity = _persist_content(
+            output_root, markdown_name, markdown_content
+        )
         if not persisted_markdown.reused:
-            created.append(output_root / markdown_name)
+            created.append((output_root / markdown_name, markdown_identity))
         for filename, content in expected:
             if not _existing_target_matches(output_root / filename, output_root, content):
                 raise _error(
@@ -311,9 +355,11 @@ def persist_decision_outputs(
                     remediation="Preserve existing records and investigate the integrity conflict.",
                 )
     except OSError:
-        for target in created:
-            with suppress(OSError):
-                target.unlink(missing_ok=True)
+        # Roll back only files this attempt created: a path that once named our
+        # inode is not proof it still does, so an identity mismatch preserves
+        # the concurrent replacement and fails the pair closed.
+        for target, identity in created:
+            _unlink_created_file(target, identity)
         raise
 
     return PersistedDecisionOutputs(persisted_json, persisted_markdown)
