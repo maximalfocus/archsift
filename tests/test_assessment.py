@@ -371,6 +371,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         ("credible-authority-evidence-missing", RuleEffect.REQUIRE_EVIDENCE),
         ("mandatory-human-control-omitted", RuleEffect.BLOCK),
         ("mandatory-human-control-retained", RuleEffect.CONSTRAIN_AUTONOMY),
+        ("overlapping-veto-status-unknown", RuleEffect.REQUIRE_EVIDENCE),
     ]
     assert all(rule.source_rationale for rule in autonomy_rules)
 
@@ -903,6 +904,52 @@ def test_missing_overlapping_veto_applicability_leaves_candidate_undetermined() 
     )
     assert gap.effect is RuleEffect.REQUIRE_EVIDENCE
     assert gap.action_ids == ("release-disposition",)
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+
+
+def test_overlapping_unknown_veto_status_leaves_candidate_undetermined() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _release_authority_candidate(retained_controls=("a-approval-control", "z-review-control")),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    assert dossier.autonomy_permission is not None
+    inactive = _inactive_veto_autonomy(dossier.autonomy_permission)
+    first_veto = replace(
+        inactive.hard_vetoes[0],
+        status=HardVetoStatus.UNKNOWN,
+        prohibited_control_classes=(ControlClass.FIXED_AI_WORKFLOW,),
+    )
+    dossier = replace(
+        dossier,
+        autonomy_permission=replace(
+            inactive,
+            hard_vetoes=(first_veto, *inactive.hard_vetoes[1:]),
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    unknown = [
+        finding
+        for finding in evaluation.ordered_elimination_evaluation.findings
+        if finding.rule_id == "overlapping-veto-status-unknown"
+    ]
+    assert [finding.candidate_id for finding in unknown] == ["fixed"]
+    assert all(finding.requirement == "FR-007/FR-009" for finding in unknown)
+    assert all(finding.effect is RuleEffect.REQUIRE_EVIDENCE for finding in unknown)
+    assert all(finding.criterion_kind.value == "hard-veto" for finding in unknown)
+    assert all(finding.action_ids == ("release-disposition",) for finding in unknown)
+    assert all("unknown applicability" in finding.message for finding in unknown)
+    assert all("inactive" not in finding.message for finding in unknown)
+    fixed_result = next(
+        candidate
+        for candidate in evaluation.ordered_elimination_evaluation.candidates
+        if candidate.candidate_id == "fixed"
+    )
+    assert fixed_result.disposition.value == "undetermined"
     assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
 
 

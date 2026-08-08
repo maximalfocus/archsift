@@ -362,6 +362,15 @@ DECISION_RULES = tuple(
                 requirement="FR-007/FR-009",
             ),
             _decision_rule(
+                "overlapping-veto-status-unknown",
+                RuleEffect.REQUIRE_EVIDENCE,
+                "Require known status for an overlapping hard veto.",
+                "The affected automation candidate remains undetermined.",
+                "A boundary with unknown status cannot be treated as inactive when it overlaps "
+                "candidate authority.",
+                requirement="FR-007/FR-009",
+            ),
+            _decision_rule(
                 "mandatory-human-control-omitted",
                 RuleEffect.BLOCK,
                 "Block a candidate that omits an applicable mandatory human control.",

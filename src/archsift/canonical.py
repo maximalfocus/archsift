@@ -108,6 +108,7 @@ def _checked_object(
     values: JsonObject,
     *,
     extra_keys: tuple[str, ...] = (),
+    omitted_keys: tuple[str, ...] = (),
 ) -> JsonObject:
     if type(instance) is not expected_type or not is_dataclass(instance):
         raise CanonicalizationError(
@@ -118,7 +119,9 @@ def _checked_object(
         raise CanonicalizationError(
             f"Unsupported {expected_type.__name__} field contract for canonicalization."
         )
-    if set(values) != set(expected_fields) | set(extra_keys):
+    if not set(omitted_keys).issubset(expected_fields) or set(values) != (
+        set(expected_fields) - set(omitted_keys)
+    ) | set(extra_keys):
         raise CanonicalizationError(
             f"Incomplete {expected_type.__name__} canonical object contract."
         )
@@ -469,40 +472,41 @@ def _hard_veto(value: HardVeto) -> JsonObject:
         "evidence_ids",
         "prohibited_control_classes",
     )
+    values: JsonObject = {
+        "id": value.id,
+        "status": _enum_value(
+            value.status,
+            HardVetoStatus,
+            ("active", "inactive", "unknown"),
+        ),
+        "condition": value.condition,
+        "consequence": value.consequence,
+        "action_ids": list(value.action_ids),
+        "evidence_ids": list(value.evidence_ids),
+    }
+    if value.prohibited_control_classes is not None:
+        values["prohibited_control_classes"] = [
+            _enum_value(
+                item,
+                ControlClass,
+                (
+                    "human-owned-work",
+                    "process-redesign",
+                    "deterministic-automation",
+                    "fixed-ai-workflow",
+                    "agentic-control",
+                ),
+            )
+            for item in value.prohibited_control_classes
+        ]
     return _checked_object(
         value,
         HardVeto,
         expected,
-        {
-            "id": value.id,
-            "status": _enum_value(
-                value.status,
-                HardVetoStatus,
-                ("active", "inactive", "unknown"),
-            ),
-            "condition": value.condition,
-            "consequence": value.consequence,
-            "action_ids": list(value.action_ids),
-            "evidence_ids": list(value.evidence_ids),
-            "prohibited_control_classes": (
-                [
-                    _enum_value(
-                        item,
-                        ControlClass,
-                        (
-                            "human-owned-work",
-                            "process-redesign",
-                            "deterministic-automation",
-                            "fixed-ai-workflow",
-                            "agentic-control",
-                        ),
-                    )
-                    for item in value.prohibited_control_classes
-                ]
-                if value.prohibited_control_classes is not None
-                else None
-            ),
-        },
+        values,
+        omitted_keys=("prohibited_control_classes",)
+        if value.prohibited_control_classes is None
+        else (),
     )
 
 
@@ -607,45 +611,46 @@ def _candidate(value: Candidate) -> JsonObject:
         "constraint_tests",
         "authority",
     )
+    values: JsonObject = {
+        "id": value.id,
+        "name": value.name,
+        "description": value.description,
+        "control_class": _enum_value(
+            value.control_class,
+            ControlClass,
+            (
+                "human-owned-work",
+                "process-redesign",
+                "deterministic-automation",
+                "fixed-ai-workflow",
+                "agentic-control",
+            ),
+        ),
+        "roles": [
+            _enum_value(
+                role,
+                CandidateRole,
+                (
+                    "current-baseline",
+                    "proposed",
+                    "strongest-simpler",
+                    "agentic-comparator",
+                ),
+            )
+            for role in value.roles
+        ],
+        "material_deviations": list(value.material_deviations),
+        "outcome_tests": [_outcome_test(item) for item in value.outcome_tests],
+        "constraint_tests": [_constraint_test(item) for item in value.constraint_tests],
+    }
+    if value.authority is not None:
+        values["authority"] = _candidate_authority(value.authority)
     return _checked_object(
         value,
         Candidate,
         expected,
-        {
-            "id": value.id,
-            "name": value.name,
-            "description": value.description,
-            "control_class": _enum_value(
-                value.control_class,
-                ControlClass,
-                (
-                    "human-owned-work",
-                    "process-redesign",
-                    "deterministic-automation",
-                    "fixed-ai-workflow",
-                    "agentic-control",
-                ),
-            ),
-            "roles": [
-                _enum_value(
-                    role,
-                    CandidateRole,
-                    (
-                        "current-baseline",
-                        "proposed",
-                        "strongest-simpler",
-                        "agentic-comparator",
-                    ),
-                )
-                for role in value.roles
-            ],
-            "material_deviations": list(value.material_deviations),
-            "outcome_tests": [_outcome_test(item) for item in value.outcome_tests],
-            "constraint_tests": [_constraint_test(item) for item in value.constraint_tests],
-            "authority": (
-                _candidate_authority(value.authority) if value.authority is not None else None
-            ),
-        },
+        values,
+        omitted_keys=("authority",) if value.authority is None else (),
     )
 
 

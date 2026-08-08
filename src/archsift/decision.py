@@ -360,7 +360,7 @@ def _autonomy_findings(
     for veto in sorted(autonomy.hard_vetoes, key=lambda item: item.id):
         intersecting_actions = tuple(sorted(candidate_actions.intersection(veto.action_ids)))
         evidence_ids = tuple(sorted({*authority.evidence_ids, *veto.evidence_ids}))
-        if veto.status is not HardVetoStatus.ACTIVE or not intersecting_actions:
+        if not intersecting_actions:
             findings.append(
                 _finding(
                     "autonomy-boundary-non-decisive",
@@ -368,8 +368,35 @@ def _autonomy_findings(
                     veto.id,
                     CriterionKind.HARD_VETO,
                     evidence_ids,
-                    f"Hard veto {veto.id!r} is inactive or does not overlap candidate "
+                    f"Hard veto {veto.id!r} does not overlap candidate {candidate.id!r}.",
+                    (),
+                )
+            )
+        elif veto.status is HardVetoStatus.UNKNOWN:
+            # Unknown applicability of an overlapping boundary is an unresolved
+            # evidence state, not a non-decisive boundary: the candidate must
+            # not survive with a possibly applicable veto left unaccounted for.
+            findings.append(
+                _finding(
+                    "overlapping-veto-status-unknown",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Hard veto {veto.id!r} has unknown applicability for candidate "
                     f"{candidate.id!r}.",
+                    intersecting_actions,
+                )
+            )
+        elif veto.status is not HardVetoStatus.ACTIVE:
+            findings.append(
+                _finding(
+                    "autonomy-boundary-non-decisive",
+                    candidate,
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    evidence_ids,
+                    f"Hard veto {veto.id!r} is inactive for candidate {candidate.id!r}.",
                     intersecting_actions,
                 )
             )

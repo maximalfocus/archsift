@@ -312,6 +312,7 @@ def test_every_human_control_field_is_required(tmp_path: Path, missing_field: st
         ("veto", "consequence", " \t "),
         ("veto", "action_ids", [" \t "]),
         ("veto", "evidence_ids", [" \t "]),
+        ("veto", "prohibited_control_classes", None),
         ("veto", "prohibited_control_classes", []),
         ("veto", "prohibited_control_classes", ["unsupported"]),
         (

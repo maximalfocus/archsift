@@ -285,6 +285,22 @@ def test_complete_comparison_is_typed_immutable_ordered_and_ready(tmp_path: Path
         facts.candidates[0].name = "changed"  # type: ignore[misc]
 
 
+@pytest.mark.parametrize("value", [None, [], "authority"])
+def test_present_candidate_authority_must_be_a_strict_object(tmp_path: Path, value: object) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier_with_candidate_authority()
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[1]["authority"] = value
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == "$.candidate_comparison.candidates[1].authority"
+    assert result.diagnostics[0].requirement == "FR-007"
+
+
 def test_candidate_authority_is_typed_immutable_and_evidence_backed(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     _write_case(workspace, _dossier_with_candidate_authority())
