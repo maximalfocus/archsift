@@ -6,6 +6,7 @@ import subprocess
 import sys
 from dataclasses import FrozenInstanceError, dataclass, replace
 from datetime import date
+from enum import StrEnum
 from pathlib import Path
 
 import pytest
@@ -531,6 +532,16 @@ def test_stale_or_mutated_record_components_fail_consistency_checks() -> None:
                 record,
                 assessment=replace(
                     record.assessment,
+                    schema_version=True,
+                ),
+            ),
+            "assessment schema version",
+        ),
+        (
+            replace(
+                record,
+                assessment=replace(
+                    record.assessment,
                     prerequisite_evaluation=stale_prerequisites,
                 ),
             ),
@@ -557,6 +568,201 @@ def test_stale_or_mutated_record_components_fail_consistency_checks() -> None:
     for mutation, message in mutations:
         with pytest.raises(DecisionRecordError, match=message):
             canonical_decision_record_dict(mutation)
+
+
+def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> None:
+    dossier = positive_dossier()
+    record = compose_decision_record(dossier, tool_version=_TOOL_VERSION)
+    incomplete = compose_decision_record(incomplete_dossier(), tool_version=_TOOL_VERSION)
+
+    def twin(value: str) -> StrEnum:
+        return StrEnum("Twin", {"VALUE": value})["VALUE"]
+
+    assessment = record.assessment
+    elimination = assessment.ordered_elimination_evaluation
+    prerequisites = assessment.prerequisite_evaluation
+    finding = elimination.findings[0]
+    links = record.evidence_links
+    triggers = record.reassessment_triggers
+    incomplete_assessment = incomplete.assessment
+    incomplete_prerequisites = incomplete_assessment.prerequisite_evaluation
+    prerequisite_finding = incomplete_prerequisites.findings[0]
+    prerequisite_gap = incomplete.unresolved_gaps[0]
+
+    def assert_twin_rejected(mutated: DecisionRecord) -> None:
+        for canonicalize in (canonical_decision_record_dict, canonical_decision_record_bytes):
+            with pytest.raises(DecisionRecordError, match="must be text"):
+                canonicalize(mutated)
+
+    cases = (
+        (
+            "assessment ruleset_version",
+            replace(
+                record,
+                assessment=replace(assessment, ruleset_version=twin("1.3.0")),
+            ),
+        ),
+        (
+            "assessment verdict_rule_id",
+            replace(
+                record,
+                assessment=replace(assessment, verdict_rule_id=twin(assessment.verdict_rule_id)),
+            ),
+        ),
+        (
+            "prerequisite ruleset_version",
+            replace(
+                record,
+                assessment=replace(
+                    assessment,
+                    prerequisite_evaluation=replace(
+                        prerequisites,
+                        ruleset_version=twin("1.3.0"),
+                    ),
+                ),
+            ),
+        ),
+        (
+            "ordered-elimination ruleset_version",
+            replace(
+                record,
+                assessment=replace(
+                    assessment,
+                    ordered_elimination_evaluation=replace(
+                        elimination,
+                        ruleset_version=twin("1.3.0"),
+                    ),
+                ),
+            ),
+        ),
+        (
+            "candidate-elimination candidate_id",
+            replace(
+                record,
+                assessment=replace(
+                    assessment,
+                    ordered_elimination_evaluation=replace(
+                        elimination,
+                        candidates=(
+                            replace(elimination.candidates[0], candidate_id=twin("human")),
+                            *elimination.candidates[1:],
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        (
+            "decision-finding message",
+            replace(
+                record,
+                assessment=replace(
+                    assessment,
+                    ordered_elimination_evaluation=replace(
+                        elimination,
+                        findings=(
+                            replace(finding, message=twin(finding.message)),
+                            *elimination.findings[1:],
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        (
+            "prerequisite-finding field",
+            replace(
+                incomplete,
+                assessment=replace(
+                    incomplete_assessment,
+                    prerequisite_evaluation=replace(
+                        incomplete_prerequisites,
+                        findings=(
+                            replace(
+                                prerequisite_finding,
+                                field=twin(prerequisite_finding.field),
+                            ),
+                            *incomplete_prerequisites.findings[1:],
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        (
+            "prerequisite-gap rule_id",
+            replace(
+                incomplete,
+                unresolved_gaps=(
+                    replace(prerequisite_gap, rule_id=twin(prerequisite_gap.rule_id)),
+                    *incomplete.unresolved_gaps[1:],
+                ),
+            ),
+        ),
+        (
+            "evidence-link evidence_id",
+            replace(
+                record,
+                evidence_links=(
+                    replace(links[0], evidence_id=twin(links[0].evidence_id)),
+                    *links[1:],
+                ),
+            ),
+        ),
+        (
+            "evidence-link content_identity",
+            replace(
+                record,
+                evidence_links=(
+                    replace(links[0], content_identity=twin(links[0].content_identity)),
+                    *links[1:],
+                ),
+            ),
+        ),
+        (
+            "reassessment-trigger observation",
+            replace(
+                record,
+                reassessment_triggers=(
+                    replace(triggers[0], observation=twin(triggers[0].observation)),
+                    *triggers[1:],
+                ),
+            ),
+        ),
+    )
+    for _label, mutated in cases:
+        assert_twin_rejected(mutated)
+
+    assert dossier.candidate_comparison is not None
+    human = dossier.candidate_comparison.candidates[0]
+    unknown_test = replace(
+        human.outcome_tests[0],
+        result=CandidateTestResult.UNKNOWN,
+        evidence_ids=("z-missing",),
+    )
+    changed_human = replace(human, outcome_tests=(unknown_test,))
+    comparison = replace(
+        dossier.candidate_comparison,
+        candidates=(changed_human, *dossier.candidate_comparison.candidates[1:]),
+    )
+    decision_record = compose_decision_record(
+        replace(dossier, candidate_comparison=comparison),
+        tool_version=_TOOL_VERSION,
+    )
+    decision_gap = next(gap for gap in decision_record.unresolved_gaps if type(gap) is DecisionGap)
+    index = decision_record.unresolved_gaps.index(decision_gap)
+    twin_gaps = (
+        *decision_record.unresolved_gaps[:index],
+        replace(decision_gap, criterion_id=twin(decision_gap.criterion_id)),
+        *decision_record.unresolved_gaps[index + 1 :],
+    )
+    assert_twin_rejected(replace(decision_record, unresolved_gaps=twin_gaps))
+
+    for bad_schema in (True, 1.0):
+        mutated = replace(
+            record,
+            assessment=replace(assessment, schema_version=bad_schema),
+        )
+        for canonicalize in (canonical_decision_record_dict, canonical_decision_record_bytes):
+            with pytest.raises(DecisionRecordError, match="schema version"):
+                canonicalize(mutated)
 
 
 def test_malformed_nested_assessment_containers_fail_with_domain_error() -> None:

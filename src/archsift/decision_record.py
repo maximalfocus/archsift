@@ -156,6 +156,12 @@ def _require_string_tuple(value: object, label: str) -> tuple[str, ...]:
     return cast(tuple[str, ...], items)
 
 
+def _require_string(value: object, label: str) -> str:
+    if type(value) is not str:
+        raise DecisionRecordError(f"{label} must be text for decision records.")
+    return value
+
+
 def _enum_value(
     value: _EnumT,
     enum_type: type[_EnumT],
@@ -218,6 +224,12 @@ def _prerequisite_finding_dict(value: AssessmentPrerequisiteFinding) -> JsonObje
         "evidence_ids",
     )
     _checked_dataclass(value, AssessmentPrerequisiteFinding, expected)
+    _require_string(value.rule_id, "Prerequisite-finding rule_id")
+    _require_string(value.field, "Prerequisite-finding field")
+    _require_string(value.requirement, "Prerequisite-finding requirement")
+    _require_string(value.message, "Prerequisite-finding message")
+    _require_string(value.consequence, "Prerequisite-finding consequence")
+    _require_string(value.remediation, "Prerequisite-finding remediation")
     _rule_effect(value.effect)
     _require_string_tuple(value.evidence_ids, "Prerequisite-finding evidence IDs")
     return _checked_payload(value.to_dict(), expected, "prerequisite-finding")
@@ -226,6 +238,7 @@ def _prerequisite_finding_dict(value: AssessmentPrerequisiteFinding) -> JsonObje
 def _prerequisite_evaluation_dict(value: AssessmentPrerequisiteEvaluation) -> JsonObject:
     expected = ("ruleset_version", "ready", "findings")
     _checked_dataclass(value, AssessmentPrerequisiteEvaluation, expected)
+    _require_string(value.ruleset_version, "Prerequisite-evaluation ruleset_version")
     if type(value.ready) is not bool:
         raise DecisionRecordError("Assessment prerequisite readiness must be a boolean.")
     findings = _require_tuple(value.findings, "Assessment prerequisite findings")
@@ -248,6 +261,12 @@ def _decision_finding_dict(value: DecisionFinding) -> JsonObject:
         "consequence",
     )
     _checked_dataclass(value, DecisionFinding, expected)
+    _require_string(value.rule_id, "Decision-finding rule_id")
+    _require_string(value.requirement, "Decision-finding requirement")
+    _require_string(value.candidate_id, "Decision-finding candidate_id")
+    _require_string(value.criterion_id, "Decision-finding criterion_id")
+    _require_string(value.message, "Decision-finding message")
+    _require_string(value.consequence, "Decision-finding consequence")
     _rule_effect(value.effect)
     _control_class(value.control_class)
     _enum_value(value.criterion_kind, CriterionKind, ("outcome", "constraint"))
@@ -264,6 +283,7 @@ def _ordered_evaluation_dict(value: OrderedEliminationEvaluation) -> JsonObject:
         "least_surviving_class",
     )
     _checked_dataclass(value, OrderedEliminationEvaluation, expected)
+    _require_string(value.ruleset_version, "Ordered-elimination ruleset_version")
     candidate_values = _require_tuple(value.candidates, "Candidate eliminations")
     class_values = _require_tuple(value.control_classes, "Control-class eliminations")
     finding_values = _require_tuple(value.findings, "Ordered-elimination findings")
@@ -273,6 +293,7 @@ def _ordered_evaluation_dict(value: OrderedEliminationEvaluation) -> JsonObject:
             CandidateElimination,
             ("candidate_id", "control_class", "disposition"),
         )
+        _require_string(candidate.candidate_id, "Candidate-elimination candidate_id")
         _control_class(candidate.control_class)
         _enum_value(
             candidate.disposition,
@@ -314,6 +335,10 @@ def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
         "ordered_elimination_evaluation",
     )
     _checked_dataclass(value, AssessmentEvaluation, expected)
+    if type(value.schema_version) is not int:
+        raise DecisionRecordError("Decision-record assessment schema version must be an integer.")
+    _require_string(value.ruleset_version, "Assessment ruleset_version")
+    _require_string(value.verdict_rule_id, "Assessment verdict_rule_id")
     _require_string_tuple(value.active_hard_veto_ids, "Active hard-veto IDs")
     _require_string_tuple(value.mandatory_human_control_ids, "Mandatory human-control IDs")
     _require_string_tuple(value.surviving_candidate_ids, "Surviving candidate IDs")
@@ -342,6 +367,8 @@ def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
 
 def _evidence_link_dict(value: EvidenceLink) -> JsonObject:
     _checked_dataclass(value, EvidenceLink, ("evidence_id", "kind", "content_identity"))
+    _require_string(value.evidence_id, "Evidence-link evidence_id")
+    _require_string(value.content_identity, "Evidence-link content_identity")
     return {
         "content_identity": value.content_identity,
         "evidence_id": value.evidence_id,
@@ -367,6 +394,13 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "evidence_ids",
         )
         _checked_dataclass(value, PrerequisiteGap, expected)
+        _require_string(value.rule_id, "Prerequisite-gap rule_id")
+        _require_string(value.field, "Prerequisite-gap field")
+        _require_string(value.requirement, "Prerequisite-gap requirement")
+        _require_string(value.message, "Prerequisite-gap message")
+        _require_string(value.consequence, "Prerequisite-gap consequence")
+        _require_string(value.remediation, "Prerequisite-gap remediation")
+        _require_string_tuple(value.evidence_ids, "Prerequisite-gap evidence IDs")
         return {
             "consequence": value.consequence,
             "effect": _rule_effect(value.effect),
@@ -397,6 +431,13 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "consequence",
         )
         _checked_dataclass(value, DecisionGap, expected)
+        _require_string(value.rule_id, "Decision-gap rule_id")
+        _require_string(value.requirement, "Decision-gap requirement")
+        _require_string(value.candidate_id, "Decision-gap candidate_id")
+        _require_string(value.criterion_id, "Decision-gap criterion_id")
+        _require_string(value.message, "Decision-gap message")
+        _require_string(value.consequence, "Decision-gap consequence")
+        _require_string_tuple(value.evidence_ids, "Decision-gap evidence IDs")
         return {
             "candidate_id": value.candidate_id,
             "consequence": value.consequence,
@@ -427,6 +468,8 @@ def _trigger_dict(value: ReassessmentTrigger) -> JsonObject:
         ReassessmentTrigger,
         ("evidence_id", "kind", "observation"),
     )
+    _require_string(value.evidence_id, "Reassessment-trigger evidence_id")
+    _require_string(value.observation, "Reassessment-trigger observation")
     kind = _enum_value(
         value.kind,
         EvidenceKind,
