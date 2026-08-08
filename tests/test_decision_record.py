@@ -51,6 +51,8 @@ from archsift.validation import (
     ComparisonResult,
     ControlClass,
     DecisionArea,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EvidencedStatement,
     EvidenceKind,
@@ -275,9 +277,13 @@ def positive_dossier() -> Dossier:
         schema_version=1,
         case=CaseIdentity("decision-record", "Decision record café \u202e synthetic"),
         evidence=(
-            _observed("decision-observed", DecisionArea.COMPARATIVE_FIT),
+            replace(
+                _observed("decision-observed", DecisionArea.COMPARATIVE_FIT),
+                affects=(DecisionArea.PROBLEM_VALUE, DecisionArea.COMPARATIVE_FIT),
+            ),
             _observed("agency-observed", DecisionArea.AGENCY_NECESSITY),
             _observed("autonomy-observed", DecisionArea.AUTONOMY_PERMISSION),
+            _observed("condition-observed", DecisionArea.COMPARATIVE_FIT),
             AssumptionEvidence(
                 "a-assumption",
                 "A synthetic bounded assumption.\x1b",
@@ -303,6 +309,17 @@ def positive_dossier() -> Dossier:
                 CandidatePairComparison("deterministic", "human", _dimensions()),
                 CandidatePairComparison("fixed", "deterministic", _dimensions()),
                 CandidatePairComparison("fixed", "human", _dimensions()),
+            ),
+        ),
+        decision_conditions=(
+            DecisionCondition(
+                "verify-capacity",
+                ControlClass.FIXED_AI_WORKFLOW,
+                DecisionArea.COMPARATIVE_FIT,
+                "Verify production capacity before adoption.\x1b",
+                DecisionConditionStatus.UNMET,
+                "Run the named production-capacity test.",
+                ("condition-observed",),
             ),
         ),
     )
@@ -342,11 +359,12 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.record_schema_version == RECORD_SCHEMA_VERSION == 1
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.3.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.4.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
-    assert record.assessment.verdict is ArchitectureVerdict.SUPPORTED
+    assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
     assert record.assessment.evidence_state is EvidenceState.COMPLETE
+    assert [condition.id for condition in record.assessment.unmet_conditions] == ["verify-capacity"]
     assert record.assessment.recommended_class is ControlClass.FIXED_AI_WORKFLOW
     assert record.assessment.active_hard_veto_ids == ("review-before-release",)
     assert record.assessment.mandatory_human_control_ids == ("approve-release",)
@@ -367,6 +385,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
         ),
     ]
     assert list(payload["evidence_links"]) == sorted(evidence_content_identities(dossier))
+    assert "condition-observed" in payload["evidence_links"]
     assert content.endswith(b"\n") and not content.endswith(b"\n\n")
     assert b"\x1b" not in content
     assert b"datetime.date" not in content
@@ -599,7 +618,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
             "assessment ruleset_version",
             replace(
                 record,
-                assessment=replace(assessment, ruleset_version=twin("1.3.0")),
+                assessment=replace(assessment, ruleset_version=twin("1.4.0")),
             ),
         ),
         (
@@ -617,7 +636,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     prerequisite_evaluation=replace(
                         prerequisites,
-                        ruleset_version=twin("1.3.0"),
+                        ruleset_version=twin("1.4.0"),
                     ),
                 ),
             ),
@@ -630,7 +649,7 @@ def test_exact_scalar_guards_reject_equality_twins_through_dict_and_bytes() -> N
                     assessment,
                     ordered_elimination_evaluation=replace(
                         elimination,
-                        ruleset_version=twin("1.3.0"),
+                        ruleset_version=twin("1.4.0"),
                     ),
                 ),
             ),
@@ -818,6 +837,31 @@ def test_evolved_record_and_link_shapes_fail_exhaustiveness_guards() -> None:
         )
 
 
+def test_malformed_or_stale_nested_conditions_fail_closed() -> None:
+    record = compose_decision_record(positive_dossier(), tool_version=_TOOL_VERSION)
+    condition = record.assessment.unmet_conditions[0]
+
+    malformed = replace(
+        record,
+        assessment=replace(
+            record.assessment,
+            unmet_conditions=(replace(condition, statement=1),),  # type: ignore[arg-type]
+        ),
+    )
+    stale = replace(
+        record,
+        assessment=replace(
+            record.assessment,
+            unmet_conditions=(replace(condition, id="stale-condition"),),
+        ),
+    )
+
+    with pytest.raises(DecisionRecordError, match="statement must be text"):
+        canonical_decision_record_bytes(malformed)
+    with pytest.raises(DecisionRecordError, match="assessment is inconsistent"):
+        canonical_decision_record_bytes(stale)
+
+
 def test_composition_performs_no_io_environment_clock_randomness_or_mutation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -836,7 +880,7 @@ def test_composition_performs_no_io_environment_clock_randomness_or_mutation(
 
     record = compose_decision_record(dossier, tool_version=_TOOL_VERSION)
 
-    assert record.assessment.verdict is ArchitectureVerdict.SUPPORTED
+    assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
     assert repr(dossier) == before
 
 

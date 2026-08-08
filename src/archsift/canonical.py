@@ -32,6 +32,8 @@ from archsift.validation import (
     ComparisonResult,
     ControlClass,
     DecisionArea,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EstimateEvidence,
     Evidence,
@@ -652,6 +654,55 @@ def _candidate_comparison(value: CandidateComparison) -> JsonObject:
     )
 
 
+def _decision_condition(value: DecisionCondition) -> JsonObject:
+    expected = (
+        "id",
+        "target_control_class",
+        "decision_area",
+        "statement",
+        "status",
+        "resolved_by",
+        "evidence_ids",
+    )
+    return _checked_object(
+        value,
+        DecisionCondition,
+        expected,
+        {
+            "id": value.id,
+            "target_control_class": _enum_value(
+                value.target_control_class,
+                ControlClass,
+                (
+                    "human-owned-work",
+                    "process-redesign",
+                    "deterministic-automation",
+                    "fixed-ai-workflow",
+                    "agentic-control",
+                ),
+            ),
+            "decision_area": _enum_value(
+                value.decision_area,
+                DecisionArea,
+                (
+                    "problem-value",
+                    "agency-necessity",
+                    "autonomy-permission",
+                    "comparative-fit",
+                ),
+            ),
+            "statement": value.statement,
+            "status": _enum_value(
+                value.status,
+                DecisionConditionStatus,
+                ("met", "unmet"),
+            ),
+            "resolved_by": value.resolved_by,
+            "evidence_ids": list(value.evidence_ids),
+        },
+    )
+
+
 def canonical_evidence_dict(entry: Evidence) -> JsonObject:
     """Return one complete schema-v1 evidence entry as canonical JSON data."""
     _check_typed_value(entry, Evidence)
@@ -772,6 +823,7 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
         "agency_necessity",
         "autonomy_permission",
         "candidate_comparison",
+        "decision_conditions",
     )
     return _checked_object(
         dossier,
@@ -798,6 +850,9 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
                 if dossier.candidate_comparison is not None
                 else None
             ),
+            "decision_conditions": [
+                _decision_condition(condition) for condition in dossier.decision_conditions
+            ],
         },
     )
 

@@ -37,6 +37,9 @@ from archsift.rules import (
 from archsift.validation import (
     AssumptionEvidence,
     ControlClass,
+    DecisionArea,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EvidenceKind,
     MissingEvidence,
@@ -320,6 +323,45 @@ def _ordered_evaluation_dict(value: OrderedEliminationEvaluation) -> JsonObject:
     return _checked_payload(value.to_dict(), expected, "ordered-elimination evaluation")
 
 
+def _assessment_condition_dict(value: DecisionCondition) -> JsonObject:
+    expected = (
+        "id",
+        "target_control_class",
+        "decision_area",
+        "statement",
+        "status",
+        "resolved_by",
+        "evidence_ids",
+    )
+    _checked_dataclass(value, DecisionCondition, expected)
+    _require_string(value.id, "Decision-condition id")
+    _require_string(value.statement, "Decision-condition statement")
+    _require_string(value.resolved_by, "Decision-condition resolved_by")
+    _require_string_tuple(value.evidence_ids, "Decision-condition evidence IDs")
+    return {
+        "decision_area": _enum_value(
+            value.decision_area,
+            DecisionArea,
+            (
+                "problem-value",
+                "agency-necessity",
+                "autonomy-permission",
+                "comparative-fit",
+            ),
+        ),
+        "evidence_ids": list(value.evidence_ids),
+        "id": value.id,
+        "resolved_by": value.resolved_by,
+        "statement": value.statement,
+        "status": _enum_value(
+            value.status,
+            DecisionConditionStatus,
+            ("met", "unmet"),
+        ),
+        "target_control_class": _control_class(value.target_control_class),
+    }
+
+
 def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
     expected = (
         "schema_version",
@@ -329,6 +371,7 @@ def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
         "evidence_state",
         "recommended_class",
         "surviving_candidate_ids",
+        "unmet_conditions",
         "active_hard_veto_ids",
         "mandatory_human_control_ids",
         "prerequisite_evaluation",
@@ -342,6 +385,9 @@ def _assessment_dict(value: AssessmentEvaluation) -> JsonObject:
     _require_string_tuple(value.active_hard_veto_ids, "Active hard-veto IDs")
     _require_string_tuple(value.mandatory_human_control_ids, "Mandatory human-control IDs")
     _require_string_tuple(value.surviving_candidate_ids, "Surviving candidate IDs")
+    condition_values = _require_tuple(value.unmet_conditions, "Unmet decision conditions")
+    for condition in condition_values:
+        _assessment_condition_dict(condition)
     _enum_value(
         value.evidence_state,
         EvidenceState,

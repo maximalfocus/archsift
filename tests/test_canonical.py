@@ -44,6 +44,8 @@ from archsift.validation import (
     ComparisonResult,
     ControlClass,
     DecisionArea,
+    DecisionCondition,
+    DecisionConditionStatus,
     Dossier,
     EstimateEvidence,
     Evidence,
@@ -64,7 +66,7 @@ from archsift.validation import (
 )
 
 _GOLDEN = Path(__file__).parent / "golden" / "canonical-dossier-v1.json"
-_EXPECTED_DOSSIER_ID = "sha256:5664c638d21251f0c271c814e388d6c7e63295f40d9ee5a6626dd35b0449dc4d"
+_EXPECTED_DOSSIER_ID = "sha256:6b6a3d398a6b0ee4bad9ade639c3a6d2f8009306ffd3e4cf50e6bb20d654e869"
 _EXPECTED_EVIDENCE_IDS = {
     "assumption": "sha256:2fe4876c98dfd694c5094a82a6293a2e088ecb393c4a741995693f33b26d728c",
     "estimate": "sha256:37d865c9284d9878f6af989332a3393543d135e0c5e690c4789cc39fee05326f",
@@ -432,6 +434,26 @@ def full_dossier() -> Dossier:
                 ),
             ),
         ),
+        decision_conditions=(
+            DecisionCondition(
+                "verify-capacity",
+                ControlClass.FIXED_AI_WORKFLOW,
+                DecisionArea.COMPARATIVE_FIT,
+                "Verify synthetic capacity.\x1b",
+                DecisionConditionStatus.UNMET,
+                "Run the named synthetic capacity test.",
+                ("estimate",),
+            ),
+            DecisionCondition(
+                "retain-approval",
+                ControlClass.HUMAN_OWNED_WORK,
+                DecisionArea.AUTONOMY_PERMISSION,
+                "Retain synthetic approval.",
+                DecisionConditionStatus.MET,
+                "Observe the approval control operating.",
+                ("observed",),
+            ),
+        ),
     )
 
 
@@ -450,7 +472,7 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
     assert identity == _EXPECTED_DOSSIER_ID
     assert dossier_content_identity(dossier) == identity
     assert evidence_content_identities(dossier) == _EXPECTED_EVIDENCE_IDS
-    assert RULESET_VERSION == "1.3.0"
+    assert RULESET_VERSION == "1.4.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:
@@ -466,6 +488,7 @@ def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean()
         "agency_necessity": None,
         "autonomy_permission": None,
         "candidate_comparison": None,
+        "decision_conditions": [],
     }
     task = canonical_dossier_dict(full_dossier())["task"]
     assert isinstance(task, dict)

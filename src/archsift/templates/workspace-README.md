@@ -269,6 +269,19 @@ candidate_comparison:
 
 YAML anchors above only keep the sanitised example short; each expanded dimension is validated independently and must carry its own explicit result, rationale, and evidence IDs.
 
+Use `decision_conditions` only for authored obligations that apply after the minimum-sufficient control class is already determined. A condition cannot eliminate or promote a class. If resolving an uncertainty could change the selected class, record it as missing evidence instead. Conditions remain separate from hard vetoes and mandatory human controls.
+
+```yaml
+decision_conditions:
+  - id: verify-production-capacity
+    target_control_class: fixed-ai-workflow
+    decision_area: comparative-fit
+    statement: Verify production capacity before adopting the fixed workflow.
+    status: unmet
+    resolved_by: Run the named production-capacity test and record whether its threshold passes.
+    evidence_ids: [workflow-estimate]
+```
+
 Validate the dossier from this directory with:
 
 ```bash
