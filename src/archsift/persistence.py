@@ -11,6 +11,8 @@ from pathlib import Path
 
 from archsift.decision_record import DecisionRecord, canonical_decision_record_bytes
 
+_CHUNK_SIZE = 1024 * 1024
+
 
 class RecordPersistenceFailure(StrEnum):
     """Stable failures at the decision-record output boundary."""
@@ -127,7 +129,8 @@ def _target_name(record: DecisionRecord) -> str:
     return f"sha256-{identity[7:]}.json"
 
 
-def _existing_target_bytes(target: Path, output_root: Path) -> bytes:
+def _existing_target_matches(target: Path, output_root: Path, content: bytes) -> bool:
+    """Return whether the existing derived target holds exactly the given bytes."""
     try:
         resolved = target.resolve(strict=True)
     except (OSError, RuntimeError) as error:
@@ -160,7 +163,13 @@ def _existing_target_bytes(target: Path, output_root: Path) -> bytes:
                     message="The existing decision-record target is not a regular file.",
                     remediation="Remove the non-regular derived target.",
                 )
-            return stream.read()
+            offset = 0
+            while offset < len(content):
+                chunk = stream.read(min(_CHUNK_SIZE, len(content) - offset))
+                if not chunk or chunk != content[offset : offset + len(chunk)]:
+                    return False
+                offset += len(chunk)
+            return stream.read(1) == b""
     except RecordPersistenceError:
         raise
     except OSError as error:
@@ -173,7 +182,7 @@ def _existing_target_bytes(target: Path, output_root: Path) -> bytes:
 
 
 def _reuse_or_conflict(target: Path, output_root: Path, content: bytes) -> bool:
-    if _existing_target_bytes(target, output_root) == content:
+    if _existing_target_matches(target, output_root, content):
         return True
     raise _error(
         RecordPersistenceFailure.INTEGRITY_CONFLICT,

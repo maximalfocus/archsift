@@ -66,6 +66,20 @@ def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: 
     assert target.read_bytes() == b"different"
 
 
+def test_target_with_trailing_bytes_is_an_exact_byte_conflict(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    record = _record()
+    content = canonical_decision_record_bytes(record)
+    target = _target(workspace, record.record_content_identity)
+    target.write_bytes(content + b"trailing")
+
+    with pytest.raises(RecordPersistenceError) as captured:
+        persist_decision_record(workspace, record, content)
+
+    assert captured.value.category is RecordPersistenceFailure.INTEGRITY_CONFLICT
+    assert target.read_bytes() == content + b"trailing"
+
+
 def test_non_regular_derived_target_is_refused_without_opening_it(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
