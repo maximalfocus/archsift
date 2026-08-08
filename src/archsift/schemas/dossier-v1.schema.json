@@ -670,6 +670,19 @@
         "comparative-fit"
       ]
     },
+    "evidenceArtefactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "root", "path"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "root": {
+          "type": "string",
+          "enum": ["workspace", "external"]
+        },
+        "path": { "$ref": "#/$defs/nonBlankString" }
+      }
+    },
     "evidenceEntry": {
       "type": "object",
       "additionalProperties": false,
@@ -713,6 +726,11 @@
           "items": {
             "$ref": "#/$defs/decisionArea"
           }
+        },
+        "artefacts": {
+          "description": "Explicit relative references to evidence bytes; validation keeps them inert.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceArtefactReference" }
         },
         "provenance": {
           "description": "Named artefact or measurement supporting an observation.",

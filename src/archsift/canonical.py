@@ -37,6 +37,8 @@ from archsift.validation import (
     Dossier,
     EstimateEvidence,
     Evidence,
+    EvidenceArtefactReference,
+    EvidenceArtefactRoot,
     EvidencedStatement,
     EvidenceKind,
     HardVeto,
@@ -703,6 +705,24 @@ def _decision_condition(value: DecisionCondition) -> JsonObject:
     )
 
 
+def _evidence_artefact(value: EvidenceArtefactReference) -> JsonObject:
+    expected = ("id", "root", "path")
+    return _checked_object(
+        value,
+        EvidenceArtefactReference,
+        expected,
+        {
+            "id": value.id,
+            "root": _enum_value(
+                value.root,
+                EvidenceArtefactRoot,
+                ("workspace", "external"),
+            ),
+            "path": value.path,
+        },
+    )
+
+
 def canonical_evidence_dict(entry: Evidence) -> JsonObject:
     """Return one complete schema-v1 evidence entry as canonical JSON data."""
     _check_typed_value(entry, Evidence)
@@ -723,6 +743,7 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
             )
             for area in entry.affects
         ],
+        "artefacts": [_evidence_artefact(artefact) for artefact in entry.artefacts],
     }
     evidence_kind_values = ("observed", "assumption", "estimate", "missing")
     if type(entry) is ObservedEvidence:
@@ -738,7 +759,7 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             observed,
             ObservedEvidence,
-            ("id", "claim", "owner", "affects", "provenance", "observed_at"),
+            ("id", "claim", "owner", "affects", "provenance", "observed_at", "artefacts"),
             values,
             extra_keys=("kind",),
         )
@@ -752,7 +773,7 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             assumption,
             AssumptionEvidence,
-            ("id", "claim", "owner", "affects", "falsified_by"),
+            ("id", "claim", "owner", "affects", "falsified_by", "artefacts"),
             values,
             extra_keys=("kind",),
         )
@@ -766,7 +787,7 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             estimate,
             EstimateEvidence,
-            ("id", "claim", "owner", "affects", "method"),
+            ("id", "claim", "owner", "affects", "method", "artefacts"),
             values,
             extra_keys=("kind",),
         )
@@ -780,7 +801,7 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             missing,
             MissingEvidence,
-            ("id", "claim", "owner", "affects", "resolved_by"),
+            ("id", "claim", "owner", "affects", "resolved_by", "artefacts"),
             values,
             extra_keys=("kind",),
         )

@@ -66,12 +66,12 @@ from archsift.validation import (
 )
 
 _GOLDEN = Path(__file__).parent / "golden" / "canonical-dossier-v1.json"
-_EXPECTED_DOSSIER_ID = "sha256:6b6a3d398a6b0ee4bad9ade639c3a6d2f8009306ffd3e4cf50e6bb20d654e869"
+_EXPECTED_DOSSIER_ID = "sha256:c73d3443dc50df4fd6e6504e4a3d4bc6a8431669d07ded488d17e2dcb2de9067"
 _EXPECTED_EVIDENCE_IDS = {
-    "assumption": "sha256:2fe4876c98dfd694c5094a82a6293a2e088ecb393c4a741995693f33b26d728c",
-    "estimate": "sha256:37d865c9284d9878f6af989332a3393543d135e0c5e690c4789cc39fee05326f",
-    "missing": "sha256:9ad2b788bf3c624a4177bffb2925049c424e7b270d6858b389d0740771a856e4",
-    "observed": "sha256:24bf604136989c2002374df29118112cfd6808b291cdaf15178231032e50a7e3",
+    "assumption": "sha256:10f6a22ef04cbac6a98c1d08b0966210e309d839fd7940373c7ed7644066c3ae",
+    "estimate": "sha256:fff5c0155ee12491114a94548601a551ee293c00c2c7002978628d5a269d1245",
+    "missing": "sha256:94a522411fdc35103e386abca6dc9e3b82fa0e49615b695c49928de72f739ccb",
+    "observed": "sha256:50e01190e8e41240e1d451e85e15406e55d4f62617b5accd1c6c79f4b4a39050",
 }
 
 
