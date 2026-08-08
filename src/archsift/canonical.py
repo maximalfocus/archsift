@@ -6,8 +6,10 @@ import json
 from dataclasses import fields, is_dataclass
 from datetime import date
 from enum import Enum
+from functools import cache
 from hashlib import sha256
-from typing import Any, TypeAlias, TypeVar, cast
+from types import UnionType
+from typing import Any, TypeAlias, TypeVar, Union, cast, get_args, get_origin, get_type_hints
 
 from archsift.validation import (
     AgencyAnswer,
@@ -148,6 +150,77 @@ def _validate_json_value(value: object) -> None:
             _validate_json_value(item)
         return
     raise CanonicalizationError("Unsupported value in canonical JSON object.")
+
+
+@cache
+def _declared_fields(cls: type[Any]) -> dict[str, Any]:
+    """Resolve the declared runtime field types for one dossier dataclass."""
+    return get_type_hints(cls)
+
+
+def _check_typed_value(value: object, declared: Any) -> None:
+    """Enforce the declared Dossier/Evidence type graph before serialization.
+
+    Validates exact runtime types for scalars, enums, dates, dataclasses,
+    tuple containers, and unions so malformed programmatic dossiers fail
+    closed with a deterministic CanonicalizationError instead of leaking
+    built-in AttributeError/TypeError failures or schema-invalid JSON.
+    """
+    if declared is None or declared is type(None):
+        if value is not None:
+            raise CanonicalizationError("Unsupported None typed value for canonicalization.")
+        return
+    if declared is str or declared is int or declared is bool:
+        if type(value) is not declared:
+            raise CanonicalizationError(
+                f"Unsupported {declared.__name__} typed value for canonicalization."
+            )
+        return
+    if declared is date:
+        if type(value) is not date:
+            raise CanonicalizationError("Observed evidence requires a canonical date value.")
+        return
+    if isinstance(declared, type) and issubclass(declared, Enum):
+        if type(value) is not declared:
+            raise CanonicalizationError(
+                f"Unsupported {declared.__name__} value contract for canonicalization."
+            )
+        return
+    if isinstance(declared, type) and is_dataclass(declared):
+        if type(value) is not declared:
+            raise CanonicalizationError(
+                f"Unsupported {declared.__name__} typed value for canonicalization."
+            )
+        hints = _declared_fields(declared)
+        for field in fields(cast(Any, value)):
+            _check_typed_value(getattr(value, field.name), hints[field.name])
+        return
+    origin = get_origin(declared)
+    if origin is tuple:
+        arguments = get_args(declared)
+        if len(arguments) != 2 or arguments[1] is not Ellipsis:
+            raise CanonicalizationError("Unsupported tuple typed value for canonicalization.")
+        if type(value) is not tuple:
+            raise CanonicalizationError("Unsupported tuple typed value for canonicalization.")
+        for item in value:
+            _check_typed_value(item, arguments[0])
+        return
+    if isinstance(declared, UnionType) or origin is Union:
+        arguments = get_args(declared)
+        if value is None:
+            if any(member is type(None) for member in arguments):
+                return
+            raise CanonicalizationError("Unsupported None typed value for canonicalization.")
+        members = tuple(member for member in arguments if member is not type(None))
+        for member in members:
+            if type(value) is member:
+                _check_typed_value(value, member)
+                return
+        if declared is Evidence:
+            raise CanonicalizationError("Unsupported evidence subtype for canonicalization.")
+        names = "|".join(member.__name__ for member in members)
+        raise CanonicalizationError(f"Unsupported {names} typed value for canonicalization.")
+    raise CanonicalizationError("Unsupported declared canonical type for canonicalization.")
 
 
 def canonical_json_bytes(value: JsonValue) -> bytes:
@@ -581,6 +654,7 @@ def _candidate_comparison(value: CandidateComparison) -> JsonObject:
 
 def canonical_evidence_dict(entry: Evidence) -> JsonObject:
     """Return one complete schema-v1 evidence entry as canonical JSON data."""
+    _check_typed_value(entry, Evidence)
     common: JsonObject = {
         "id": entry.id,
         "claim": entry.claim,
@@ -686,6 +760,7 @@ def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
 
 def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
     """Return the complete normalized schema-v1 dossier as canonical JSON data."""
+    _check_typed_value(dossier, Dossier)
     if dossier.schema_version != 1:
         raise CanonicalizationError("Unsupported dossier schema version for canonicalization.")
     expected = (

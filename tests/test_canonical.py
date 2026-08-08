@@ -743,6 +743,151 @@ def test_unsupported_schema_and_wrong_enum_type_fail_closed() -> None:
         canonical_dossier_dict(replace(dossier, agency_necessity=agency))
 
 
+@pytest.mark.parametrize(
+    ("dossier", "message"),
+    [
+        (
+            Dossier(schema_version=True, case=CaseIdentity("id", "title")),
+            "Unsupported int typed value",
+        ),
+        (
+            Dossier(schema_version=1, case=CaseIdentity(123, "title")),
+            "Unsupported str typed value",
+        ),
+        (
+            Dossier(
+                schema_version=1,
+                case=CaseIdentity("id", "title"),
+                evidence=(
+                    AssumptionEvidence(
+                        "assumption",
+                        "claim",
+                        "owner",
+                        (DecisionArea.PROBLEM_VALUE,),
+                        falsified_by=123,
+                    ),
+                ),
+            ),
+            "Unsupported str typed value",
+        ),
+        (
+            Dossier(
+                schema_version=1,
+                case=CaseIdentity("id", "title"),
+                task=TaskBoundary(
+                    operation="operation",
+                    starts_when="starts",
+                    completes_when="completes",
+                    accountable_owner="owner",
+                    actors=(),
+                    systems_and_tools=(),
+                    information_read=(),
+                    actions=(object(),),
+                    exclusions=(),
+                ),
+            ),
+            "Unsupported TaskAction typed value",
+        ),
+        (
+            Dossier(
+                schema_version=1,
+                case=CaseIdentity("id", "title"),
+                task=TaskBoundary(
+                    operation="operation",
+                    starts_when="starts",
+                    completes_when="completes",
+                    accountable_owner="owner",
+                    actors=(None,),
+                    systems_and_tools=(),
+                    information_read=(),
+                    actions=(),
+                    exclusions=(),
+                ),
+            ),
+            "Unsupported str typed value",
+        ),
+    ],
+)
+def test_mis_typed_dossier_values_fail_closed_before_attribute_access(
+    dossier: Dossier,
+    message: str,
+) -> None:
+    with pytest.raises(CanonicalizationError, match=message):
+        canonical_dossier_bytes(dossier)
+    with pytest.raises(CanonicalizationError, match=message):
+        canonical_dossier_dict(dossier)
+
+
+@pytest.mark.parametrize(
+    ("entry", "message"),
+    [
+        (
+            ObservedEvidence(
+                "observed",
+                "claim",
+                "owner",
+                (DecisionArea.PROBLEM_VALUE,),
+                provenance="provenance",
+                observed_at="2026-08-08",
+            ),
+            "canonical date",
+        ),
+        (
+            AssumptionEvidence(
+                "assumption",
+                "claim",
+                object(),
+                (DecisionArea.PROBLEM_VALUE,),
+                falsified_by="falsification",
+            ),
+            "Unsupported str typed value",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    "call",
+    [canonical_evidence_bytes, canonical_evidence_dict, evidence_content_identity],
+)
+def test_malformed_evidence_entry_fails_closed_from_every_evidence_root(
+    call: object,
+    entry: Evidence,
+    message: str,
+) -> None:
+    with pytest.raises(CanonicalizationError, match=message):
+        call(entry)  # type: ignore[operator]
+
+
+def test_optional_union_none_succeeds_but_nonoptional_union_rejects_none() -> None:
+    minimal = Dossier(schema_version=1, case=CaseIdentity("id", "title"))
+    canonical_dossier_bytes(minimal)
+
+    with pytest.raises(CanonicalizationError, match="Unsupported None typed value"):
+        canonical_evidence_dict(None)  # type: ignore[arg-type]
+
+
+def test_tuple_subclass_containers_are_rejected_fail_closed() -> None:
+    class _Actors(tuple):
+        pass
+
+    dossier = Dossier(
+        schema_version=1,
+        case=CaseIdentity("id", "title"),
+        task=TaskBoundary(
+            operation="operation",
+            starts_when="starts",
+            completes_when="completes",
+            accountable_owner="owner",
+            actors=_Actors(("Reviewer",)),
+            systems_and_tools=(),
+            information_read=(),
+            actions=(),
+            exclusions=(),
+        ),
+    )
+    with pytest.raises(CanonicalizationError, match="Unsupported tuple typed value"):
+        canonical_dossier_bytes(dossier)
+
+
 def test_canonicalization_performs_no_io_and_does_not_mutate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
