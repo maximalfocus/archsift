@@ -63,7 +63,7 @@ def test_packaged_result_schema_is_valid() -> None:
     assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION
     assert schema["properties"]["protocol_version"]["const"] == PROTOCOL_VERSION
     assert schema["properties"]["archsift_version_or_commit"]["pattern"] == (
-        r"^(?:[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9.+-]*)?|[0-9a-f]{40})$"
+        r"^(?:[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9.+-]*)?|[0-9a-f]{40})(?![\s\S])$"
     )
     assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT
     assert schema["properties"]["sessions"]["maxItems"] == REQUIRED_SESSION_COUNT
@@ -96,6 +96,8 @@ def test_tool_binding_accepts_package_version_or_full_commit(tmp_path: Path, bin
         "a" * 41,
         "A" * 40,
         "g" * 40,
+        "a" * 40 + "\n",
+        "0.1.0\n",
     ],
 )
 def test_tool_binding_rejects_inexact_commit_values(tmp_path: Path, binding: str) -> None:
@@ -114,11 +116,12 @@ def test_tool_binding_rejects_inexact_commit_values(tmp_path: Path, binding: str
     assert result.diagnostics[0].field == "$.archsift_version_or_commit"
 
 
+@pytest.mark.parametrize("binding", ["95f2a78", "a" * 40 + "\n"])
 def test_invalid_tool_binding_fails_in_all_cli_modes(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], binding: str
 ) -> None:
     payload = _cohort(4)
-    payload["archsift_version_or_commit"] = "95f2a78"
+    payload["archsift_version_or_commit"] = binding
     path = tmp_path / "results.json"
     _write_result(path, payload)
 
