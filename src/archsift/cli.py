@@ -15,6 +15,13 @@ from archsift.artefacts import (
     EvidenceArtefactFailure,
     evidence_artefact_identities,
 )
+from archsift.comparison import (
+    ComparisonInputError,
+    canonical_comparison_bytes,
+    compare_decision_records,
+    load_decision_record,
+    render_human_comparison,
+)
 from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.markdown_report import render_markdown_decision_report
@@ -83,6 +90,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicitly authorise one external evidence directory",
     )
     _output_options(assess_parser)
+
+    compare_parser = subparsers.add_parser(
+        "compare", help="compare two immutable canonical decision records"
+    )
+    compare_parser.add_argument("old", type=Path, help="earlier canonical decision-record JSON")
+    compare_parser.add_argument("new", type=Path, help="later canonical decision-record JSON")
+    _output_options(compare_parser)
     return parser
 
 
@@ -363,6 +377,65 @@ def _run_assess(
     return int(ExitCode.SUCCESS)
 
 
+def _emit_compare_failure(
+    error: ComparisonInputError,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    exit_code = error.exit_code
+    status = {
+        ExitCode.ARTEFACT_UNAVAILABLE: "artefact-unavailable",
+        ExitCode.MALFORMED_INPUT: "malformed",
+        ExitCode.UNSAFE_PATH: "unsafe",
+        ExitCode.UNSUPPORTED_SCHEMA: "unsupported",
+    }[exit_code]
+    diagnostic = Diagnostic(
+        id=f"compare-{error.category.value}",
+        message=error.message,
+        file=f"{error.role}-record",
+        field=error.field,
+        requirement="FR-013",
+        remediation=error.remediation,
+    )
+    _emit(
+        status=status,
+        exit_code=exit_code,
+        diagnostics=(diagnostic,),
+        json_output=json_output,
+        quiet=quiet,
+        success_message="",
+        details={},
+    )
+    return int(exit_code)
+
+
+def _run_compare(
+    old_path: Path,
+    new_path: Path,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    try:
+        root = Path(".")
+        old = load_decision_record(old_path, root=root, role="old")
+        new = load_decision_record(new_path, root=root, role="new")
+        comparison = compare_decision_records(old, new)
+    except ComparisonInputError as error:
+        return _emit_compare_failure(error, json_output=json_output, quiet=quiet)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(canonical_comparison_bytes(comparison))
+        return int(ExitCode.SUCCESS)
+    _print(render_human_comparison(comparison), stream=sys.stdout)
+    return int(ExitCode.SUCCESS)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -418,6 +491,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_assess(
             args.case,
             external_evidence_root=args.external_evidence_root,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "compare":
+        return _run_compare(
+            args.old,
+            args.new,
             json_output=args.json_output,
             quiet=args.quiet,
         )
