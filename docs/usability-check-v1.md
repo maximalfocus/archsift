@@ -7,10 +7,12 @@ usability-success claim yet.
 
 ## Success criterion
 
-Run exactly five independent sessions against the same ArchSift version or source commit. A
-session passes only when the participant completes all four milestones—initialize, complete,
-validate, and assess—with no maintainer intervention. The cohort meets the criterion only when at
-least four of the five sessions pass.
+Run exactly five independent sessions against the same ArchSift package version or source commit.
+For a built-wheel installation, record the installed package version. For a source checkout,
+record the full 40-character lowercase commit ID rather than an abbreviated commit. A session
+passes only when the participant completes all four milestones—initialize, complete, validate,
+and assess—with no maintainer intervention. The cohort meets the criterion only when at least four
+of the five sessions pass.
 
 Do not replace, repeat, or rewrite a completed session to improve the cohort result. A later cohort
 is a new result record bound to its own ArchSift version or commit.
@@ -110,11 +112,12 @@ and `maintainer_intervention` is `false`.
 
 Record a cohort in one JSON file conforming to the packaged
 [`usability-results-v1` schema](../src/archsift/schemas/usability-results-v1.schema.json). The record
-binds the protocol version and tested ArchSift version or commit; uses a unique pseudonymous
-participant ID; captures only the operating system, Python version, install mode, four milestones,
-intervention state, derived session outcome, and a bounded generic failure reason; and states the
-derived cohort outcome. Do not record names, contact details, employers, private case data,
-transcripts, terminal history, or free-form participant content.
+binds the protocol version and tested ArchSift package version or full 40-character lowercase
+source commit; uses a unique pseudonymous participant ID; captures only the operating system,
+Python version, install mode, four milestones, intervention state, derived session outcome, and a
+bounded generic failure reason; and states the derived cohort outcome. Do not record names,
+contact details, employers, private case data, transcripts, terminal history, or free-form
+participant content.
 
 Validate the completed record locally with the exact command:
 

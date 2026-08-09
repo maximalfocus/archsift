@@ -62,11 +62,86 @@ def test_packaged_result_schema_is_valid() -> None:
     Draft202012Validator.check_schema(schema)
     assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION
     assert schema["properties"]["protocol_version"]["const"] == PROTOCOL_VERSION
+    assert schema["properties"]["archsift_version_or_commit"]["pattern"] == (
+        r"^(?:[0-9]+\.[0-9]+\.[0-9]+(?:[A-Za-z0-9.+-]*)?|[0-9a-f]{40})$"
+    )
     assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT
     assert schema["properties"]["sessions"]["maxItems"] == REQUIRED_SESSION_COUNT
     milestones = schema["$defs"]["session"]["properties"]["milestones"]
     assert tuple(milestones["required"]) == REQUIRED_MILESTONES
     assert REQUIRED_PASS_COUNT == 4
+
+
+@pytest.mark.parametrize(
+    "binding",
+    ["0.1.0", "95f2a785cbad05a0bd7563e0ff319d53f0c01a7c"],
+)
+def test_tool_binding_accepts_package_version_or_full_commit(tmp_path: Path, binding: str) -> None:
+    payload = _cohort(4)
+    payload["archsift_version_or_commit"] = binding
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.criterion_met is True
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        "95f2a78",
+        "a" * 39,
+        "a" * 41,
+        "A" * 40,
+        "g" * 40,
+    ],
+)
+def test_tool_binding_rejects_inexact_commit_values(tmp_path: Path, binding: str) -> None:
+    payload = _cohort(4)
+    payload["archsift_version_or_commit"] = binding
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.criterion_met is False
+    assert result.session_count == 0
+    assert result.passed_session_count == 0
+    assert result.diagnostics[0].id == "usability-results-contract"
+    assert result.diagnostics[0].field == "$.archsift_version_or_commit"
+
+
+def test_invalid_tool_binding_fails_in_all_cli_modes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    payload = _cohort(4)
+    payload["archsift_version_or_commit"] = "95f2a78"
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    assert main(["usability-results", str(path)]) == ExitCode.VALIDATION_FAILED
+    human = capsys.readouterr()
+    assert human.out == ""
+    assert "usability-results-contract" in human.err
+    assert "$.archsift_version_or_commit" in human.err
+    assert "Usability criterion met" not in human.err
+
+    assert main(["usability-results", str(path), "--json"]) == ExitCode.VALIDATION_FAILED
+    structured = capsys.readouterr()
+    assert structured.err == ""
+    output = json.loads(structured.out)
+    assert output["status"] == "invalid"
+    assert output["exit_code"] == int(ExitCode.VALIDATION_FAILED)
+    assert output["criterion_met"] is False
+    assert output["diagnostics"][0]["id"] == "usability-results-contract"
+
+    assert main(["usability-results", str(path), "--quiet"]) == ExitCode.VALIDATION_FAILED
+    quiet = capsys.readouterr()
+    assert quiet.out == ""
+    assert quiet.err == ""
 
 
 def test_four_of_five_sessions_meets_criterion(tmp_path: Path) -> None:
@@ -245,6 +320,7 @@ def test_public_docs_freeze_protocol_and_exact_offline_command() -> None:
     assert "at least four of the five sessions" in protocol_words
     assert "initialize, complete, validate, and assess" in protocol_words
     assert "no participant sessions have been run" in protocol_words
+    assert "full 40-character lowercase commit ID" in protocol_words
     assert "archsift usability-results usability-results.json" in protocol
     assert "archsift usability-results usability-results.json" in readme
     assert "docs/usability-check-v1.md" in readme
