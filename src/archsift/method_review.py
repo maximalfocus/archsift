@@ -41,7 +41,9 @@ FAILURE_REASONS = (
 )
 MAX_RESULT_BYTES = 128 * 1024
 _REQUIREMENT = "METHOD-REVIEW-1.0.0"
-_COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
+# The protocol binds the exact public source commit, so only the full 40-character
+# lowercase commit ID is a supported source-commit binding.
+_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,6 +132,11 @@ def _rule_effects() -> dict[str, RuleEffect]:
     return {rule.id: rule.effect for rule in list_rules()}
 
 
+@cache
+def _verdict_rule_ids() -> frozenset[str]:
+    return frozenset(rule.id for rule in list_rules() if rule.id.startswith("verdict-"))
+
+
 def _path(parts: Iterable[object]) -> str:
     rendered = "$"
     for part in parts:
@@ -190,8 +197,8 @@ def _unsupported_binding(payload: dict[str, object]) -> MethodReviewValidationRe
                     "The declared ArchSift version or commit binding is unsupported.",
                     "$.archsift_version_or_commit",
                     (
-                        f"Use version {SUPPORTED_ARCHSIFT_VERSION} or a 7-to-40-character "
-                        "lowercase commit ID."
+                        f"Use version {SUPPORTED_ARCHSIFT_VERSION} or the full "
+                        "40-character lowercase commit ID."
                     ),
                 ),
             ),
@@ -271,21 +278,38 @@ def _trace_diagnostics(
                     field=f"$.examples[{example_index}].decision_areas[{area_index}].rule_ids",
                     remediation="Use only rule IDs exposed by the bound ArchSift ruleset.",
                 )
-            if outcome == "explicitly-non-decisive" and not any(
-                rule_effects.get(rule_id) is RuleEffect.NON_DECISIVE for rule_id in rule_ids
+            if verdict_rule_id is not None and verdict_rule_id not in _verdict_rule_ids():
+                _set_diagnostic(
+                    diagnostics,
+                    id="method-review-verdict-rule-reference",
+                    message=(
+                        "A decision-area verdict rule reference is not a packaged verdict rule."
+                    ),
+                    field=(
+                        f"$.examples[{example_index}].decision_areas[{area_index}].verdict_rule_id"
+                    ),
+                    remediation=(
+                        "Reference the packaged verdict rule that resolves the example (verdict-*)."
+                    ),
+                )
+            if outcome == "explicitly-non-decisive" and any(
+                rule_effects.get(rule_id) is not RuleEffect.NON_DECISIVE for rule_id in rule_ids
             ):
                 _set_diagnostic(
                     diagnostics,
                     id="method-review-non-decisive-trace",
-                    message="An explicitly non-decisive trace lacks a non-decisive packaged rule.",
+                    message=(
+                        "An explicitly non-decisive trace references a decision-affecting "
+                        "packaged rule."
+                    ),
                     field=f"$.examples[{example_index}].decision_areas[{area_index}].rule_ids",
                     remediation=(
-                        "Reference the public non-decisive rule that explains the area outcome."
+                        "Reference only public non-decisive rules that explain the area outcome."
                     ),
                 )
             if outcome == "causal" and not any(
                 rule_effects.get(rule_id) not in {None, RuleEffect.NON_DECISIVE}
-                for rule_id in referenced_rules
+                for rule_id in rule_ids
             ):
                 _set_diagnostic(
                     diagnostics,
@@ -313,8 +337,29 @@ def _trace_diagnostics(
     return failure_reasons
 
 
+def _matching_area(
+    disagreement: dict[str, object],
+    examples: list[dict[str, object]],
+) -> dict[str, object] | None:
+    """Return the uniquely matching example/area or None when the trace is not unique."""
+    example_matches = [
+        candidate for candidate in examples if candidate["example_id"] == disagreement["example_id"]
+    ]
+    if len(example_matches) != 1:
+        return None
+    area_matches = [
+        item
+        for item in cast(list[dict[str, object]], example_matches[0]["decision_areas"])
+        if item["decision_area"] == disagreement["decision_area"]
+    ]
+    if len(area_matches) != 1:
+        return None
+    return area_matches[0]
+
+
 def _disagreement_diagnostics(
     disagreements: list[dict[str, object]],
+    examples: list[dict[str, object]],
     diagnostics: list[Diagnostic],
 ) -> set[str]:
     failure_reasons: set[str] = set()
@@ -381,6 +426,50 @@ def _disagreement_diagnostics(
                 message="A disagreement references an unknown packaged rule.",
                 field=f"$.disagreements[{index}].rule_ids",
                 remediation="Use only rule IDs exposed by the bound ArchSift ruleset.",
+            )
+        matching_area = _matching_area(disagreement, examples)
+        if (
+            classification == "declared-evidence"
+            and matching_area is not None
+            and not set(evidence_ids) <= set(cast(list[str], matching_area["evidence_ids"]))
+        ):
+            _set_diagnostic(
+                diagnostics,
+                id="method-review-disagreement-evidence-unbound",
+                message=(
+                    "A declared-evidence disagreement cites evidence absent from the matching "
+                    "area trace."
+                ),
+                field=f"$.disagreements[{index}].evidence_ids",
+                remediation=(
+                    "Cite only evidence IDs recorded in that example's decision-area trace."
+                ),
+            )
+        if (
+            classification == "public-rule"
+            and matching_area is not None
+            and not set(rule_ids)
+            <= set(
+                [
+                    *cast(list[str], matching_area["rule_ids"]),
+                    *(
+                        [cast(str, matching_area["verdict_rule_id"])]
+                        if matching_area["verdict_rule_id"]
+                        else []
+                    ),
+                ]
+            )
+        ):
+            _set_diagnostic(
+                diagnostics,
+                id="method-review-disagreement-rule-unbound",
+                message=(
+                    "A public-rule disagreement cites a rule absent from the matching area trace."
+                ),
+                field=f"$.disagreements[{index}].rule_ids",
+                remediation=(
+                    "Cite only packaged rule IDs recorded in that example's decision-area trace."
+                ),
             )
         if classification == "unclassified":
             failure_reasons.add("unclassified-disagreement")
@@ -457,7 +546,7 @@ def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
     disagreements = cast(list[dict[str, object]], result_payload["disagreements"])
     diagnostics: list[Diagnostic] = []
     derived_failures = _trace_diagnostics(examples, diagnostics)
-    derived_failures.update(_disagreement_diagnostics(disagreements, diagnostics))
+    derived_failures.update(_disagreement_diagnostics(disagreements, examples, diagnostics))
     if cast(bool, result_payload["maintainer_intervention"]):
         derived_failures.add("maintainer-intervention")
 

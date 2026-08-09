@@ -7,11 +7,11 @@ review result is committed, and ArchSift makes no independent method-validation 
 
 ## Bound versions and fixed corpus
 
-Protocol 1.0.0 reviews packaged ArchSift 0.1.0 or a public ArchSift source commit with method 1.2.0,
-ruleset 1.8.0, and public example corpus 1.0.0. A completed result binds the exact supported version
-or source commit used for assessment and the content identity of each locally generated decision
-record. Other packaged versions require a later protocol even if their method metadata happens to
-match.
+Protocol 1.0.0 reviews packaged ArchSift 0.1.0 or a public ArchSift source commit, recorded as its
+full 40-character commit ID, with method 1.2.0, ruleset 1.8.0, and public example corpus 1.0.0. A
+completed result binds the exact supported version or full source commit used for assessment and
+the content identity of each locally generated decision record. Other packaged versions require a
+later protocol even if their method metadata happens to match.
 
 The fixed corpus is the four entries in [`examples/manifest.json`](../examples/manifest.json), each
 reviewed exactly once:
@@ -94,12 +94,14 @@ For each decision area:
    or the final verdict rule.
 3. Record bounded candidate IDs and/or the verdict rule ID that terminate the trace. An
    explicitly non-decisive area still records the bounded candidate context whose disposition the
-   fact does not alter, and/or the verdict rule that resolves the example.
+   fact does not alter, and/or the verdict rule that resolves the example. A recorded verdict rule
+   must be one of the packaged `verdict-*` rules exposed by `archsift rules`.
 4. Classify the outcome using exactly one of these values:
-   - **`causal`:** at least one referenced public rule has a decision-affecting effect that
-     participates in a prerequisite, candidate disposition, class ordering, or verdict.
-   - **`explicitly-non-decisive`:** a referenced packaged rule explicitly has the
-     `non-decisive` effect and explains why the fact does not alter disposition.
+   - **`causal`:** at least one rule in the area's own `rule_ids` has a decision-affecting effect
+     that participates in a prerequisite, candidate disposition, class ordering, or verdict.
+   - **`explicitly-non-decisive`:** every rule in the area's `rule_ids` is a packaged
+     `non-decisive` rule and explains why the fact does not alter disposition; a decision-affecting
+     rule cannot be cited in the same trace.
    - **`display-only`:** the area's facts are visible, but neither a causal nor an explicitly
      non-decisive trace can be completed.
 
@@ -116,10 +118,10 @@ externally true, or certify operational, regulatory, safety, or security adequac
 Record every disagreement once with its corpus example, decision area, decision-critical state,
 and exactly one trace class:
 
-- **`declared-evidence`:** the disagreement is with an authored claim and cites only its evidence
-  IDs.
+- **`declared-evidence`:** the disagreement is with an authored claim and cites only evidence IDs
+  recorded in that area's trace.
 - **`public-rule`:** the disagreement is with ArchSift's normative method and cites only packaged
-  rule IDs.
+  rule IDs recorded in that area's trace.
 - **`product-gap`:** neither the evidence nor a public rule explains the behavior; record a bounded
   pseudonymous `gap-*` ID for a separate public-safe product-gap workflow.
 - **`unclassified`:** the reviewer cannot trace the disagreement to any of the preceding classes.

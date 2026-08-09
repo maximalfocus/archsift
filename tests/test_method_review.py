@@ -124,6 +124,10 @@ def test_packaged_schema_and_corpus_bindings_are_valid() -> None:
     assert schema["properties"]["archsift_version_or_commit"]["oneOf"][0]["const"] == (
         SUPPORTED_ARCHSIFT_VERSION
     )
+    assert (
+        schema["properties"]["archsift_version_or_commit"]["oneOf"][1]["pattern"]
+        == "^[0-9a-f]{40}$"
+    )
     assert schema["properties"]["method_version"]["const"] == METHOD_VERSION
     assert schema["properties"]["ruleset_version"]["const"] == RULESET_VERSION
     assert schema["properties"]["corpus_version"]["const"] == CORPUS_VERSION
@@ -485,7 +489,13 @@ def test_consistent_disagreement_classifications_are_accepted(
     tmp_path: Path, classification: str, critical: bool
 ) -> None:
     payload = _review()
-    payload["disagreements"] = [_disagreement(classification, critical=critical)]
+    disagreement = _disagreement(classification, critical=critical)
+    if classification == "public-rule":
+        # Bind the method disagreement to a decision-affecting rule actually cited in
+        # agentic-control's problem-value trace.
+        disagreement["decision_area"] = "problem-value"
+        disagreement["rule_ids"] = ["binding-outcome-met"]
+    payload["disagreements"] = [disagreement]
     path = tmp_path / "method-review-results.json"
     _write_result(path, payload)
 
@@ -507,6 +517,134 @@ def test_disagreement_referencing_unknown_rule_is_rejected(tmp_path: Path) -> No
 
     assert result.exit_code is ExitCode.VALIDATION_FAILED
     assert "method-review-rule-reference" in [item.id for item in result.diagnostics]
+
+
+def test_causal_area_cannot_launder_non_causal_rules_via_verdict_field(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = {
+        "decision_area": "problem-value",
+        "trace_outcome": "causal",
+        "rule_ids": ["agentic-agency-fact-non-decisive"],
+        "evidence_ids": ["decision-observed"],
+        "candidate_ids": [],
+        "verdict_rule_id": "binding-outcome-met",
+    }
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    diagnostic_ids = [item.id for item in result.diagnostics]
+    assert "method-review-causal-trace" in diagnostic_ids
+    assert "method-review-verdict-rule-reference" in diagnostic_ids
+
+
+def test_verdict_rule_reference_must_be_a_packaged_verdict_rule(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = {
+        "decision_area": "problem-value",
+        "trace_outcome": "causal",
+        "rule_ids": ["binding-outcome-met"],
+        "evidence_ids": ["decision-observed"],
+        "candidate_ids": ["reviewed-candidate"],
+        "verdict_rule_id": "binding-outcome-met",
+    }
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-verdict-rule-reference" in [item.id for item in result.diagnostics]
+
+
+def test_non_decisive_area_cannot_mix_decision_affecting_rules(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = {
+        "decision_area": "problem-value",
+        "trace_outcome": "explicitly-non-decisive",
+        "rule_ids": ["agentic-agency-fact-non-decisive", "binding-outcome-met"],
+        "evidence_ids": ["decision-observed"],
+        "candidate_ids": ["reviewed-candidate"],
+        "verdict_rule_id": "verdict-supported",
+    }
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-non-decisive-trace" in [item.id for item in result.diagnostics]
+
+
+def test_non_decisive_area_with_only_non_decisive_rules_is_accepted(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"] = [
+        _area(name, outcome="explicitly-non-decisive") for name in REQUIRED_DECISION_AREAS
+    ]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.criterion_met is True
+
+
+def test_declared_evidence_disagreement_must_cite_area_trace_evidence(tmp_path: Path) -> None:
+    payload = _review()
+    disagreement = _disagreement("declared-evidence", critical=False)
+    disagreement["evidence_ids"] = ["fabricated-evidence"]
+    payload["disagreements"] = [disagreement]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-disagreement-evidence-unbound" in [item.id for item in result.diagnostics]
+
+
+def test_public_rule_disagreement_must_cite_area_trace_rule(tmp_path: Path) -> None:
+    payload = _review()
+    disagreement = _disagreement("public-rule", critical=False)
+    disagreement["rule_ids"] = ["binding-outcome-met"]
+    payload["disagreements"] = [disagreement]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-disagreement-rule-unbound" in [item.id for item in result.diagnostics]
+
+
+def test_disagreement_for_missing_area_is_rejected_without_internal_error(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][3] = payload["examples"][0]["decision_areas"][0]
+    disagreement = _disagreement("declared-evidence", critical=False)
+    disagreement["decision_area"] = "comparative-fit"
+    payload["disagreements"] = [disagreement]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-area-set" in [item.id for item in result.diagnostics]
+
+
+def test_abbreviated_commit_binding_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    payload["archsift_version_or_commit"] = "dbde5cc"
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "method-review-tool-binding-unsupported"
 
 
 def test_strict_json_rejects_duplicate_object_key(tmp_path: Path) -> None:
