@@ -1,0 +1,165 @@
+# Independent architecture-method review protocol 1.0.0
+
+This protocol freezes a reproducible independent review of whether ArchSift's public judgement
+trace connects each required decision area to candidate disposition and verdict resolution. It
+defines the review method and result contract only: no independent review has been run, no real
+review result is committed, and ArchSift makes no independent method-validation claim yet.
+
+## Bound versions and fixed corpus
+
+Protocol 1.0.0 reviews packaged ArchSift 0.1.0 or a public ArchSift source commit with method 1.2.0,
+ruleset 1.8.0, and public example corpus 1.0.0. A completed result binds the exact supported version
+or source commit used for assessment and the content identity of each locally generated decision
+record. Other packaged versions require a later protocol even if their method metadata happens to
+match.
+
+The fixed corpus is the four entries in [`examples/manifest.json`](../examples/manifest.json), each
+reviewed exactly once:
+
+- `agentic-control`
+- `fixed-workflow`
+- `insufficient-evidence`
+- `no-technology-change`
+
+The corpus consists only of those maintained fictional example sources and their decision records
+generated locally during the review. Generated JSON and Markdown records are review inputs, not
+maintained source, and must not be committed.
+
+## Reviewer and independence requirements
+
+The target reviewer is a solution, enterprise, or technical architect, or another practitioner who
+independently reviews architecture choices. They must be able to read structured architecture
+evidence, candidate trade-offs, deterministic JSON records, and public rule rationale. They must be
+comfortable running a documented CLI but need not know ArchSift's implementation.
+
+A reviewer is ineligible if they maintain or contribute to ArchSift; authored this protocol, the
+method, or any corpus example; previously reviewed a completed result for this protocol; or can use
+private project planning, private discussions, or hidden case context. The result uses only a
+pseudonymous reviewer ID.
+
+The reviewer starts with:
+
+- a clean public ArchSift source checkout at the recorded commit;
+- a fresh supported CPython environment;
+- ArchSift installed from that checkout or from the matching built wheel;
+- empty generated-output directories in the four example workspaces; and
+- an empty local directory for review notes that will not be committed.
+
+Permitted materials are public and version-bound: the root and example READMEs, CLI help, the
+packaged method specification, `archsift rules` output, the exit-code documentation, the example
+manifest and sources, and records generated from the fixed corpus. General terminal, JSON, and
+architecture-review references are permitted. Source tests may be used only to reproduce a tool
+failure after the reviewer has recorded the affected trace outcome; they are not review evidence.
+Private repositories, unpublished results, hidden task context, and maintainer interpretations are
+not permitted.
+
+After review starts, any tailored hint, interpretation, correction, trace classification, record
+edit, command, or answer from a maintainer or moderator is **maintainer intervention**. A review
+with intervention cannot meet the criterion. A moderator may silently observe and resolve a safety
+or infrastructure emergency, but records intervention if that resolution helps complete the
+review.
+
+## Reproduce the public inputs
+
+From the clean checkout, record the installed ArchSift version or commit and run:
+
+```bash
+archsift rules --json
+archsift validate examples/agentic-control --json
+archsift assess examples/agentic-control --json
+archsift validate examples/fixed-workflow --json
+archsift assess examples/fixed-workflow --json
+archsift validate examples/insufficient-evidence --json
+archsift assess examples/insufficient-evidence --json
+archsift validate examples/no-technology-change --json
+archsift assess examples/no-technology-change --json
+```
+
+Every command must complete offline. Record each decision record's `record_content_identity` and
+verify its method/ruleset context against the bound public rules catalog and specification. Do not
+change an example or rerun it with revised evidence to improve the review outcome.
+
+## Four-area trace review
+
+For each example, inspect problem value, agency necessity, autonomy permission, and comparative
+fit exactly once. Use the dossier snapshot, `assessment.prerequisite_evaluation`,
+`assessment.ordered_elimination_evaluation`, candidate dispositions, `verdict_rule_id`, and the
+public rule-to-rationale catalog.
+
+For each decision area:
+
+1. Identify the exact authored evidence IDs and public rule IDs that expose the area's applicable
+   decision-critical facts, including evidence gaps.
+2. Follow the rule effect into a candidate disposition, a prerequisite that controls assessment,
+   or the final verdict rule.
+3. Record bounded candidate IDs and/or the verdict rule ID that terminate the trace.
+4. Classify the outcome using exactly one of these values:
+   - **`causal`:** at least one referenced public rule has a decision-affecting effect that
+     participates in a prerequisite, candidate disposition, class ordering, or verdict.
+   - **`explicitly-non-decisive`:** a referenced packaged rule explicitly has the
+     `non-decisive` effect and explains why the fact does not alter disposition.
+   - **`display-only`:** the area's facts are visible, but neither a causal nor an explicitly
+     non-decisive trace can be completed.
+
+“Visible” and “not applicable” are not passing substitutes. When an area has no applicable causal
+or explicitly non-decisive rule, record `display-only`; do not infer an unstated method rule. An
+example passes only when all four areas are `causal` or `explicitly-non-decisive`.
+
+This review checks the transparency and completeness of the declared judgement trace. It does not
+re-decide the example, prescribe an expected architecture, establish that authored evidence is
+externally true, or certify operational, regulatory, safety, or security adequacy.
+
+## Disagreement taxonomy and success criterion
+
+Record every disagreement once with its corpus example, decision area, decision-critical state,
+and exactly one trace class:
+
+- **`declared-evidence`:** the disagreement is with an authored claim and cites only its evidence
+  IDs.
+- **`public-rule`:** the disagreement is with ArchSift's normative method and cites only packaged
+  rule IDs.
+- **`product-gap`:** neither the evidence nor a public rule explains the behavior; record a bounded
+  pseudonymous `gap-*` ID for a separate public-safe product-gap workflow.
+- **`unclassified`:** the reviewer cannot trace the disagreement to any of the preceding classes.
+
+An unclassified disagreement fails the criterion. A decision-critical product gap fails the
+criterion even though it is correctly recorded; it must not be silently converted into a rule or
+evidence disagreement. A non-decision-critical product gap remains visible but does not by itself
+fail this protocol.
+
+The overall criterion is met only when:
+
+- all four fixed examples and all four decision areas per example are present exactly once;
+- no decision area is `display-only`;
+- no disagreement is unclassified;
+- no decision-critical product gap is present; and
+- no maintainer intervention occurred.
+
+Do not replace, repeat, or rewrite a completed review to improve its outcome. A later review is a
+new result bound to its own protocol, corpus, method, ruleset, tool version or commit, and locally
+generated record identities.
+
+## Result record and offline validation
+
+Record the review in one JSON file conforming to the packaged
+[`method-review-results-v1` schema](../src/archsift/schemas/method-review-results-v1.schema.json).
+The strict format contains only version bindings, one pseudonymous reviewer ID and eligibility
+state, environment enums, fixed corpus IDs, record identities, bounded rule/evidence/candidate and
+verdict references, classified disagreements, intervention state, derived example/overall
+outcomes, and enumerated failure reasons.
+
+Do not record a name, contact detail, employer, free-form review narrative, transcript, terminal
+history, private case content, internal URL, private path, or hidden evidence. A product-gap ID is a
+pointer for later public-safe issue work, not a container for case or participant information.
+
+Validate a completed result locally with the exact command:
+
+```bash
+archsift method-review-results method-review-results.json
+```
+
+The validator reads only the named local JSON file and packaged public schema/rule metadata. It
+uses no network, telemetry, model service, private repository, or generated decision record. Exit
+code `0` means the result is internally valid and meets the criterion; any other exit code means a
+version/contract error or a criterion failure. `--json` provides deterministic structured
+diagnostics, and `--quiet` emits only the process exit code.

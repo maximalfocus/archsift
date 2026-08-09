@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maximalfocus/archsift/schemas/method-review-results-v1.schema.json",
+  "title": "ArchSift independent architecture-method review results 1.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "archsift_version_or_commit",
+    "method_version",
+    "ruleset_version",
+    "corpus_version",
+    "reviewer",
+    "maintainer_intervention",
+    "examples",
+    "disagreements",
+    "overall_result",
+    "failure_reasons"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "protocol_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "archsift_version_or_commit": {
+      "oneOf": [
+        {
+          "const": "0.1.0"
+        },
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        }
+      ]
+    },
+    "method_version": {
+      "type": "string",
+      "const": "1.2.0"
+    },
+    "ruleset_version": {
+      "type": "string",
+      "const": "1.8.0"
+    },
+    "corpus_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "reviewer": {
+      "$ref": "#/$defs/reviewer"
+    },
+    "maintainer_intervention": {
+      "type": "boolean"
+    },
+    "examples": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/exampleReview"
+      }
+    },
+    "disagreements": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "$ref": "#/$defs/disagreement"
+      }
+    },
+    "overall_result": {
+      "enum": ["met", "not-met"]
+    },
+    "failure_reasons": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "display-only-decision-area",
+          "unclassified-disagreement",
+          "decision-critical-product-gap",
+          "maintainer-intervention"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "stableIdArray": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "nonEmptyStableIdArray": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "exampleId": {
+      "enum": [
+        "agentic-control",
+        "fixed-workflow",
+        "insufficient-evidence",
+        "no-technology-change"
+      ]
+    },
+    "decisionArea": {
+      "enum": [
+        "problem-value",
+        "agency-necessity",
+        "autonomy-permission",
+        "comparative-fit"
+      ]
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "python_version", "install_mode"],
+      "properties": {
+        "operating_system": {
+          "enum": ["linux", "macos", "windows"]
+        },
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.(?:11|12|13|14)(?:\\.[0-9]+)?$"
+        },
+        "install_mode": {
+          "enum": ["source-checkout", "built-wheel"]
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer_id",
+        "target_reviewer_eligible",
+        "independent",
+        "environment"
+      ],
+      "properties": {
+        "reviewer_id": {
+          "type": "string",
+          "pattern": "^reviewer-[0-9]{2}$"
+        },
+        "target_reviewer_eligible": {
+          "const": true
+        },
+        "independent": {
+          "const": true
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
+        }
+      }
+    },
+    "decisionAreaReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_area",
+        "trace_outcome",
+        "rule_ids",
+        "evidence_ids",
+        "candidate_ids",
+        "verdict_rule_id"
+      ],
+      "properties": {
+        "decision_area": {
+          "$ref": "#/$defs/decisionArea"
+        },
+        "trace_outcome": {
+          "enum": ["causal", "explicitly-non-decisive", "display-only"]
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/nonEmptyStableIdArray"
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/nonEmptyStableIdArray"
+        },
+        "candidate_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "verdict_rule_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/stableId"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "trace_outcome": {
+                "const": "display-only"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "candidate_ids": {
+                "maxItems": 0
+              },
+              "verdict_rule_id": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "anyOf": [
+              {
+                "properties": {
+                  "candidate_ids": {
+                    "minItems": 1
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "verdict_rule_id": {
+                    "$ref": "#/$defs/stableId"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "exampleReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "example_id",
+        "decision_record_identity",
+        "decision_areas",
+        "example_result"
+      ],
+      "properties": {
+        "example_id": {
+          "$ref": "#/$defs/exampleId"
+        },
+        "decision_record_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "decision_areas": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/decisionAreaReview"
+          }
+        },
+        "example_result": {
+          "enum": ["pass", "fail"]
+        }
+      }
+    },
+    "disagreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disagreement_id",
+        "example_id",
+        "decision_area",
+        "classification",
+        "decision_critical",
+        "evidence_ids",
+        "rule_ids",
+        "product_gap_id"
+      ],
+      "properties": {
+        "disagreement_id": {
+          "type": "string",
+          "pattern": "^disagreement-[0-9]{2}$"
+        },
+        "example_id": {
+          "$ref": "#/$defs/exampleId"
+        },
+        "decision_area": {
+          "$ref": "#/$defs/decisionArea"
+        },
+        "classification": {
+          "enum": ["declared-evidence", "public-rule", "product-gap", "unclassified"]
+        },
+        "decision_critical": {
+          "type": "boolean"
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "product_gap_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^gap-[a-z0-9][a-z0-9-]{0,75}$"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

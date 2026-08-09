@@ -26,6 +26,7 @@ from archsift.decision_record import canonical_decision_record_bytes, compose_de
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
+from archsift.method_review import validate_method_review_results
 from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
@@ -104,6 +105,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     usability_parser.add_argument("results", type=Path, help="completed usability-results JSON")
     _output_options(usability_parser)
+
+    method_review_parser = subparsers.add_parser(
+        "method-review-results", help="validate one independent architecture-method review result"
+    )
+    method_review_parser.add_argument(
+        "results", type=Path, help="completed method-review-results JSON"
+    )
+    _output_options(method_review_parser)
     return parser
 
 
@@ -471,6 +480,34 @@ def _run_usability_results(path: Path, *, json_output: bool, quiet: bool) -> int
     return int(result.exit_code)
 
 
+def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) -> int:
+    try:
+        result = validate_method_review_results(path)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    status = "criterion-met" if result.exit_code is ExitCode.SUCCESS else "invalid"
+    if any(item.id == "method-review-criterion-not-met" for item in result.diagnostics):
+        status = "criterion-not-met"
+    _emit(
+        status=status,
+        exit_code=result.exit_code,
+        diagnostics=result.diagnostics,
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Architecture-method review criterion met: {result.example_count} examples reviewed "
+            f"(protocol {result.protocol_version})"
+        ),
+        details={
+            "criterion_met": result.criterion_met,
+            "disagreement_count": result.disagreement_count,
+            "example_count": result.example_count,
+            "protocol_version": result.protocol_version,
+        },
+    )
+    return int(result.exit_code)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -538,6 +575,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.command == "usability-results":
         return _run_usability_results(
+            args.results,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "method-review-results":
+        return _run_method_review_results(
             args.results,
             json_output=args.json_output,
             quiet=args.quiet,
