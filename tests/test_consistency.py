@@ -23,6 +23,7 @@ from archsift.validation import (
     AgencyAnswer,
     AgencyNecessity,
     AgencyQuestion,
+    AssumptionEvidence,
     Candidate,
     CandidateAuthority,
     CandidateComparison,
@@ -36,6 +37,7 @@ from archsift.validation import (
     ControlClass,
     DecisionArea,
     Dossier,
+    MissingEvidence,
     ObservedEvidence,
     ResidualCase,
     evaluate_consistency_readiness,
@@ -65,6 +67,34 @@ def _observed(identifier: str, *, provenance: str = "evidence/synthetic.txt") ->
         (DecisionArea.AGENCY_NECESSITY, DecisionArea.COMPARATIVE_FIT),
         provenance=provenance,
         observed_at=date(2026, 8, 8),
+    )
+
+
+def _assumption(identifier: str) -> AssumptionEvidence:
+    return AssumptionEvidence(
+        identifier,
+        "A sanitised assumption.",
+        "Synthetic reviewer",
+        (
+            DecisionArea.AGENCY_NECESSITY,
+            DecisionArea.AUTONOMY_PERMISSION,
+            DecisionArea.COMPARATIVE_FIT,
+        ),
+        falsified_by="A named observation resolves the assumption.",
+    )
+
+
+def _missing(identifier: str) -> MissingEvidence:
+    return MissingEvidence(
+        identifier,
+        "A sanitised known gap.",
+        "Synthetic reviewer",
+        (
+            DecisionArea.AGENCY_NECESSITY,
+            DecisionArea.AUTONOMY_PERMISSION,
+            DecisionArea.COMPARATIVE_FIT,
+        ),
+        resolved_by="Collect the named observation.",
     )
 
 
@@ -333,6 +363,98 @@ def test_assumption_only_agency_facts_are_not_upgraded_to_contradictions() -> No
     assert evaluate_consistency_readiness(dossier).ready is True
 
 
+@pytest.mark.parametrize(
+    "uncertain_evidence", [_assumption("agency-uncertain"), _missing("agency-uncertain")]
+)
+def test_assumption_or_known_gap_agency_facts_are_not_upgraded_to_contradictions(
+    uncertain_evidence: AssumptionEvidence | MissingEvidence,
+) -> None:
+    agency = _agency(
+        fixed=AgencyAnswer.YES,
+        tool=AgencyAnswer.YES,
+        replan=AgencyAnswer.NO,
+    )
+    agency = replace(
+        agency,
+        fixed_workflow_sufficient=replace(
+            agency.fixed_workflow_sufficient,
+            evidence_ids=(uncertain_evidence.id,),
+        ),
+        runtime_tool_choice_required=replace(
+            agency.runtime_tool_choice_required,
+            evidence_ids=(uncertain_evidence.id,),
+        ),
+    )
+    dossier = replace(
+        _base_dossier(),
+        evidence=(*_base_dossier().evidence, uncertain_evidence),
+        agency_necessity=agency,
+    )
+
+    assert evaluate_consistency_readiness(dossier).ready is True
+
+
+@pytest.mark.parametrize(
+    "uncertain_evidence", [_assumption("residual-uncertain"), _missing("residual-uncertain")]
+)
+def test_assumption_or_known_gap_residual_is_not_upgraded_to_a_contradiction(
+    uncertain_evidence: AssumptionEvidence | MissingEvidence,
+) -> None:
+    residual = ResidualCase(
+        "residual-a",
+        "A residual requires a runtime choice.",
+        "A fixed path cannot select the next step.",
+        (uncertain_evidence.id,),
+    )
+    dossier = replace(
+        _base_dossier(),
+        evidence=(*_base_dossier().evidence, uncertain_evidence),
+        agency_necessity=_agency(
+            fixed=AgencyAnswer.YES,
+            tool=AgencyAnswer.NO,
+            replan=AgencyAnswer.NO,
+            residuals=(residual,),
+        ),
+    )
+
+    assert evaluate_consistency_readiness(dossier).ready is True
+
+
+def test_contradiction_evidence_union_is_exact_unique_and_canonical() -> None:
+    agency = _agency(
+        fixed=AgencyAnswer.YES,
+        tool=AgencyAnswer.YES,
+        replan=AgencyAnswer.NO,
+    )
+    agency = replace(
+        agency,
+        fixed_workflow_sufficient=replace(
+            agency.fixed_workflow_sufficient,
+            evidence_ids=("z-observed", "a-observed", "z-observed"),
+        ),
+        runtime_tool_choice_required=replace(
+            agency.runtime_tool_choice_required,
+            evidence_ids=("m-observed", "a-observed"),
+        ),
+    )
+    dossier = replace(
+        _base_dossier(),
+        evidence=(
+            *_base_dossier().evidence,
+            _observed("z-observed"),
+            _observed("a-observed"),
+            _observed("m-observed"),
+        ),
+        agency_necessity=agency,
+    )
+
+    assert evaluate_consistency_readiness(dossier).findings[0].evidence_ids == (
+        "a-observed",
+        "m-observed",
+        "z-observed",
+    )
+
+
 def test_human_owned_authority_is_a_candidate_contradiction() -> None:
     findings = _findings(_authority_dossier(ControlClass.HUMAN_OWNED_WORK))
 
@@ -355,6 +477,27 @@ def test_process_redesign_authority_is_a_candidate_contradiction() -> None:
     assert "process-redesign" in findings[0][4]
 
 
+@pytest.mark.parametrize(
+    "uncertain_evidence", [_assumption("autonomy-observed"), _missing("autonomy-observed")]
+)
+def test_human_authority_conflict_is_structural_even_with_uncertain_evidence(
+    uncertain_evidence: AssumptionEvidence | MissingEvidence,
+) -> None:
+    dossier = _authority_dossier(ControlClass.HUMAN_OWNED_WORK)
+    dossier = replace(
+        dossier,
+        evidence=tuple(
+            uncertain_evidence if item.id == uncertain_evidence.id else item
+            for item in dossier.evidence
+        ),
+    )
+
+    findings = _findings(dossier)
+
+    assert [item[0] for item in findings] == ["candidate-authority-class-contradiction"]
+    assert findings[0][3] == ("autonomy-observed",)
+
+
 def test_automation_candidate_authority_is_not_a_contradiction() -> None:
     authority = CandidateAuthority(("release-disposition",), (), ("autonomy-observed",))
     comparison = CandidateComparison(
@@ -373,6 +516,7 @@ def test_automation_candidate_authority_is_not_a_contradiction() -> None:
     assert evaluate_consistency_readiness(dossier).ready is True
 
 
+@pytest.mark.parametrize("dimension", _DIMENSIONS)
 @pytest.mark.parametrize(
     ("primary", "secondary"),
     [
@@ -385,10 +529,10 @@ def test_automation_candidate_authority_is_not_a_contradiction() -> None:
     ],
 )
 def test_incompatible_reciprocal_dimensions_are_contradictions(
+    dimension: str,
     primary: ComparisonResult,
     secondary: ComparisonResult,
 ) -> None:
-    dimension = "cost"
     primary_dims = _dimensions_with(dimension, primary, secondary)
     secondary_dims = _dimensions_with(dimension, secondary, primary)
     dossier = _comparison_dossier(
@@ -407,9 +551,10 @@ def test_incompatible_reciprocal_dimensions_are_contradictions(
     # second authored comparison here.
     assert finding[1] == f"$.candidate_comparison.comparisons[1].dimensions.{dimension}.result"
     assert finding[2] == f"$.candidate_comparison.comparisons[0].dimensions.{dimension}.result"
-    assert "'cost' between 'fixed' and 'human'" in finding[4]
+    assert f"{dimension!r} between 'fixed' and 'human'" in finding[4]
 
 
+@pytest.mark.parametrize("dimension", _DIMENSIONS)
 @pytest.mark.parametrize(
     ("primary", "secondary"),
     [
@@ -419,10 +564,10 @@ def test_incompatible_reciprocal_dimensions_are_contradictions(
     ],
 )
 def test_compatible_reciprocal_dimensions_are_not_contradictions(
+    dimension: str,
     primary: ComparisonResult,
     secondary: ComparisonResult,
 ) -> None:
-    dimension = "cost"
     primary_dims = _dimensions_with(dimension, primary, secondary)
     secondary_dims = _dimensions_with(dimension, secondary, primary)
     dossier = _comparison_dossier(
@@ -473,6 +618,35 @@ def test_unknown_reciprocal_side_is_not_upgraded_to_a_contradiction() -> None:
             ("human", "fixed", primary_dims),
             ("fixed", "human", secondary_dims),
         )
+    )
+
+    assert evaluate_consistency_readiness(dossier).ready is True
+
+
+@pytest.mark.parametrize(
+    "uncertain_evidence",
+    [_assumption("comparison-uncertain"), _missing("comparison-uncertain")],
+)
+def test_assumption_or_known_gap_reciprocal_side_is_not_upgraded_to_a_contradiction(
+    uncertain_evidence: AssumptionEvidence | MissingEvidence,
+) -> None:
+    primary_dims = replace(
+        _all_dimensions(ComparisonResult.EQUIVALENT),
+        cost=_dimension(ComparisonResult.BETTER, uncertain_evidence.id),
+    )
+    secondary_dims = replace(
+        _all_dimensions(ComparisonResult.EQUIVALENT),
+        cost=_dimension(ComparisonResult.BETTER, uncertain_evidence.id),
+    )
+    dossier = _comparison_dossier(
+        (
+            ("human", "fixed", primary_dims),
+            ("fixed", "human", secondary_dims),
+        )
+    )
+    dossier = replace(
+        dossier,
+        evidence=(*dossier.evidence, uncertain_evidence),
     )
 
     assert evaluate_consistency_readiness(dossier).ready is True

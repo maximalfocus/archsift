@@ -307,7 +307,21 @@ candidate_comparison:
 
 YAML anchors above only keep the sanitised example short; each expanded dimension is validated independently and must carry its own explicit result, rationale, and evidence IDs.
 
-ArchSift diagnoses a closed set of structured contradictions before assessment and abstains (`insufficient-evidence`) while one remains. The checks require credible support on both conflicting occurrences, never parse prose, and never block, support, rank, or select a candidate. They cover: credibly supported agency answers that claim both `fixed_workflow_sufficient: yes` and a runtime adaptation need (`runtime_tool_choice_required: yes` or `runtime_replanning_required: yes`); a credibly supported residual case recorded while a fixed workflow is credibly sufficient; an automation-only `authority` scope on a `human-owned-work` or `process-redesign` candidate; and incompatible known results on both directions of the same candidate pair (`better` ↔ `worse`, `worse` ↔ `better`, `equivalent` ↔ `equivalent`).
+ArchSift diagnoses a closed set of structured contradictions before assessment and abstains (`insufficient-evidence`) while one remains. Agency, residual-case, and reciprocal-comparison conflicts require credible support on both occurrences. An `authority` scope on a `human-owned-work` or `process-redesign` candidate is instead a structural conflict whenever that typed scope is present, even if its evidence is an assumption or known gap. The checks never parse prose and never block, support, rank, or select a candidate. They cover: credibly supported agency answers that claim both `fixed_workflow_sufficient: yes` and a runtime adaptation need (`runtime_tool_choice_required: yes` or `runtime_replanning_required: yes`); a credibly supported residual case recorded while a fixed workflow is credibly sufficient; an automation-only `authority` scope on a `human-owned-work` or `process-redesign` candidate; and incompatible known results on both directions of the same candidate pair (`better` ↔ `worse`, `worse` ↔ `better`, `equivalent` ↔ `equivalent`).
+
+This sanitised fragment is contradictory when both answers cite observed or method-backed evidence:
+
+```yaml
+agency_necessity:
+  runtime_tool_choice_required:
+    answer: "yes"
+    rationale: A runtime observation requires selecting the next approved tool.
+    evidence_ids: [workflow-estimate]
+  fixed_workflow_sufficient:
+    answer: "yes"
+    rationale: The same bounded task is claimed to need no runtime choice.
+    evidence_ids: [workflow-estimate]
+```
 
 ```yaml
 agency_necessity:
