@@ -197,6 +197,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "consequence",
         "remediation",
         "evidence_ids",
+        "counterpart",
     ),
     dr.ReassessmentTrigger: ("evidence_id", "kind", "observation"),
     r.AssessmentPrerequisiteEvaluation: ("ruleset_version", "ready", "findings"),
@@ -209,6 +210,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "consequence",
         "remediation",
         "evidence_ids",
+        "counterpart",
     ),
     v.AgencyNecessity: (
         "execution_steps_predefinable",

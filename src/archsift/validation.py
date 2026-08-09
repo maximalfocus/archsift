@@ -484,6 +484,7 @@ class PrerequisiteFinding:
     message: str
     remediation: str
     evidence_ids: tuple[str, ...] = ()
+    counterpart: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -513,6 +514,14 @@ class AutonomyPermissionReadiness:
 @dataclass(frozen=True, slots=True)
 class CandidateComparisonReadiness:
     """Deterministic advisory readiness for FR-008."""
+
+    ready: bool
+    findings: tuple[PrerequisiteFinding, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ConsistencyReadiness:
+    """Deterministic advisory readiness for the enumerated contradiction invariants."""
 
     ready: bool
     findings: tuple[PrerequisiteFinding, ...] = ()
@@ -2524,6 +2533,148 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                     )
                 )
     return CandidateComparisonReadiness(not findings, tuple(findings))
+
+
+def _canonical_evidence_union(*groups: tuple[str, ...]) -> tuple[str, ...]:
+    """Return the canonical sorted unique union of the authored evidence IDs."""
+    return tuple(sorted({identifier for group in groups for identifier in group}))
+
+
+def evaluate_consistency_readiness(dossier: Dossier) -> ConsistencyReadiness:
+    """Evaluate the enumerated cross-section contradiction invariants (FR-008).
+
+    Only mechanically decidable conflicts over structured values are checked:
+    agency answers and residual cases against fixed-workflow sufficiency,
+    automation-only authority on human-owned or process-redesign candidates,
+    and incompatible reciprocal comparison results. Prose is never parsed and
+    a contradiction never blocks, supports, ranks, or selects a candidate.
+    """
+    findings: list[PrerequisiteFinding] = []
+    evidence = {entry.id: entry for entry in dossier.evidence}
+
+    def credible(evidence_ids: tuple[str, ...]) -> bool:
+        return any(_is_credible_support(evidence.get(identifier)) for identifier in evidence_ids)
+
+    agency = dossier.agency_necessity
+    if agency is not None:
+        fixed_sufficient = agency.fixed_workflow_sufficient
+        fixed_credible = credible(fixed_sufficient.evidence_ids)
+        if fixed_sufficient.answer is AgencyAnswer.YES and fixed_credible:
+            for name in (
+                "runtime_tool_choice_required",
+                "runtime_replanning_required",
+            ):
+                question = cast(AgencyQuestion, getattr(agency, name))
+                if question.answer is AgencyAnswer.YES and credible(question.evidence_ids):
+                    findings.append(
+                        PrerequisiteFinding(
+                            "agency-necessity-contradiction",
+                            "$.agency_necessity.fixed_workflow_sufficient.answer",
+                            "FR-008",
+                            f"Agency facts contradict: fixed_workflow_sufficient is credibly "
+                            f"'yes' while {name!r} is credibly 'yes'.",
+                            "Correct one of the conflicting agency answers or cite evidence "
+                            "that resolves the conflict.",
+                            _canonical_evidence_union(
+                                fixed_sufficient.evidence_ids, question.evidence_ids
+                            ),
+                            f"$.agency_necessity.{name}.answer",
+                        )
+                    )
+            for index, residual in enumerate(agency.residual_cases):
+                if credible(residual.evidence_ids):
+                    findings.append(
+                        PrerequisiteFinding(
+                            "fixed-workflow-residual-contradiction",
+                            "$.agency_necessity.fixed_workflow_sufficient.answer",
+                            "FR-008",
+                            f"Residual case {residual.id!r} records fixed-workflow failure "
+                            "while fixed_workflow_sufficient is credibly 'yes'.",
+                            "Remove or correct the residual case, or change "
+                            "fixed_workflow_sufficient when evidence supports it.",
+                            _canonical_evidence_union(
+                                fixed_sufficient.evidence_ids, residual.evidence_ids
+                            ),
+                            f"$.agency_necessity.residual_cases[{index}].id",
+                        )
+                    )
+
+    comparison = dossier.candidate_comparison
+    if comparison is not None:
+        for candidate_index, candidate in enumerate(comparison.candidates):
+            if (
+                candidate.control_class
+                in (ControlClass.HUMAN_OWNED_WORK, ControlClass.PROCESS_REDESIGN)
+                and candidate.authority is not None
+            ):
+                findings.append(
+                    PrerequisiteFinding(
+                        "candidate-authority-class-contradiction",
+                        f"$.candidate_comparison.candidates[{candidate_index}].authority",
+                        "FR-008",
+                        f"Candidate {candidate.id!r} carries an automation authority scope "
+                        f"but its control class is {candidate.control_class.value!r}.",
+                        "Remove the authority scope or change the candidate control class.",
+                        _canonical_evidence_union(candidate.authority.evidence_ids),
+                        f"$.candidate_comparison.candidates[{candidate_index}].control_class",
+                    )
+                )
+
+        forward: dict[tuple[str, str], tuple[int, ComparisonDimensions]] = {}
+        for pair_index, pair in enumerate(comparison.comparisons):
+            if pair.subject_candidate_id != pair.comparator_candidate_id:
+                forward[(pair.subject_candidate_id, pair.comparator_candidate_id)] = (
+                    pair_index,
+                    pair.dimensions,
+                )
+        reverse_map: dict[tuple[str, str], tuple[str, str]] = {}
+        for subject, comparator in forward:
+            reverse_map[(comparator, subject)] = (subject, comparator)
+        for (subject, comparator), (primary_index, primary_dimensions) in sorted(forward.items()):
+            if subject > comparator:
+                # Each unordered pair is evaluated once in a canonical direction
+                # independent of authored pair order.
+                continue
+            reverse = reverse_map.get((subject, comparator))
+            if reverse is None:
+                continue
+            reverse_index, reverse_dimensions = forward[reverse]
+            for dimension_name in _COMPARISON_DIMENSION_FIELDS:
+                primary = cast(ComparisonDimension, getattr(primary_dimensions, dimension_name))
+                secondary = cast(ComparisonDimension, getattr(reverse_dimensions, dimension_name))
+                if (
+                    primary.result is ComparisonResult.UNKNOWN
+                    or secondary.result is ComparisonResult.UNKNOWN
+                ):
+                    continue
+                if not credible(primary.evidence_ids) or not credible(secondary.evidence_ids):
+                    continue
+                if primary.result is ComparisonResult.BETTER:
+                    expected = ComparisonResult.WORSE
+                elif primary.result is ComparisonResult.WORSE:
+                    expected = ComparisonResult.BETTER
+                else:
+                    expected = ComparisonResult.EQUIVALENT
+                if secondary.result is expected:
+                    continue
+                findings.append(
+                    PrerequisiteFinding(
+                        "comparison-reciprocity-contradiction",
+                        f"$.candidate_comparison.comparisons[{primary_index}]."
+                        f"dimensions.{dimension_name}.result",
+                        "FR-008",
+                        f"Reciprocal comparison for {dimension_name!r} between {subject!r} "
+                        f"and {comparator!r} is contradictory: {primary.result.value!r} versus "
+                        f"{secondary.result.value!r}.",
+                        "Make both directed results consistent (better\u2194worse, "
+                        "equivalent\u2194equivalent) or remove one direction.",
+                        _canonical_evidence_union(primary.evidence_ids, secondary.evidence_ids),
+                        f"$.candidate_comparison.comparisons[{reverse_index}]."
+                        f"dimensions.{dimension_name}.result",
+                    )
+                )
+
+    return ConsistencyReadiness(not findings, tuple(findings))
 
 
 def _case_file(workspace: Path) -> tuple[Path | None, ValidationResult | None]:

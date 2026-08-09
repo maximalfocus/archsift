@@ -307,6 +307,45 @@ candidate_comparison:
 
 YAML anchors above only keep the sanitised example short; each expanded dimension is validated independently and must carry its own explicit result, rationale, and evidence IDs.
 
+ArchSift diagnoses a closed set of structured contradictions before assessment and abstains (`insufficient-evidence`) while one remains. Agency, residual-case, and reciprocal-comparison conflicts require credible support on both occurrences. An `authority` scope on a `human-owned-work` or `process-redesign` candidate is instead a structural conflict whenever that typed scope is present, even if its evidence is an assumption or known gap. The checks never parse prose and never block, support, rank, or select a candidate. They cover: credibly supported agency answers that claim both `fixed_workflow_sufficient: yes` and a runtime adaptation need (`runtime_tool_choice_required: yes` or `runtime_replanning_required: yes`); a credibly supported residual case recorded while a fixed workflow is credibly sufficient; an automation-only `authority` scope on a `human-owned-work` or `process-redesign` candidate; and incompatible known results on both directions of the same candidate pair (`better` ↔ `worse`, `worse` ↔ `better`, `equivalent` ↔ `equivalent`).
+
+This sanitised fragment is contradictory when both answers cite observed or method-backed evidence:
+
+```yaml
+agency_necessity:
+  runtime_tool_choice_required:
+    answer: "yes"
+    rationale: A runtime observation requires selecting the next approved tool.
+    evidence_ids: [workflow-estimate]
+  fixed_workflow_sufficient:
+    answer: "yes"
+    rationale: The same bounded task is claimed to need no runtime choice.
+    evidence_ids: [workflow-estimate]
+```
+
+```yaml
+agency_necessity:
+  runtime_tool_choice_required:
+    answer: "no"
+    rationale: The fixed workflow selects the next step.
+    evidence_ids: [workflow-estimate]
+  runtime_replanning_required:
+    answer: "no"
+    rationale: The review plan is fixed.
+    evidence_ids: [workflow-estimate]
+  fixed_workflow_sufficient:
+    answer: "no"
+    rationale: The residual case requires a runtime choice.
+    evidence_ids: [workflow-estimate]
+  residual_cases:
+    - id: evidence-dependent-follow-up
+      description: A submitted record introduces an unanticipated evidence gap.
+      fixed_workflow_failure: The next approved retrieval step cannot be selected in advance.
+      evidence_ids: [workflow-estimate]
+```
+
+The sanitised agency block above is coherent: `fixed_workflow_sufficient` is `no` and the residual case records the failure. Recording `fixed_workflow_sufficient: yes` together with `runtime_tool_choice_required: yes` or with this residual case would be a contradiction. Likewise, give `authority` only to deterministic-automation, fixed-AI-workflow, or agentic-control candidates, and keep both directions of every pairwise dimension reciprocal. ArchSift checks only these enumerated structured invariants; it does not prove external truth or arbitrary prose consistency.
+
 Use `decision_conditions` only for authored obligations that apply after the minimum-sufficient control class is already determined. A condition cannot eliminate or promote a class. If resolving an uncertainty could change the selected class, record it as missing evidence instead. Conditions remain separate from hard vetoes and mandatory human controls.
 
 ```yaml

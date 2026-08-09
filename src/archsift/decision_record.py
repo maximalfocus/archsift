@@ -106,6 +106,7 @@ class PrerequisiteGap:
     consequence: str
     remediation: str
     evidence_ids: tuple[str, ...]
+    counterpart: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -281,6 +282,7 @@ def _prerequisite_finding_dict(value: AssessmentPrerequisiteFinding) -> JsonObje
         "consequence",
         "remediation",
         "evidence_ids",
+        "counterpart",
     )
     _checked_dataclass(value, AssessmentPrerequisiteFinding, expected)
     _require_string(value.rule_id, "Prerequisite-finding rule_id")
@@ -289,6 +291,8 @@ def _prerequisite_finding_dict(value: AssessmentPrerequisiteFinding) -> JsonObje
     _require_string(value.message, "Prerequisite-finding message")
     _require_string(value.consequence, "Prerequisite-finding consequence")
     _require_string(value.remediation, "Prerequisite-finding remediation")
+    if value.counterpart is not None:
+        _require_string(value.counterpart, "Prerequisite-finding counterpart")
     _rule_effect(value.effect)
     _require_string_tuple(value.evidence_ids, "Prerequisite-finding evidence IDs")
     return _checked_payload(value.to_dict(), expected, "prerequisite-finding")
@@ -567,6 +571,7 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
             "consequence",
             "remediation",
             "evidence_ids",
+            "counterpart",
         )
         _checked_dataclass(value, PrerequisiteGap, expected)
         _require_string(value.rule_id, "Prerequisite-gap rule_id")
@@ -575,9 +580,12 @@ def _gap_dict(value: UnresolvedGap) -> JsonObject:
         _require_string(value.message, "Prerequisite-gap message")
         _require_string(value.consequence, "Prerequisite-gap consequence")
         _require_string(value.remediation, "Prerequisite-gap remediation")
+        if value.counterpart is not None:
+            _require_string(value.counterpart, "Prerequisite-gap counterpart")
         _require_string_tuple(value.evidence_ids, "Prerequisite-gap evidence IDs")
         return {
             "consequence": value.consequence,
+            "counterpart": value.counterpart,
             "effect": _rule_effect(value.effect),
             "evidence_ids": list(value.evidence_ids),
             "field": value.field,
@@ -683,6 +691,7 @@ def _unresolved_gaps(assessment: AssessmentEvaluation) -> tuple[UnresolvedGap, .
             consequence=finding.consequence,
             remediation=finding.remediation,
             evidence_ids=finding.evidence_ids,
+            counterpart=finding.counterpart,
         )
         for finding in assessment.prerequisite_evaluation.findings
     )

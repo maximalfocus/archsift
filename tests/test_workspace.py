@@ -58,6 +58,9 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert "candidate_comparison:" in guidance
     assert "strongest-simpler" in guidance
     assert "difficult_case_performance:" in guidance
+    assert "This sanitised fragment is contradictory" in guidance
+    assert "is instead a structural conflict whenever that typed scope is present" in guidance
+    assert 'answer: "yes"' in guidance
     assert "decision_conditions:" in guidance
     assert "target_control_class:" in guidance
     assert "If resolving an uncertainty could change the selected class" in guidance

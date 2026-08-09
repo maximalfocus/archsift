@@ -77,6 +77,7 @@ jobs:
           assert "archsift/docs/exit-codes.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
           assert "archsift/docs/method-v1.1.0.md" in names
+          assert "archsift/docs/method-v1.2.0.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -126,17 +127,17 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.7.0"
-          assert rules_payload["method"]["version"] == "1.1.0"
-          assert rules_payload["method"]["ruleset_version"] == "1.7.0"
-          assert rules_payload["method"]["specification"] == "docs/method-v1.1.0.md"
+          assert rules_payload["ruleset_version"] == "1.8.0"
+          assert rules_payload["method"]["version"] == "1.2.0"
+          assert rules_payload["method"]["ruleset_version"] == "1.8.0"
+          assert rules_payload["method"]["specification"] == "docs/method-v1.2.0.md"
           assert len(rules_payload["method"]["sources"]) == 6
-          assert len(rules_payload["rules"]) == 61
-          assert all(rule["rationale_id"].startswith("method-v1.1.0#") for rule in rules_payload["rules"])
+          assert len(rules_payload["rules"]) == 65
+          assert all(rule["rationale_id"].startswith("method-v1.2.0#") for rule in rules_payload["rules"])
           assert all(rule["source_ids"] for rule in rules_payload["rules"])
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 8
-          assert effects.count("require-evidence") == 40
+          assert effects.count("require-evidence") == 44
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 2
@@ -146,8 +147,8 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert "method 1.1.0; docs/method-v1.1.0.md" in human_rules.stdout
-          assert "Method: method-v1.1.0#" in human_rules.stdout
+          assert "method 1.2.0; docs/method-v1.2.0.md" in human_rules.stdout
+          assert "Method: method-v1.2.0#" in human_rules.stdout
           assert " Sources: " in human_rules.stdout
           method_probe = subprocess.run(
               [
@@ -171,7 +172,7 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert method_probe.stdout.strip() == "1.1.0 docs/method-v1.1.0.md 61"
+          assert method_probe.stdout.strip() == "1.2.0 docs/method-v1.2.0.md 65"
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")
@@ -194,7 +195,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.7.0"
+          assert initialized_payload["ruleset_version"] == "1.8.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -422,7 +423,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.7.0"
+          assert payload["ruleset_version"] == "1.8.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
@@ -491,6 +492,21 @@ jobs:
                       "'agentic-fixed-workflow-sufficient-blocks-candidate' for f in "
                       "blocked_agentic.ordered_elimination_evaluation.findings); "
                       "agency = dossier.agency_necessity; assert agency is not None; "
+                      "contradictory_agency = replace(agency, runtime_tool_choice_required=replace("
+                      "agency.runtime_tool_choice_required, answer=AgencyAnswer.YES)); "
+                      "contradictory_dossier = replace(dossier, "
+                      "agency_necessity=contradictory_agency); "
+                      "contradictory = evaluate_assessment(contradictory_dossier); "
+                      "assert contradictory.verdict.value == 'insufficient-evidence'; "
+                      "contradiction = next(f for f in "
+                      "contradictory.prerequisite_evaluation.findings if f.rule_id == "
+                      "'agency-necessity-contradiction'); "
+                      "assert contradiction.counterpart == "
+                      "'$.agency_necessity.runtime_tool_choice_required.answer'; "
+                      "contradictory_record = compose_decision_record(contradictory_dossier, "
+                      "tool_version='0.1.0-wheel-smoke', artefact_identities=artefacts); "
+                      "assert 'agency-necessity-contradiction' in "
+                      "render_markdown_decision_report(contradictory_record).decode('utf-8'); "
                       "supported_agency = replace(agency, "
                       "runtime_tool_choice_required=replace(agency.runtime_tool_choice_required, "
                       "answer=AgencyAnswer.YES), fixed_workflow_sufficient=replace("
