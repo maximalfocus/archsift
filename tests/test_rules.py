@@ -175,22 +175,25 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.7.0"
+    assert RULESET_VERSION == "1.8.0"
     assert ids == sorted(ids)
-    assert len(ids) == len(set(ids)) == 30
+    assert len(ids) == len(set(ids)) == 34
     assert set(ids) == {
         "agency-answer-unknown",
         "agency-necessity-missing",
+        "agency-necessity-contradiction",
         "autonomy-answer-unknown",
         "autonomy-permission-missing",
         "baseline-reference-unresolved",
         "binding-outcome-missing",
+        "candidate-authority-class-contradiction",
         "candidate-comparison-missing",
         "candidate-constraint-test-missing",
         "candidate-outcome-test-missing",
         "candidate-problem-value-missing",
         "candidate-role-incompatible",
         "candidate-test-result-unknown",
+        "comparison-reciprocity-contradiction",
         "credible-agency-evidence-missing",
         "credible-candidate-test-evidence-missing",
         "credible-comparison-evidence-missing",
@@ -200,6 +203,7 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         "credible-human-control-evidence-missing",
         "credible-residual-case-evidence-missing",
         "credible-strongest-simpler-evidence-missing",
+        "fixed-workflow-residual-contradiction",
         "hard-veto-status-unknown",
         "comparison-result-unknown",
         "problem-value-missing",
@@ -220,10 +224,10 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         for rule in rules
     )
     catalog = list_rules()
-    assert len(catalog) == 61
+    assert len(catalog) == 65
     assert len(catalog) == len({rule.id for rule in catalog})
     assert [rule.effect.value for rule in catalog].count("block") == 8
-    assert [rule.effect.value for rule in catalog].count("require-evidence") == 40
+    assert [rule.effect.value for rule in catalog].count("require-evidence") == 44
     assert [rule.effect.value for rule in catalog].count("support-candidate") == 10
     assert [rule.effect.value for rule in catalog].count("constrain-autonomy") == 1
     assert [rule.effect.value for rule in catalog].count("non-decisive") == 2

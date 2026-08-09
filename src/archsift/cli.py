@@ -34,6 +34,7 @@ from archsift.validation import (
     evaluate_agency_necessity_readiness,
     evaluate_autonomy_permission_readiness,
     evaluate_candidate_comparison_readiness,
+    evaluate_consistency_readiness,
     evaluate_problem_value_readiness,
     validate_workspace,
 )
@@ -224,6 +225,8 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details["comparison_count"] = (
             len(candidate_comparison.comparisons) if candidate_comparison is not None else 0
         )
+        consistency_readiness = evaluate_consistency_readiness(result.dossier)
+        details["consistency_ready"] = consistency_readiness.ready
         prerequisites = evaluate_assessment_prerequisites(result.dossier)
         details["assessment_prerequisites_ready"] = prerequisites.ready
         details["prerequisite_finding_count"] = len(prerequisites.findings)

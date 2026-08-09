@@ -12,7 +12,7 @@
 
 **Record Content Identity**
 
-    sha256:52741cb305943b1d37787ed72c526f6448eb8763a713732253364f3d752938fb
+    sha256:7a64753e607387590fa9c8812b4f96b1819c864abee41d930f33c487fe73f303
 
 **Dossier Schema Version**
 
@@ -24,7 +24,7 @@
 
 **Ruleset Version**
 
-    1.7.0
+    1.8.0
 
 **Tool Version**
 
@@ -108,7 +108,7 @@
 
 **Assessment Ruleset Version**
 
-    1.7.0
+    1.8.0
 
 **Verdict**
 
@@ -148,7 +148,7 @@
 
 **Ruleset Version**
 
-    1.7.0
+    1.8.0
 
 **Ready**
 
@@ -190,6 +190,10 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Findings item 2**
 
 **Rule Id**
@@ -223,6 +227,10 @@
 **Evidence Ids**
 
     (none)
+
+**Counterpart**
+
+    (not provided)
 
 **Findings item 3**
 
@@ -258,6 +266,10 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Findings item 4**
 
 **Rule Id**
@@ -291,6 +303,10 @@
 **Evidence Ids**
 
     (none)
+
+**Counterpart**
+
+    (not provided)
 
 **Findings item 5**
 
@@ -326,11 +342,15 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Ordered Elimination Evaluation**
 
 **Ruleset Version**
 
-    1.7.0
+    1.8.0
 
 **Candidates**
 
@@ -402,6 +422,10 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Unresolved Gaps item 2**
 
 **Source**
@@ -439,6 +463,10 @@
 **Evidence Ids**
 
     (none)
+
+**Counterpart**
+
+    (not provided)
 
 **Unresolved Gaps item 3**
 
@@ -478,6 +506,10 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Unresolved Gaps item 4**
 
 **Source**
@@ -516,6 +548,10 @@
 
     (none)
 
+**Counterpart**
+
+    (not provided)
+
 **Unresolved Gaps item 5**
 
 **Source**
@@ -553,6 +589,10 @@
 **Evidence Ids**
 
     (none)
+
+**Counterpart**
+
+    (not provided)
 
 ## Reassessment Triggers
 

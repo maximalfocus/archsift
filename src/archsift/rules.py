@@ -12,10 +12,11 @@ from archsift.validation import (
     evaluate_agency_necessity_readiness,
     evaluate_autonomy_permission_readiness,
     evaluate_candidate_comparison_readiness,
+    evaluate_consistency_readiness,
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.7.0"
+RULESET_VERSION = "1.8.0"
 
 
 class RuleEffect(StrEnum):
@@ -61,11 +62,13 @@ class AssessmentPrerequisiteFinding:
     consequence: str
     remediation: str
     evidence_ids: tuple[str, ...] = ()
+    counterpart: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return a deterministic JSON-compatible representation."""
         return {
             "consequence": self.consequence,
+            "counterpart": self.counterpart,
             "effect": self.effect.value,
             "evidence_ids": list(self.evidence_ids),
             "field": self.field,
@@ -151,6 +154,14 @@ PREREQUISITE_RULES = tuple(
                 "Agency necessity is a distinct prerequisite for architecture selection.",
             ),
             _rule(
+                "agency-necessity-contradiction",
+                "FR-008",
+                "Diagnose a credibly supported conflict between fixed-workflow sufficiency "
+                "and a runtime adaptation need.",
+                "A dossier cannot credibly claim both that a fixed workflow is sufficient "
+                "and that runtime tool choice or replanning is required.",
+            ),
+            _rule(
                 "autonomy-answer-unknown",
                 "FR-007",
                 "Require a known answer for every autonomy-permission question.",
@@ -173,6 +184,14 @@ PREREQUISITE_RULES = tuple(
                 "FR-005",
                 "Require at least one measurable binding outcome.",
                 "Architecture selection must be anchored to a required business outcome.",
+            ),
+            _rule(
+                "candidate-authority-class-contradiction",
+                "FR-008",
+                "Diagnose an automation authority scope on a human-owned or process-redesign "
+                "candidate.",
+                "The authority contract declares task-action control, which only applies to "
+                "automation candidates.",
             ),
             _rule(
                 "candidate-comparison-missing",
@@ -265,10 +284,25 @@ PREREQUISITE_RULES = tuple(
                 "An assumption or known gap cannot justify the selected simpler alternative.",
             ),
             _rule(
+                "fixed-workflow-residual-contradiction",
+                "FR-008",
+                "Diagnose a credibly supported residual case recorded while a fixed workflow "
+                "is credibly sufficient.",
+                "A residual case records fixed-workflow failure, contradicting fixed-workflow "
+                "sufficiency.",
+            ),
+            _rule(
                 "hard-veto-status-unknown",
                 "FR-007",
                 "Require known applicability for every hard veto.",
                 "An unresolved veto cannot be hidden or averaged into a recommendation.",
+            ),
+            _rule(
+                "comparison-reciprocity-contradiction",
+                "FR-008",
+                "Diagnose incompatible known results on both directions of a candidate pair.",
+                "Directional trade-offs must be reciprocal for the same dimension; a dossier "
+                "cannot claim both directions simultaneously.",
             ),
             _rule(
                 "comparison-result-unknown",
@@ -652,6 +686,7 @@ def _assessment_finding(source: PrerequisiteFinding) -> AssessmentPrerequisiteFi
         consequence=rule.consequence,
         remediation=source.remediation,
         evidence_ids=source.evidence_ids,
+        counterpart=source.counterpart,
     )
 
 
@@ -672,6 +707,7 @@ def evaluate_assessment_prerequisites(dossier: Dossier) -> AssessmentPrerequisit
     source_findings.extend(evaluate_agency_necessity_readiness(dossier).findings)
     source_findings.extend(evaluate_autonomy_permission_readiness(dossier).findings)
     source_findings.extend(evaluate_candidate_comparison_readiness(dossier).findings)
+    source_findings.extend(evaluate_consistency_readiness(dossier).findings)
     findings = tuple(_assessment_finding(source) for source in source_findings)
     return AssessmentPrerequisiteEvaluation(
         ruleset_version=RULESET_VERSION,

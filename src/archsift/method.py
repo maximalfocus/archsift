@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-METHOD_VERSION = "1.1.0"
-METHOD_RULESET_VERSION = "1.7.0"
-METHOD_SPECIFICATION = "docs/method-v1.1.0.md"
+METHOD_VERSION = "1.2.0"
+METHOD_RULESET_VERSION = "1.8.0"
+METHOD_SPECIFICATION = "docs/method-v1.2.0.md"
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +149,16 @@ _RULE_GROUPS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
             "strongest-simpler-boundary-coverage-missing",
             "strongest-simpler-boundary-incompatible",
             "strongest-simpler-boundary-missing",
+        ),
+    ),
+    (
+        "contradiction-diagnostics",
+        ("nist-ai-rmf-1.0", "nist-sp-800-30r1"),
+        (
+            "agency-necessity-contradiction",
+            "candidate-authority-class-contradiction",
+            "comparison-reciprocity-contradiction",
+            "fixed-workflow-residual-contradiction",
         ),
     ),
     (

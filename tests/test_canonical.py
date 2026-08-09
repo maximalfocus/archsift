@@ -507,7 +507,7 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
         ),
     )
     assert dossier_content_identity(changed_dossier) != identity
-    assert RULESET_VERSION == "1.7.0"
+    assert RULESET_VERSION == "1.8.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:

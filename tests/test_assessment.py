@@ -410,7 +410,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.7.0"
+    assert RULESET_VERSION == "1.8.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -812,7 +812,15 @@ def test_fixed_workflow_sufficiency_blocks_agentic_candidate_and_verdict() -> No
     assert finding.criterion_kind is CriterionKind.AGENCY_QUESTION
     assert finding.evidence_ids == ("agency-observed",)
     assert _agentic_result(evaluation).disposition is CandidateDisposition.ELIMINATED
-    assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
+    # The dossier also credibly claims a runtime tool-choice need together with
+    # fixed-workflow sufficiency, which is a decision-critical contradiction:
+    # the candidate block stands, but the aggregate prerequisites stay unready
+    # and the verdict abstains instead of promoting another class.
+    assert any(
+        finding.rule_id == "agency-necessity-contradiction"
+        for finding in evaluation.prerequisite_evaluation.findings
+    )
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
 
 
 def test_absent_runtime_adaptation_blocks_agentic_candidate() -> None:
