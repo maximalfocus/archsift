@@ -89,6 +89,13 @@ _CONTROL_CLASSES = {
     "fixed-ai-workflow",
     "agentic-control",
 }
+_OPTIONAL_DOSSIER_SECTIONS = {
+    "agency_necessity",
+    "autonomy_permission",
+    "candidate_comparison",
+    "problem_value",
+    "task",
+}
 _VERDICTS = {
     "supported",
     "conditional",
@@ -241,13 +248,13 @@ def _validate_json_value(value: object, field: str = "$") -> None:
     raise ValueError(f"{field} contains a non-canonical JSON value")
 
 
-def _authored_schema_view(value: JsonValue) -> JsonValue:
-    """Remove canonical null placeholders that authored dossier YAML omits."""
-    if isinstance(value, list):
-        return [_authored_schema_view(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _authored_schema_view(item) for key, item in value.items() if item is not None}
-    return value
+def _authored_schema_view(dossier: JsonObject) -> JsonObject:
+    """Remove only the optional top-level nulls added by canonical serialization."""
+    return {
+        key: value
+        for key, value in dossier.items()
+        if value is not None or key not in _OPTIONAL_DOSSIER_SECTIONS
+    }
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -593,7 +600,7 @@ def _validate_record(record: dict[str, object]) -> None:
     dossier = _require_object(record["dossier"], "$.dossier")
     if dossier.get("schema_version") != dossier_schema:
         raise ValueError("dossier schema version is inconsistent")
-    schema_view = cast(JsonObject, _authored_schema_view(cast(JsonObject, dossier)))
+    schema_view = _authored_schema_view(cast(JsonObject, dossier))
     if next(_dossier_validator().iter_errors(schema_view), None) is not None:
         raise ValueError("embedded dossier does not satisfy schema version 1")
     evidence = _require_list(dossier.get("evidence"), "$.dossier.evidence")

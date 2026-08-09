@@ -340,6 +340,22 @@ def test_compare_classifies_unsupported_record_schema(
     assert diagnostic["id"] == "compare-unsupported-schema"
 
 
+def test_compare_rejects_unknown_null_dossier_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    old = _record()
+    old["dossier"]["case"]["unknown_null"] = None
+    _write(tmp_path / "old.json", old)
+    _write(tmp_path / "new.json", _record())
+    monkeypatch.chdir(tmp_path)
+
+    assert main(["compare", "old.json", "new.json", "--json"]) == ExitCode.MALFORMED_INPUT
+    diagnostic = json.loads(capsys.readouterr().out)["diagnostics"][0]
+    assert diagnostic["id"] == "compare-malformed-record"
+
+
 def test_compare_classifies_missing_outside_looping_and_non_regular_paths(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
