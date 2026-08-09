@@ -1,0 +1,1 @@
+Fictional observations: current review misses the binding target; a predefined fixed AI workflow meets it; runtime tool choice and replanning are unnecessary; release remains human controlled.

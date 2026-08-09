@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "examples": [
+    {
+      "path": "agentic-control",
+      "verdict": "supported",
+      "recommended_class": "agentic-control",
+      "evidence_state": "evidence-complete",
+      "representative_rule_id": "agentic-runtime-adaptation-supports-agency",
+      "representative_evidence_id": "agency-observed"
+    },
+    {
+      "path": "fixed-workflow",
+      "verdict": "supported",
+      "recommended_class": "fixed-ai-workflow",
+      "evidence_state": "evidence-complete",
+      "representative_rule_id": "binding-outcome-met",
+      "representative_evidence_id": "decision-observed"
+    },
+    {
+      "path": "insufficient-evidence",
+      "verdict": "insufficient-evidence",
+      "recommended_class": null,
+      "evidence_state": "evidence-incomplete",
+      "representative_rule_id": "comparison-result-unknown",
+      "representative_evidence_id": "decision-observed"
+    },
+    {
+      "path": "no-technology-change",
+      "verdict": "no-technology-change",
+      "recommended_class": "human-owned-work",
+      "evidence_state": "evidence-complete",
+      "representative_rule_id": "binding-outcome-met",
+      "representative_evidence_id": "decision-observed"
+    }
+  ]
+}

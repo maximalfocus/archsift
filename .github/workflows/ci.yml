@@ -87,6 +87,7 @@ jobs:
         run: |
           import json
           import os
+          import shutil
           import subprocess
           import tempfile
           import venv
@@ -581,3 +582,64 @@ jobs:
           assert (record_path.stat().st_mtime_ns, report_path.stat().st_mtime_ns) == recorded_mtimes
           assert len(list((case / "output").glob("*.json"))) == 1
           assert len(list((case / "output").glob("*.md"))) == 1
+          manifest = json.loads(Path("examples/manifest.json").read_text(encoding="utf-8"))
+          installed_examples = root / "installed-examples"
+          installed_examples.mkdir()
+          network_blocker = root / "network-blocker"
+          network_blocker.mkdir()
+          (network_blocker / "sitecustomize.py").write_text(
+              "import socket\n"
+              "def blocked(*args, **kwargs):\n"
+              "    raise AssertionError('example execution must remain offline')\n"
+              "socket.create_connection = blocked\n"
+              "socket.getaddrinfo = blocked\n"
+              "socket.socket.connect = blocked\n"
+              "socket.socket.connect_ex = blocked\n",
+              encoding="utf-8",
+          )
+          offline_environment = os.environ.copy()
+          offline_environment["PYTHONPATH"] = str(network_blocker)
+          for example in manifest["examples"]:
+              installed_example = installed_examples / example["path"]
+              shutil.copytree(Path("examples") / example["path"], installed_example)
+              validated = subprocess.run(
+                  [archsift, "validate", installed_example, "--json"],
+                  check=True,
+                  capture_output=True,
+                  env=offline_environment,
+              )
+              assert validated.stderr == b""
+              assert json.loads(validated.stdout)["status"] == "valid"
+              example_command = [archsift, "assess", installed_example, "--json"]
+              first_example = subprocess.run(
+                  example_command,
+                  check=True,
+                  capture_output=True,
+                  env=offline_environment,
+              )
+              second_example = subprocess.run(
+                  example_command,
+                  check=True,
+                  capture_output=True,
+                  env=offline_environment,
+              )
+              assert first_example.stderr == second_example.stderr == b""
+              assert first_example.stdout == second_example.stdout
+              example_payload = json.loads(first_example.stdout)
+              example_assessment = example_payload["assessment"]
+              assert example_assessment["verdict"] == example["verdict"]
+              assert example_assessment["recommended_class"] == example["recommended_class"]
+              assert example_assessment["evidence_state"] == example["evidence_state"]
+              example_findings = (
+                  example_assessment["prerequisite_evaluation"]["findings"]
+                  + example_assessment["ordered_elimination_evaluation"]["findings"]
+              )
+              representative = next(
+                  finding
+                  for finding in example_findings
+                  if finding["rule_id"] == example["representative_rule_id"]
+              )
+              assert example["representative_evidence_id"] in representative["evidence_ids"]
+              example_identity = example_payload["record_content_identity"][7:]
+              example_record = installed_example / "output" / f"sha256-{example_identity}.json"
+              assert example_record.read_bytes() == first_example.stdout
