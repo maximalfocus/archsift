@@ -76,6 +76,7 @@ jobs:
           assert "archsift/rules.py" in names
           assert "archsift/docs/exit-codes.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
+          assert "archsift/docs/method-v1.1.0.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -125,17 +126,17 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.6.0"
-          assert rules_payload["method"]["version"] == "1.0.0"
-          assert rules_payload["method"]["ruleset_version"] == "1.6.0"
-          assert rules_payload["method"]["specification"] == "docs/method-v1.0.0.md"
+          assert rules_payload["ruleset_version"] == "1.7.0"
+          assert rules_payload["method"]["version"] == "1.1.0"
+          assert rules_payload["method"]["ruleset_version"] == "1.7.0"
+          assert rules_payload["method"]["specification"] == "docs/method-v1.1.0.md"
           assert len(rules_payload["method"]["sources"]) == 6
-          assert len(rules_payload["rules"]) == 57
-          assert all(rule["rationale_id"].startswith("method-v1.0.0#") for rule in rules_payload["rules"])
+          assert len(rules_payload["rules"]) == 61
+          assert all(rule["rationale_id"].startswith("method-v1.1.0#") for rule in rules_payload["rules"])
           assert all(rule["source_ids"] for rule in rules_payload["rules"])
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 8
-          assert effects.count("require-evidence") == 36
+          assert effects.count("require-evidence") == 40
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 2
@@ -145,8 +146,8 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert "method 1.0.0; docs/method-v1.0.0.md" in human_rules.stdout
-          assert "Method: method-v1.0.0#" in human_rules.stdout
+          assert "method 1.1.0; docs/method-v1.1.0.md" in human_rules.stdout
+          assert "Method: method-v1.1.0#" in human_rules.stdout
           assert " Sources: " in human_rules.stdout
           method_probe = subprocess.run(
               [
@@ -170,7 +171,7 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert method_probe.stdout.strip() == "1.0.0 docs/method-v1.0.0.md 57"
+          assert method_probe.stdout.strip() == "1.1.0 docs/method-v1.1.0.md 61"
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")
@@ -179,6 +180,7 @@ jobs:
           assert "survives the agency rules only when" in guidance
           assert "non-decisive for agency necessity" in guidance
           assert "does not prove the external truth or operational adequacy" in guidance
+          assert "does not prove global optimality, discover omitted alternatives" in guidance
           external_root = root / "external-evidence"
           external_root.mkdir()
           (case / "evidence" / "baseline.bin").write_bytes(b"installed baseline\x00")
@@ -192,7 +194,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.6.0"
+          assert initialized_payload["ruleset_version"] == "1.7.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -363,6 +365,13 @@ jobs:
                       }],
                       "constraint_tests": [],
                   }],
+                  "strongest_simpler_boundary": {
+                      "strongest_candidate_id": "current-review",
+                      "scope": "All represented candidates below the fixed workflow.",
+                      "rationale": "Current review is the strongest represented simpler option.",
+                      "considered_candidate_ids": ["current-review"],
+                      "evidence_ids": ["agency-estimate"],
+                  },
                   "comparisons": [{
                       "subject_candidate_id": "fixed-workflow",
                       "comparator_candidate_id": "current-review",
@@ -413,7 +422,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.6.0"
+          assert payload["ruleset_version"] == "1.7.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier

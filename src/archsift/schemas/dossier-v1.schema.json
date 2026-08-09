@@ -502,7 +502,32 @@
           "type": "array",
           "minItems": 1,
           "items": { "$ref": "#/$defs/candidatePairComparison" }
+        },
+        "strongest_simpler_boundary": {
+          "$ref": "#/$defs/strongestSimplerBoundary"
         }
+      }
+    },
+    "strongestSimplerBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strongest_candidate_id",
+        "scope",
+        "rationale",
+        "considered_candidate_ids",
+        "evidence_ids"
+      ],
+      "properties": {
+        "strongest_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "scope": { "$ref": "#/$defs/nonBlankString" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "considered_candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
       }
     },
     "decisionCondition": {

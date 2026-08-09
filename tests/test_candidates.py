@@ -21,6 +21,7 @@ from archsift.validation import (
     CandidateTestResult,
     ComparisonResult,
     ControlClass,
+    StrongestSimplerBoundary,
     evaluate_candidate_comparison_readiness,
     validate_workspace,
 )
@@ -176,6 +177,13 @@ def _comparison() -> dict[str, object]:
             _candidate("fixed-workflow", "fixed-ai-workflow", ["proposed"]),
         ],
         "comparisons": [_pair("fixed-workflow", "current-review")],
+        "strongest_simpler_boundary": {
+            "strongest_candidate_id": "current-review",
+            "scope": "All represented candidates below the fixed workflow.",
+            "rationale": "Current review is the strongest represented simpler candidate.",
+            "considered_candidate_ids": ["current-review"],
+            "evidence_ids": ["comparison-observed"],
+        },
     }
 
 
@@ -246,6 +254,14 @@ def test_packaged_schema_exposes_optional_candidate_comparison() -> None:
         "agentic-control",
     ]
     assert "authority" not in schema["$defs"]["candidate"]["required"]
+    assert "strongest_simpler_boundary" not in schema["$defs"]["candidateComparison"]["required"]
+    assert schema["$defs"]["strongestSimplerBoundary"]["required"] == [
+        "strongest_candidate_id",
+        "scope",
+        "rationale",
+        "considered_candidate_ids",
+        "evidence_ids",
+    ]
     assert schema["$defs"]["candidateAuthority"]["required"] == [
         "action_ids",
         "retained_human_control_ids",
@@ -280,6 +296,11 @@ def test_complete_comparison_is_typed_immutable_ordered_and_ready(tmp_path: Path
     )
     assert facts.candidates[1].outcome_tests[0].result is CandidateTestResult.MEETS
     assert facts.comparisons[0].dimensions.outcome_quality.result is ComparisonResult.BETTER
+    boundary = facts.strongest_simpler_boundary
+    assert isinstance(boundary, StrongestSimplerBoundary)
+    assert boundary.strongest_candidate_id == "current-review"
+    assert boundary.considered_candidate_ids == ("current-review",)
+    assert boundary.evidence_ids == ("comparison-observed",)
     assert evaluate_candidate_comparison_readiness(result.dossier).ready is True
     with pytest.raises(FrozenInstanceError):
         facts.candidates[0].name = "changed"  # type: ignore[misc]
@@ -841,6 +862,13 @@ def test_ready_agentic_comparator_is_compared_with_baseline_and_strongest_simple
         _pair("agentic-review", "current-review"),
         _pair("agentic-review", "fixed-workflow"),
     ]
+    comparison["strongest_simpler_boundary"] = {
+        "strongest_candidate_id": "fixed-workflow",
+        "scope": "All represented candidates below agentic control.",
+        "rationale": "The fixed workflow is the strongest represented simpler candidate.",
+        "considered_candidate_ids": ["current-review", "fixed-workflow"],
+        "evidence_ids": ["comparison-observed"],
+    }
     _write_case(workspace, _dossier(comparison))
 
     result = validate_workspace(workspace)
@@ -931,7 +959,7 @@ def test_validate_json_reports_candidate_readiness_without_verdict(
     assert payload["candidate_comparison_ready"] is True
     assert payload["candidate_count"] == 2
     assert payload["comparison_count"] == 1
-    assert payload["ruleset_version"] == RULESET_VERSION == "1.6.0"
+    assert payload["ruleset_version"] == RULESET_VERSION == "1.7.0"
     assert "verdict" not in payload
     assert "recommendation" not in payload
     assert "score" not in payload
@@ -1025,3 +1053,207 @@ def test_candidate_text_is_inert_and_dossier_paths_are_not_opened(tmp_path: Path
     assert result.dossier is not None
     assert result.dossier.candidate_comparison is not None
     assert result.dossier.candidate_comparison.candidates[0].description == str(outside)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_field"),
+    [
+        (
+            lambda boundary: boundary.__setitem__("scope", "  "),
+            "$.candidate_comparison.strongest_simpler_boundary.scope",
+        ),
+        (
+            lambda boundary: boundary.__setitem__("rank", 1),
+            "$.candidate_comparison.strongest_simpler_boundary.rank",
+        ),
+        (
+            lambda boundary: boundary.pop("rationale"),
+            "$.candidate_comparison.strongest_simpler_boundary",
+        ),
+    ],
+)
+def test_strongest_simpler_boundary_is_strict(
+    tmp_path: Path,
+    mutation: Callable[[dict[str, object]], object],
+    expected_field: str,
+) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier()
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    boundary = cast(dict[str, object], comparison["strongest_simpler_boundary"])
+    mutation(boundary)
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].field == expected_field
+    assert result.diagnostics[0].requirement == "FR-008"
+
+
+def test_strongest_simpler_boundary_references_fail_closed_exactly(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier()
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    boundary = cast(dict[str, object], comparison["strongest_simpler_boundary"])
+    boundary["strongest_candidate_id"] = "missing-strongest"
+    boundary["considered_candidate_ids"] = ["current-review", "missing", "current-review"]
+    boundary["evidence_ids"] = ["missing-evidence", "wrong-area"]
+    cast(list[dict[str, object]], dossier["evidence"]).append(
+        _evidence("wrong-area", affects=["problem-value"])
+    )
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert [(item.id, item.field) for item in result.diagnostics] == [
+        (
+            "missing-strongest-simpler-candidate-reference",
+            "$.candidate_comparison.strongest_simpler_boundary.considered_candidate_ids[1]",
+        ),
+        (
+            "duplicate-strongest-simpler-candidate-reference",
+            "$.candidate_comparison.strongest_simpler_boundary.considered_candidate_ids[2]",
+        ),
+        (
+            "missing-comparative-evidence-reference",
+            "$.candidate_comparison.strongest_simpler_boundary.evidence_ids[0]",
+        ),
+        (
+            "comparative-evidence-area-mismatch",
+            "$.candidate_comparison.strongest_simpler_boundary.evidence_ids[1]",
+        ),
+        (
+            "missing-strongest-simpler-candidate-reference",
+            "$.candidate_comparison.strongest_simpler_boundary.strongest_candidate_id",
+        ),
+    ]
+
+
+def test_non_human_proposal_requires_strongest_simpler_boundary(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    comparison = _comparison()
+    del comparison["strongest_simpler_boundary"]
+    _write_case(workspace, _dossier(comparison))
+
+    result = validate_workspace(workspace)
+
+    assert result.exit_code == ExitCode.SUCCESS
+    assert result.dossier is not None
+    readiness = evaluate_candidate_comparison_readiness(result.dossier)
+    assert readiness.ready is False
+    assert any(
+        finding.id == "strongest-simpler-boundary-missing"
+        and finding.field == "$.candidate_comparison.strongest_simpler_boundary"
+        for finding in readiness.findings
+    )
+
+
+def test_boundary_requires_role_match_complete_coverage_and_only_simpler_candidates(
+    tmp_path: Path,
+) -> None:
+    workspace = _workspace(tmp_path)
+    comparison = _comparison()
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[0]["roles"] = ["current-baseline"]
+    candidates.insert(1, _candidate("process-option", "process-redesign", ["strongest-simpler"]))
+    boundary = cast(dict[str, object], comparison["strongest_simpler_boundary"])
+    boundary["strongest_candidate_id"] = "current-review"
+    boundary["considered_candidate_ids"] = ["fixed-workflow"]
+    comparison["comparisons"] = [
+        _pair("process-option", "current-review"),
+        _pair("fixed-workflow", "current-review"),
+        _pair("fixed-workflow", "process-option"),
+    ]
+    _write_case(workspace, _dossier(comparison))
+
+    result = validate_workspace(workspace)
+
+    assert result.dossier is not None
+    readiness = evaluate_candidate_comparison_readiness(result.dossier)
+    boundary_findings = [
+        finding for finding in readiness.findings if "strongest_simpler_boundary" in finding.field
+    ]
+    assert [finding.id for finding in boundary_findings] == [
+        "strongest-simpler-boundary-incompatible",
+        "strongest-simpler-boundary-coverage-missing",
+        "strongest-simpler-boundary-incompatible",
+    ]
+    assert "current-review" in boundary_findings[1].message
+    assert "process-option" in boundary_findings[1].message
+
+
+def test_multiple_simpler_candidates_require_selected_directional_pairs(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    comparison = _comparison()
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[0]["roles"] = ["current-baseline"]
+    candidates.insert(1, _candidate("process-option", "process-redesign", ["strongest-simpler"]))
+    boundary = cast(dict[str, object], comparison["strongest_simpler_boundary"])
+    boundary["strongest_candidate_id"] = "process-option"
+    boundary["considered_candidate_ids"] = ["current-review", "process-option"]
+    comparison["comparisons"] = [
+        _pair("fixed-workflow", "current-review"),
+        _pair("fixed-workflow", "process-option"),
+    ]
+    _write_case(workspace, _dossier(comparison))
+
+    result = validate_workspace(workspace)
+
+    assert result.dossier is not None
+    readiness = evaluate_candidate_comparison_readiness(result.dossier)
+    missing = [item for item in readiness.findings if item.id == "required-comparison-missing"]
+    assert len(missing) == 1
+    assert "process-option" in missing[0].message
+    assert "current-review" in missing[0].message
+
+    comparison["comparisons"] = [
+        _pair("process-option", "current-review"),
+        _pair("fixed-workflow", "current-review"),
+        _pair("fixed-workflow", "process-option"),
+    ]
+    _write_case(workspace, _dossier(comparison))
+    complete = validate_workspace(workspace)
+    assert complete.dossier is not None
+    assert evaluate_candidate_comparison_readiness(complete.dossier).ready is True
+
+
+def test_assumption_only_boundary_evidence_is_not_credible(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    dossier = _dossier()
+    comparison = cast(dict[str, object], dossier["candidate_comparison"])
+    boundary = cast(dict[str, object], comparison["strongest_simpler_boundary"])
+    boundary["evidence_ids"] = ["comparison-assumption"]
+    cast(list[dict[str, object]], dossier["evidence"]).append(
+        _evidence("comparison-assumption", kind="assumption", affects=["comparative-fit"])
+    )
+    _write_case(workspace, dossier)
+
+    result = validate_workspace(workspace)
+
+    assert result.dossier is not None
+    readiness = evaluate_candidate_comparison_readiness(result.dossier)
+    assert [
+        (item.id, item.evidence_ids)
+        for item in readiness.findings
+        if item.id == "credible-strongest-simpler-evidence-missing"
+    ] == [("credible-strongest-simpler-evidence-missing", ("comparison-assumption",))]
+
+
+def test_human_owned_proposal_rejects_strongest_simpler_boundary(tmp_path: Path) -> None:
+    workspace = _workspace(tmp_path)
+    comparison = _comparison()
+    candidates = cast(list[dict[str, object]], comparison["candidates"])
+    candidates[0]["roles"] = ["current-baseline", "proposed"]
+    candidates[1]["roles"] = []
+    _write_case(workspace, _dossier(comparison))
+
+    result = validate_workspace(workspace)
+
+    assert result.dossier is not None
+    readiness = evaluate_candidate_comparison_readiness(result.dossier)
+    assert any(
+        item.id == "strongest-simpler-boundary-incompatible"
+        and item.field == "$.candidate_comparison.strongest_simpler_boundary"
+        for item in readiness.findings
+    )

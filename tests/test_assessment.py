@@ -54,6 +54,7 @@ from archsift.validation import (
     ProblemOutcome,
     ProblemValue,
     ResidualCase,
+    StrongestSimplerBoundary,
     TaskAction,
     TaskBoundary,
 )
@@ -352,8 +353,30 @@ def _ready_dossier(
     required_pairs = {
         (candidate.id, current_id) for candidate in candidates if candidate.id != current_id
     }
+    boundary = None
     if strongest_id is not None and proposed_id != strongest_id:
         required_pairs.add((proposed_id, strongest_id))
+    if proposed.control_class is not ControlClass.HUMAN_OWNED_WORK:
+        assert strongest_id is not None
+        class_order = tuple(ControlClass)
+        proposed_rank = class_order.index(proposed.control_class)
+        considered_ids = tuple(
+            candidate.id
+            for candidate in typed_candidates
+            if class_order.index(candidate.control_class) < proposed_rank
+        )
+        required_pairs.update(
+            (strongest_id, identifier)
+            for identifier in considered_ids
+            if identifier != strongest_id
+        )
+        boundary = StrongestSimplerBoundary(
+            strongest_candidate_id=strongest_id,
+            scope="All represented synthetic candidates below the proposal.",
+            rationale="The selected candidate is the strongest represented simpler option.",
+            considered_candidate_ids=considered_ids,
+            evidence_ids=("decision-observed",),
+        )
     comparisons = tuple(
         CandidatePairComparison(subject, comparator, _dimensions())
         for subject, comparator in sorted(required_pairs)
@@ -371,7 +394,11 @@ def _ready_dossier(
         problem_value=_problem(),
         agency_necessity=_agentic_agency() if agentic_candidates else _agency(),
         autonomy_permission=_autonomy(),
-        candidate_comparison=CandidateComparison(typed_candidates, comparisons),
+        candidate_comparison=CandidateComparison(
+            typed_candidates,
+            comparisons,
+            boundary,
+        ),
     )
 
 
@@ -383,7 +410,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.6.0"
+    assert RULESET_VERSION == "1.7.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -425,6 +452,34 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         ("agentic-runtime-adaptation-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
     ]
     assert all(rule.source_rationale for rule in agency_rules)
+
+
+def test_missing_strongest_simpler_boundary_abstains_before_selection() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    assert dossier.candidate_comparison is not None
+    dossier = replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            strongest_simpler_boundary=None,
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert evaluation.recommended_class is None
+    assert [
+        finding.rule_id
+        for finding in evaluation.prerequisite_evaluation.findings
+        if "strongest_simpler_boundary" in finding.field
+    ] == ["strongest-simpler-boundary-missing"]
 
 
 def test_incomplete_prerequisites_abstain_with_exact_nested_findings() -> None:

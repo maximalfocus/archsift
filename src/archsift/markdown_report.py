@@ -248,7 +248,11 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "authority",
     ),
     v.CandidateAuthority: ("action_ids", "retained_human_control_ids", "evidence_ids"),
-    v.CandidateComparison: ("candidates", "comparisons"),
+    v.CandidateComparison: (
+        "candidates",
+        "comparisons",
+        "strongest_simpler_boundary",
+    ),
     v.CandidateConstraintTest: ("constraint_id", "result", "rationale", "evidence_ids"),
     v.CandidateOutcomeTest: ("outcome_id", "result", "rationale", "evidence_ids"),
     v.CandidatePairComparison: ("subject_candidate_id", "comparator_candidate_id", "dimensions"),
@@ -345,6 +349,13 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "technology_limitation",
     ),
     v.ResidualCase: ("id", "description", "fixed_workflow_failure", "evidence_ids"),
+    v.StrongestSimplerBoundary: (
+        "strongest_candidate_id",
+        "scope",
+        "rationale",
+        "considered_candidate_ids",
+        "evidence_ids",
+    ),
     v.TaskAction: ("id", "description", "consequential", "approval_boundary"),
     v.TaskBoundary: (
         "operation",

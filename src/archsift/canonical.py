@@ -52,6 +52,7 @@ from archsift.validation import (
     ProblemOutcome,
     ProblemValue,
     ResidualCase,
+    StrongestSimplerBoundary,
     TaskAction,
     TaskBoundary,
 )
@@ -694,16 +695,46 @@ def _candidate_pair(value: CandidatePairComparison) -> JsonObject:
     )
 
 
+def _strongest_simpler_boundary(value: StrongestSimplerBoundary) -> JsonObject:
+    expected = (
+        "strongest_candidate_id",
+        "scope",
+        "rationale",
+        "considered_candidate_ids",
+        "evidence_ids",
+    )
+    return _checked_object(
+        value,
+        StrongestSimplerBoundary,
+        expected,
+        {
+            "strongest_candidate_id": value.strongest_candidate_id,
+            "scope": value.scope,
+            "rationale": value.rationale,
+            "considered_candidate_ids": list(value.considered_candidate_ids),
+            "evidence_ids": list(value.evidence_ids),
+        },
+    )
+
+
 def _candidate_comparison(value: CandidateComparison) -> JsonObject:
-    expected = ("candidates", "comparisons")
+    expected = ("candidates", "comparisons", "strongest_simpler_boundary")
+    values: JsonObject = {
+        "candidates": [_candidate(item) for item in value.candidates],
+        "comparisons": [_candidate_pair(item) for item in value.comparisons],
+    }
+    if value.strongest_simpler_boundary is not None:
+        values["strongest_simpler_boundary"] = _strongest_simpler_boundary(
+            value.strongest_simpler_boundary
+        )
     return _checked_object(
         value,
         CandidateComparison,
         expected,
-        {
-            "candidates": [_candidate(item) for item in value.candidates],
-            "comparisons": [_candidate_pair(item) for item in value.comparisons],
-        },
+        values,
+        omitted_keys=("strongest_simpler_boundary",)
+        if value.strongest_simpler_boundary is None
+        else (),
     )
 
 
