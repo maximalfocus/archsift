@@ -74,11 +74,14 @@ jobs:
           assert "archsift/method.py" in names
           assert "archsift/persistence.py" in names
           assert "archsift/rules.py" in names
+          assert "archsift/usability.py" in names
           assert "archsift/docs/exit-codes.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
           assert "archsift/docs/method-v1.1.0.md" in names
           assert "archsift/docs/method-v1.2.0.md" in names
+          assert "archsift/docs/usability-check-v1.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
+          assert "archsift/schemas/usability-results-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
 
@@ -89,6 +92,7 @@ jobs:
           import os
           import shutil
           import subprocess
+          import sys
           import tempfile
           import venv
           from pathlib import Path
@@ -174,6 +178,45 @@ jobs:
               text=True,
           )
           assert method_probe.stdout.strip() == "1.2.0 docs/method-v1.2.0.md 65"
+          sessions = []
+          for index in range(1, 6):
+              passed = index <= 4
+              sessions.append({
+                  "participant_id": f"participant-{index:02d}",
+                  "target_user_eligible": True,
+                  "independent": True,
+                  "environment": {
+                      "operating_system": "windows" if os.name == "nt" else "linux",
+                      "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+                      "install_mode": "built-wheel",
+                  },
+                  "milestones": {
+                      "initialize": "pass",
+                      "complete": "pass",
+                      "validate": "pass",
+                      "assess": "pass" if passed else "fail",
+                  },
+                  "maintainer_intervention": False,
+                  "session_result": "pass" if passed else "fail",
+                  "failure_reason": None if passed else "Assessment was not completed.",
+              })
+          usability_path = root / "usability-results.json"
+          usability_path.write_text(json.dumps({
+              "schema_version": 1,
+              "protocol_version": "1.0.0",
+              "archsift_version_or_commit": package_version(),
+              "overall_result": "met",
+              "sessions": sessions,
+          }), encoding="utf-8")
+          usability_run = subprocess.run(
+              [archsift, "usability-results", usability_path],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          assert usability_run.stdout == (
+              "Usability criterion met: 4 of 5 sessions passed (protocol 1.0.0)\n"
+          )
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
           guidance = (case / "README.md").read_text(encoding="utf-8")

@@ -36,6 +36,7 @@ from archsift.rules import (
     evaluate_assessment_prerequisites,
     list_rules,
 )
+from archsift.usability import validate_usability_results
 from archsift.validation import (
     ValidationResult,
     evaluate_agency_necessity_readiness,
@@ -97,6 +98,12 @@ def build_parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("old", type=Path, help="earlier canonical decision-record JSON")
     compare_parser.add_argument("new", type=Path, help="later canonical decision-record JSON")
     _output_options(compare_parser)
+
+    usability_parser = subparsers.add_parser(
+        "usability-results", help="validate one independent usability result cohort"
+    )
+    usability_parser.add_argument("results", type=Path, help="completed usability-results JSON")
+    _output_options(usability_parser)
     return parser
 
 
@@ -436,6 +443,34 @@ def _run_compare(
     return int(ExitCode.SUCCESS)
 
 
+def _run_usability_results(path: Path, *, json_output: bool, quiet: bool) -> int:
+    try:
+        result = validate_usability_results(path)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    status = "criterion-met" if result.exit_code is ExitCode.SUCCESS else "invalid"
+    if any(item.id == "usability-threshold-not-met" for item in result.diagnostics):
+        status = "criterion-not-met"
+    _emit(
+        status=status,
+        exit_code=result.exit_code,
+        diagnostics=result.diagnostics,
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Usability criterion met: {result.passed_session_count} of "
+            f"{result.session_count} sessions passed (protocol {result.protocol_version})"
+        ),
+        details={
+            "criterion_met": result.criterion_met,
+            "passed_session_count": result.passed_session_count,
+            "protocol_version": result.protocol_version,
+            "session_count": result.session_count,
+        },
+    )
+    return int(result.exit_code)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -498,6 +533,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_compare(
             args.old,
             args.new,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "usability-results":
+        return _run_usability_results(
+            args.results,
             json_output=args.json_output,
             quiet=args.quiet,
         )
