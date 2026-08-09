@@ -35,6 +35,7 @@ archsift assess my-case --external-evidence-root ../authorised-evidence --json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
 archsift usability-results usability-results.json
+archsift method-review-results method-review-results.json
 ```
 
 `init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged rules and their stable public rationale/source mappings without requiring a case workspace. The [versioned method specification](docs/method-v1.2.0.md) defines the current decision constitution, evidence truth boundary, rule rationale, citations, explicit limits, and rule-change governance.
@@ -49,6 +50,11 @@ The [independent CLI usability-check protocol](docs/usability-check-v1.md) freez
 domain-neutral five-session check and its privacy-bounded result contract. No sessions have been
 run and no success claim is made yet. A completed cohort is checked offline with exactly
 `archsift usability-results usability-results.json`.
+
+The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
+four-example causal-trace review and privacy-bounded result contract for the public method. No
+independent review has been run and no validation claim is made yet. A completed result is checked
+offline with exactly `archsift method-review-results method-review-results.json`.
 
 ## Runnable examples
 

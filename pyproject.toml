@@ -56,6 +56,7 @@ packages = ["src/archsift"]
 "docs/method-v1.0.0.md" = "archsift/docs/method-v1.0.0.md"
 "docs/method-v1.1.0.md" = "archsift/docs/method-v1.1.0.md"
 "docs/method-v1.2.0.md" = "archsift/docs/method-v1.2.0.md"
+"docs/method-review-v1.md" = "archsift/docs/method-review-v1.md"
 "docs/usability-check-v1.md" = "archsift/docs/usability-check-v1.md"
 
 [tool.pytest.ini_options]

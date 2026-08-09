@@ -76,6 +76,7 @@ def _all_findings(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 def test_example_manifest_matches_documented_source_workspaces() -> None:
     assert MANIFEST["schema_version"] == 1
+    assert MANIFEST["corpus_version"] == "1.0.0"
     paths = [item["path"] for item in EXAMPLE_CASES]
     assert paths == sorted(paths)
     assert len(paths) == len(set(paths)) == 4

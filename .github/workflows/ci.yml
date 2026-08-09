@@ -72,6 +72,7 @@ jobs:
           assert "archsift/decision_record.py" in names
           assert "archsift/markdown_report.py" in names
           assert "archsift/method.py" in names
+          assert "archsift/method_review.py" in names
           assert "archsift/persistence.py" in names
           assert "archsift/rules.py" in names
           assert "archsift/usability.py" in names
@@ -79,8 +80,10 @@ jobs:
           assert "archsift/docs/method-v1.0.0.md" in names
           assert "archsift/docs/method-v1.1.0.md" in names
           assert "archsift/docs/method-v1.2.0.md" in names
+          assert "archsift/docs/method-review-v1.md" in names
           assert "archsift/docs/usability-check-v1.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
+          assert "archsift/schemas/method-review-results-v1.schema.json" in names
           assert "archsift/schemas/usability-results-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
@@ -216,6 +219,72 @@ jobs:
           )
           assert usability_run.stdout == (
               "Usability criterion met: 4 of 5 sessions passed (protocol 1.0.0)\n"
+          )
+          review_examples = []
+          review_area_rules = {
+              "problem-value": ("binding-outcome-met", "decision-observed"),
+              "agency-necessity": (
+                  "agentic-runtime-adaptation-supports-agency",
+                  "agency-observed",
+              ),
+              "autonomy-permission": (
+                  "mandatory-human-control-retained",
+                  "autonomy-observed",
+              ),
+              "comparative-fit": ("binding-constraint-met", "decision-observed"),
+          }
+          for index, example_id in enumerate((
+              "agentic-control",
+              "fixed-workflow",
+              "insufficient-evidence",
+              "no-technology-change",
+          ), start=1):
+              review_examples.append({
+                  "example_id": example_id,
+                  "decision_record_identity": f"sha256:{index:064x}",
+                  "decision_areas": [{
+                      "decision_area": area,
+                      "trace_outcome": "causal",
+                      "rule_ids": [rule_id],
+                      "evidence_ids": [evidence_id],
+                      "candidate_ids": ["reviewed-candidate"],
+                      "verdict_rule_id": "verdict-supported",
+                  } for area, (rule_id, evidence_id) in review_area_rules.items()],
+                  "example_result": "pass",
+              })
+          method_review_path = root / "method-review-results.json"
+          method_review_path.write_text(json.dumps({
+              "schema_version": 1,
+              "protocol_version": "1.0.0",
+              "archsift_version_or_commit": package_version(),
+              "method_version": "1.2.0",
+              "ruleset_version": "1.8.0",
+              "corpus_version": "1.0.0",
+              "reviewer": {
+                  "reviewer_id": "reviewer-01",
+                  "target_reviewer_eligible": True,
+                  "independent": True,
+                  "environment": {
+                      "operating_system": "windows" if os.name == "nt" else "linux",
+                      "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+                      "install_mode": "built-wheel",
+                  },
+              },
+              "maintainer_intervention": False,
+              "examples": review_examples,
+              "disagreements": [],
+              "overall_result": "met",
+              "failure_reasons": [],
+          }), encoding="utf-8")
+          method_review_run = subprocess.run(
+              [archsift, "method-review-results", method_review_path],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          assert method_review_run.stdout == (
+              "Architecture-method review criterion met: 4 examples reviewed "
+              "(protocol 1.0.0)\n"
           )
           case = root / "case"
           subprocess.run([archsift, "init", case], check=True)
