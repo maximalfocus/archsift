@@ -9,7 +9,7 @@ Closes #
 ## Acceptance evidence
 
 - [ ] Every issue acceptance item maps to a change, test, or explicit evidence.
-- [ ] No private case material, credentials, internal URLs, or proprietary policy text is included.
+- [ ] Evidence is independently authored synthetic material; no actual case material or sanitised, paraphrased, transformed, or source-mapped derivative is included; no credentials, internal URLs, or proprietary policy text.
 - [ ] The diff contains no unrelated cleanup or generated build output.
 
 ## Verification
