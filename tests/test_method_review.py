@@ -382,6 +382,133 @@ def test_unknown_trace_rule_is_rejected(tmp_path: Path) -> None:
     assert result.diagnostics[0].id == "method-review-rule-reference"
 
 
+def test_causal_trace_without_decision_affecting_rule_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = {
+        "decision_area": "problem-value",
+        "trace_outcome": "causal",
+        "rule_ids": ["agentic-agency-fact-non-decisive"],
+        "evidence_ids": ["decision-observed"],
+        "candidate_ids": ["reviewed-candidate"],
+        "verdict_rule_id": None,
+    }
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-causal-trace" in [item.id for item in result.diagnostics]
+
+
+def test_non_decisive_trace_without_non_decisive_rule_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = {
+        "decision_area": "problem-value",
+        "trace_outcome": "explicitly-non-decisive",
+        "rule_ids": ["binding-outcome-met"],
+        "evidence_ids": ["decision-observed"],
+        "candidate_ids": ["reviewed-candidate"],
+        "verdict_rule_id": "verdict-supported",
+    }
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-non-decisive-trace" in [item.id for item in result.diagnostics]
+
+
+def test_duplicate_decision_area_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    payload["examples"][0]["decision_areas"][3] = payload["examples"][0]["decision_areas"][0]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-area-set" in [item.id for item in result.diagnostics]
+
+
+def test_duplicate_disagreement_id_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    payload["disagreements"] = [
+        _disagreement("declared-evidence", critical=False),
+        _disagreement("public-rule", critical=False),
+    ]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-disagreement-duplicate" in [item.id for item in result.diagnostics]
+
+
+def test_failure_reasons_are_enforced_in_protocol_order(tmp_path: Path) -> None:
+    payload = _review()
+    payload["maintainer_intervention"] = True
+    payload["overall_result"] = "not-met"
+    payload["failure_reasons"] = ["maintainer-intervention"]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert [item.id for item in result.diagnostics] == ["method-review-criterion-not-met"]
+
+    payload = _review()
+    payload["examples"][0]["decision_areas"][0] = _area("problem-value", outcome="display-only")
+    payload["examples"][0]["example_result"] = "fail"
+    payload["overall_result"] = "not-met"
+    payload["failure_reasons"] = ["maintainer-intervention", "display-only-decision-area"]
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-failures-inconsistent" in [item.id for item in result.diagnostics]
+
+
+@pytest.mark.parametrize(
+    ("classification", "critical"),
+    [
+        ("declared-evidence", True),
+        ("public-rule", True),
+        ("product-gap", False),
+    ],
+)
+def test_consistent_disagreement_classifications_are_accepted(
+    tmp_path: Path, classification: str, critical: bool
+) -> None:
+    payload = _review()
+    payload["disagreements"] = [_disagreement(classification, critical=critical)]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.disagreement_count == 1
+
+
+def test_disagreement_referencing_unknown_rule_is_rejected(tmp_path: Path) -> None:
+    payload = _review()
+    disagreement = _disagreement("public-rule", critical=False)
+    disagreement["rule_ids"] = ["unknown-rule"]
+    payload["disagreements"] = [disagreement]
+    path = tmp_path / "method-review-results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert "method-review-rule-reference" in [item.id for item in result.diagnostics]
+
+
 def test_strict_json_rejects_duplicate_object_key(tmp_path: Path) -> None:
     path = tmp_path / "method-review-results.json"
     path.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8")

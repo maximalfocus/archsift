@@ -92,7 +92,9 @@ For each decision area:
    decision-critical facts, including evidence gaps.
 2. Follow the rule effect into a candidate disposition, a prerequisite that controls assessment,
    or the final verdict rule.
-3. Record bounded candidate IDs and/or the verdict rule ID that terminate the trace.
+3. Record bounded candidate IDs and/or the verdict rule ID that terminate the trace. An
+   explicitly non-decisive area still records the bounded candidate context whose disposition the
+   fact does not alter, and/or the verdict rule that resolves the example.
 4. Classify the outcome using exactly one of these values:
    - **`causal`:** at least one referenced public rule has a decision-affecting effect that
      participates in a prerequisite, candidate disposition, class ordering, or verdict.
@@ -146,7 +148,9 @@ Record the review in one JSON file conforming to the packaged
 The strict format contains only version bindings, one pseudonymous reviewer ID and eligibility
 state, environment enums, fixed corpus IDs, record identities, bounded rule/evidence/candidate and
 verdict references, classified disagreements, intervention state, derived example/overall
-outcomes, and enumerated failure reasons.
+outcomes, and enumerated failure reasons. When the criterion is not met, list the derived failure
+reasons exactly once in protocol order: `display-only-decision-area`, `unclassified-disagreement`,
+`decision-critical-product-gap`, `maintainer-intervention`.
 
 Do not record a name, contact detail, employer, free-form review narrative, transcript, terminal
 history, private case content, internal URL, private path, or hidden evidence. A product-gap ID is a
