@@ -34,6 +34,7 @@ archsift assess my-case --json
 archsift assess my-case --external-evidence-root ../authorised-evidence --json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
+archsift usability-results usability-results.json
 ```
 
 `init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged rules and their stable public rationale/source mappings without requiring a case workspace. The [versioned method specification](docs/method-v1.2.0.md) defines the current decision constitution, evidence truth boundary, rule rationale, citations, explicit limits, and rule-change governance.
@@ -43,6 +44,11 @@ archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
 Reassessment means running `assess` again after the dossier, evidence artefacts, ruleset, configuration, or tool version changes; the result is a new immutable content-addressed record. `compare` reads two generated records beneath the current directory and reports evidence-identity, finding/ruleset, and verdict-field changes. A verdict change names only changed evidence cited by a finding in either record and changed findings as causes; unrelated snapshot changes remain context. The command is offline and read-only, and `--json` emits a stable canonical comparison payload.
 
 No network service, model API, or telemetry is used by the current CLI.
+
+The [independent CLI usability-check protocol](docs/usability-check-v1.md) freezes a fictional,
+domain-neutral five-session check and its privacy-bounded result contract. No sessions have been
+run and no success claim is made yet. A completed cohort is checked offline with exactly
+`archsift usability-results usability-results.json`.
 
 ## Runnable examples
 
