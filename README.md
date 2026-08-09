@@ -44,6 +44,18 @@ Reassessment means running `assess` again after the dossier, evidence artefacts,
 
 No network service, model API, or telemetry is used by the current CLI.
 
+## Runnable examples
+
+Four self-contained, fictional workspaces cover no technology change, fixed AI workflow, agentic
+control, and insufficient evidence. Run one directly from the repository root:
+
+```bash
+python -m archsift validate examples/fixed-workflow --json
+python -m archsift assess examples/fixed-workflow --json
+```
+
+See [the runnable examples](examples/) for expected outcomes, trace pointers, and all four cases.
+
 ## Development gate
 
 ```bash

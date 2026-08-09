@@ -1,0 +1,475 @@
+schema_version: 1
+case:
+  id: agentic-control
+  title: Fictional evidence-backed agentic decision
+evidence:
+- id: decision-observed
+  claim: Fictional trials show only the bounded adaptive candidate meets the binding target.
+  owner: Fictional evaluation team
+  affects:
+  - problem-value
+  - comparative-fit
+  artefacts:
+  - id: fictional-observations
+    root: workspace
+    path: observations.txt
+  kind: observed
+  provenance: Fictional observations in evidence/observations.txt.
+  observed_at: '2026-08-08'
+- id: agency-observed
+  claim: Fictional trials show a fixed path fails on a residual requiring runtime tool choice and feedback.
+  owner: Fictional evaluation team
+  affects:
+  - agency-necessity
+  artefacts:
+  - id: fictional-observations
+    root: workspace
+    path: observations.txt
+  kind: observed
+  provenance: Fictional observations in evidence/observations.txt.
+  observed_at: '2026-08-08'
+- id: autonomy-observed
+  claim: Fictional control observations permit adaptive preparation while release stays human owned.
+  owner: Fictional evaluation team
+  affects:
+  - autonomy-permission
+  artefacts:
+  - id: fictional-observations
+    root: workspace
+    path: observations.txt
+  kind: observed
+  provenance: Fictional observations in evidence/observations.txt.
+  observed_at: '2026-08-08'
+task:
+  operation: Review one bounded synthetic case.
+  starts_when: A complete case arrives.
+  completes_when: An approved disposition is recorded.
+  accountable_owner: Fictional operations owner
+  actors:
+  - Reviewer
+  - Approver
+  systems_and_tools:
+  - Case register
+  information_read:
+  - Synthetic case data
+  actions:
+  - id: prepare-disposition
+    description: Prepare the bounded disposition.
+    consequential: false
+    approval_boundary: A reviewer remains responsible for the draft.
+  - id: release-disposition
+    description: Release the approved disposition.
+    consequential: true
+    approval_boundary: An approver must approve before release.
+  exclusions:
+  - Changing policy
+problem_value:
+  outcomes:
+  - id: required-quality
+    description: Meet required quality.
+    measure: Accepted cases
+    target: At least 95 percent
+    baseline_id: current-quality
+    binding: true
+    evidence_ids:
+    - decision-observed
+  baselines:
+  - id: current-quality
+    description: Current result.
+    measure: Accepted cases
+    value: 90 percent
+    evidence_ids:
+    - decision-observed
+  constraints:
+  - id: approval-required
+    description: Human approval is required.
+    test: Check approval before release.
+    required_result: Approval exists
+    binding: true
+    evidence_ids:
+    - decision-observed
+  affected_volume:
+    statement: Material volume.
+    evidence_ids:
+    - decision-observed
+  material_pain:
+    statement: Material delay.
+    evidence_ids:
+    - decision-observed
+  error_cost:
+    statement: Material rework.
+    evidence_ids:
+    - decision-observed
+  technology_limitation:
+    statement: Current tooling limits retrieval.
+    evidence_ids:
+    - decision-observed
+agency_necessity:
+  execution_steps_predefinable:
+    answer: 'no'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  step_count_or_order_predictable:
+    answer: 'no'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  runtime_tool_choice_required:
+    answer: 'yes'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  runtime_replanning_required:
+    answer: 'no'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  environmental_feedback_available:
+    answer: 'yes'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  completion_independently_verifiable:
+    answer: 'yes'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  effects_independently_verifiable:
+    answer: 'yes'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  fixed_workflow_sufficient:
+    answer: 'no'
+    rationale: A fictional observation supports this agency fact.
+    evidence_ids:
+    - agency-observed
+  residual_cases:
+  - id: evidence-dependent-follow-up
+    description: A new evidence gap requires a runtime choice.
+    fixed_workflow_failure: A fixed path cannot select the next approved retrieval step.
+    evidence_ids:
+    - agency-observed
+autonomy_permission:
+  actions_reversible:
+    answer: 'no'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  failure_blast_radius_bounded:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  regulatory_automation_permitted:
+    answer: 'no'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  data_confidence_sufficient:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  accountable_owner_assigned:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  decision_path_auditable:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  timely_human_intervention_available:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  safe_degradation_available:
+    answer: 'yes'
+    rationale: A fictional observation supports this autonomy fact.
+    evidence_ids:
+    - autonomy-observed
+  hard_vetoes:
+  - id: human-release-required
+    status: active
+    condition: The fictional disposition would be released without approval.
+    consequence: Release is prohibited until a fictional approver accepts it.
+    action_ids:
+    - release-disposition
+    evidence_ids:
+    - autonomy-observed
+    prohibited_control_classes:
+    - deterministic-automation
+    - fixed-ai-workflow
+    - agentic-control
+  mandatory_human_controls:
+  - id: approve-release
+    description: Approve the fictional disposition before release.
+    control_point: Immediately before release-disposition.
+    responsible_role: Fictional approver
+    action_ids:
+    - release-disposition
+    evidence_ids:
+    - autonomy-observed
+candidate_comparison:
+  candidates:
+  - id: human-review
+    name: Fictional human review
+    description: People follow the bounded review procedure using the existing register.
+    control_class: human-owned-work
+    roles:
+    - current-baseline
+    material_deviations: []
+    outcome_tests:
+    - outcome_id: required-quality
+      result: fails
+      rationale: The fictional observation remains below the binding quality target.
+      evidence_ids:
+      - decision-observed
+    constraint_tests:
+    - constraint_id: approval-required
+      result: meets
+      rationale: Synthetic approval-boundary result.
+      evidence_ids:
+      - decision-observed
+  - id: fixed-workflow
+    name: Fictional fixed AI workflow
+    description: Code fixes the path while a model assists within the bounded preparation action.
+    control_class: fixed-ai-workflow
+    roles:
+    - strongest-simpler
+    material_deviations:
+    - The fictional workflow adds maintained automation while retaining bounded authority.
+    outcome_tests:
+    - outcome_id: required-quality
+      result: fails
+      rationale: The fictional fixed path cannot meet the binding quality target.
+      evidence_ids:
+      - decision-observed
+    constraint_tests:
+    - constraint_id: approval-required
+      result: meets
+      rationale: Synthetic approval-boundary result.
+      evidence_ids:
+      - decision-observed
+    authority:
+      action_ids:
+      - prepare-disposition
+      retained_human_control_ids: []
+      evidence_ids:
+      - autonomy-observed
+  - id: adaptive-agent
+    name: Fictional bounded adaptive agent
+    description: A model selects the next approved preparation step using fictional feedback.
+    control_class: agentic-control
+    roles:
+    - proposed
+    - agentic-comparator
+    material_deviations:
+    - The fictional workflow adds maintained automation while retaining bounded authority.
+    outcome_tests:
+    - outcome_id: required-quality
+      result: meets
+      rationale: Synthetic outcome result.
+      evidence_ids:
+      - decision-observed
+    constraint_tests:
+    - constraint_id: approval-required
+      result: meets
+      rationale: Synthetic approval-boundary result.
+      evidence_ids:
+      - decision-observed
+    authority:
+      action_ids:
+      - prepare-disposition
+      retained_human_control_ids: []
+      evidence_ids:
+      - autonomy-observed
+  comparisons:
+  - subject_candidate_id: adaptive-agent
+    comparator_candidate_id: fixed-workflow
+    dimensions:
+      outcome_quality:
+        result: better
+        rationale: The fictional observation meets the binding outcome where the comparator does not.
+        evidence_ids:
+        - decision-observed
+      difficult_case_performance:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      cost:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      latency:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      human_effort:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      integration_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      security_exposure:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      failure_impact:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      operability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      evaluation_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      maintainability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+  - subject_candidate_id: adaptive-agent
+    comparator_candidate_id: human-review
+    dimensions:
+      outcome_quality:
+        result: better
+        rationale: The fictional observation meets the binding outcome where the comparator does not.
+        evidence_ids:
+        - decision-observed
+      difficult_case_performance:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      cost:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      latency:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      human_effort:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      integration_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      security_exposure:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      failure_impact:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      operability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      evaluation_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      maintainability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+  - subject_candidate_id: fixed-workflow
+    comparator_candidate_id: human-review
+    dimensions:
+      outcome_quality:
+        result: equivalent
+        rationale: The fictional observation establishes no material difference on this dimension.
+        evidence_ids:
+        - decision-observed
+      difficult_case_performance:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      cost:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      latency:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      human_effort:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      integration_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      security_exposure:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      failure_impact:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      operability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      evaluation_burden:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+      maintainability:
+        result: equivalent
+        rationale: Synthetic directional comparison.
+        evidence_ids:
+        - decision-observed
+  strongest_simpler_boundary:
+    strongest_candidate_id: fixed-workflow
+    scope: All represented synthetic candidates below the proposal.
+    rationale: The selected candidate is the strongest represented simpler option.
+    considered_candidate_ids:
+    - human-review
+    - fixed-workflow
+    evidence_ids:
+    - decision-observed
+decision_conditions: []
