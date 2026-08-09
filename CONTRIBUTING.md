@@ -35,7 +35,7 @@ python -m mypy src benchmarks tests/test_performance.py
 python -m build
 ```
 
-Do not commit generated build output, virtual environments, credentials, private case material, or proprietary policy text.
+Do not commit generated build output, virtual environments, credentials, actual case material or a sanitised, paraphrased, transformed, or source-mapped derivative, or proprietary policy text.
 
 ## Scope and conduct
 

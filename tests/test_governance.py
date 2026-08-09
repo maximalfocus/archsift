@@ -12,6 +12,7 @@ CONTRIBUTION_ENTRY_POINTS = (
     ROOT / "CONTRIBUTING.md",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml",
+    ROOT / ".github" / "pull_request_template.md",
 )
 REQUIRED_BOUNDARY_TERMS = (
     "actual case material",
@@ -20,10 +21,16 @@ REQUIRED_BOUNDARY_TERMS = (
     "transformed",
     "source-mapped",
 )
-SOLICITS_SANITISED_DERIVATIVE = re.compile(
-    r"\b(?:attach|describe|include|provide|submit|upload)\b[^.\n]{0,100}\bsaniti[sz]ed\b",
+SENSITIVE_CASE_MATERIAL = re.compile(
+    r"\b(?:actual case material|saniti[sz]ed|paraphrased|transformed|source-mapped)\b",
     re.IGNORECASE,
 )
+SOLICITATION = re.compile(
+    r"\b(?:add|attach|cite|describe|forward|give|include|mention|paste|post|provide|quote|"
+    r"require|send|share|show|submit|supply|upload|use|write)(?:s|d|ed|ing)?\b",
+    re.IGNORECASE,
+)
+NEGATION = re.compile(r"\b(?:avoid|no|not|never|prohibit|reject|without)\b", re.IGNORECASE)
 
 
 def _load_issue_form(name: str) -> dict[str, Any]:
@@ -41,14 +48,37 @@ def _fields_by_id(form: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
+def _assert_safe_public_guidance(guidance: str, path: Path | str) -> None:
+    normalized = guidance.casefold()
+    assert "independently authored synthetic" in normalized, path
+    for boundary in REQUIRED_BOUNDARY_TERMS:
+        assert boundary in normalized, (path, boundary)
+
+    for clause in re.split(r"[.;\n]", guidance):
+        if SENSITIVE_CASE_MATERIAL.search(clause) and SOLICITATION.search(clause):
+            assert NEGATION.search(clause), (path, clause.strip())
+
+
 def test_public_contribution_entry_points_require_independent_synthetic_evidence() -> None:
     for path in CONTRIBUTION_ENTRY_POINTS:
         guidance = path.read_text(encoding="utf-8")
-        normalized = guidance.casefold()
-        assert "independently authored synthetic" in normalized, path
-        assert SOLICITS_SANITISED_DERIVATIVE.search(guidance) is None, path
-        for boundary in REQUIRED_BOUNDARY_TERMS:
-            assert boundary in normalized, (path, boundary)
+        _assert_safe_public_guidance(guidance, path)
+
+
+@pytest.mark.parametrize(
+    "solicitation",
+    (
+        "Attach actual case material for maintainers to review.",
+        "A sanitised case study is required.",
+        "Sanitised evidence must be uploaded.",
+    ),
+)
+def test_public_contribution_boundary_rejects_positive_solicitation(
+    solicitation: str,
+) -> None:
+    valid_guidance = CONTRIBUTION_ENTRY_POINTS[0].read_text(encoding="utf-8")
+    with pytest.raises(AssertionError):
+        _assert_safe_public_guidance(f"{valid_guidance}\n{solicitation}", "mutation")
 
 
 @pytest.mark.parametrize(
@@ -87,6 +117,7 @@ def test_issue_forms_preserve_required_workflow(
     privacy_confirmation = preflight["attributes"]["options"][1]["label"].casefold()
     for boundary in REQUIRED_BOUNDARY_TERMS:
         assert boundary in privacy_confirmation
+    assert re.search(r"\bno\b", privacy_confirmation)
 
     fields = _fields_by_id(form)
     assert set(fields) == expected_fields
@@ -95,6 +126,18 @@ def test_issue_forms_preserve_required_workflow(
     assert (
         "independently authored synthetic" in evidence_field["attributes"]["description"].casefold()
     )
+
+
+def test_issue_template_directory_is_exhaustively_covered() -> None:
+    template_dir = ROOT / ".github" / "ISSUE_TEMPLATE"
+    yaml_files = {*template_dir.glob("*.yml"), *template_dir.glob("*.yaml")}
+    form_files = {
+        path.name for path in yaml_files if path.name not in {"config.yml", "config.yaml"}
+    }
+    assert form_files == {"bug_report.yml", "feature_request.yml"}
+    assert {path.name for path in yaml_files if path.name in {"config.yml", "config.yaml"}} == {
+        "config.yml"
+    }
 
 
 def test_issue_template_configuration_keeps_private_security_route() -> None:
