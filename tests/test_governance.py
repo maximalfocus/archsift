@@ -25,12 +25,28 @@ SENSITIVE_CASE_MATERIAL = re.compile(
     r"\b(?:actual case material|saniti[sz]ed|paraphrased|transformed|source-mapped)\b",
     re.IGNORECASE,
 )
-SOLICITATION = re.compile(
-    r"\b(?:add|attach|cite|describe|forward|give|include|mention|paste|post|provide|quote|"
-    r"require|send|share|show|submit|supply|upload|use|write)(?:s|d|ed|ing)?\b",
-    re.IGNORECASE,
-)
-NEGATION = re.compile(r"\b(?:avoid|no|not|never|prohibit|reject|without)\b", re.IGNORECASE)
+APPROVED_BOUNDARY_PASSAGES = {
+    ROOT / "CONTRIBUTING.md": (
+        "do not commit generated build output, virtual environments, credentials, actual case "
+        "material or a sanitised, paraphrased, transformed, or source-mapped derivative, or "
+        "proprietary policy text.",
+        "never publish actual case material or a sanitised, paraphrased, transformed, or "
+        "source-mapped derivative.",
+    ),
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml": (
+        "this request contains no actual case material or sanitised, paraphrased, transformed, "
+        "or source-mapped derivative.",
+    ),
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml": (
+        "this report uses an independently authored synthetic reproduction and contains no "
+        "actual case material or sanitised, paraphrased, transformed, or source-mapped "
+        "derivative;",
+    ),
+    ROOT / ".github" / "pull_request_template.md": (
+        "evidence is independently authored synthetic material; no actual case material or "
+        "sanitised, paraphrased, transformed, or source-mapped derivative is included;",
+    ),
+}
 
 
 def _load_issue_form(name: str) -> dict[str, Any]:
@@ -48,15 +64,17 @@ def _fields_by_id(form: dict[str, Any]) -> dict[str, dict[str, Any]]:
     }
 
 
-def _assert_safe_public_guidance(guidance: str, path: Path | str) -> None:
-    normalized = guidance.casefold()
+def _assert_safe_public_guidance(guidance: str, path: Path) -> None:
+    normalized = " ".join(guidance.casefold().split())
     assert "independently authored synthetic" in normalized, path
     for boundary in REQUIRED_BOUNDARY_TERMS:
         assert boundary in normalized, (path, boundary)
 
-    for clause in re.split(r"[.;\n]", guidance):
-        if SENSITIVE_CASE_MATERIAL.search(clause) and SOLICITATION.search(clause):
-            assert NEGATION.search(clause), (path, clause.strip())
+    unapproved = normalized
+    for passage in APPROVED_BOUNDARY_PASSAGES[path]:
+        assert unapproved.count(passage) == 1, (path, passage)
+        unapproved = unapproved.replace(passage, "", 1)
+    assert SENSITIVE_CASE_MATERIAL.search(unapproved) is None, path
 
 
 def test_public_contribution_entry_points_require_independent_synthetic_evidence() -> None:
@@ -71,6 +89,16 @@ def test_public_contribution_entry_points_require_independent_synthetic_evidence
         "Attach actual case material for maintainers to review.",
         "A sanitised case study is required.",
         "Sanitised evidence must be uploaded.",
+        "Publish actual case material or a sanitised, paraphrased, transformed, or "
+        "source-mapped derivative.",
+        "Commit actual case material or a sanitised, paraphrased, transformed, or "
+        "source-mapped derivative.",
+        "A sanitised case study is requested.",
+        "Include sanitised case material but never private identifiers.",
+        "We invite sanitised case studies.",
+        "Sanitised case material is welcome.",
+        "We encourage sanitised evidence.",
+        "Please solicit sanitised case data.",
     ),
 )
 def test_public_contribution_boundary_rejects_positive_solicitation(
@@ -78,7 +106,9 @@ def test_public_contribution_boundary_rejects_positive_solicitation(
 ) -> None:
     valid_guidance = CONTRIBUTION_ENTRY_POINTS[0].read_text(encoding="utf-8")
     with pytest.raises(AssertionError):
-        _assert_safe_public_guidance(f"{valid_guidance}\n{solicitation}", "mutation")
+        _assert_safe_public_guidance(
+            f"{valid_guidance}\n{solicitation}", CONTRIBUTION_ENTRY_POINTS[0]
+        )
 
 
 @pytest.mark.parametrize(
