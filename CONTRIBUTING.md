@@ -39,4 +39,9 @@ Do not commit generated build output, virtual environments, credentials, private
 
 ## Scope and conduct
 
-ArchSift may reject a proposed feature when it adds complexity without reusable evidence. Case-derived changes should include a sanitised counterexample and regression test, never organisation-specific branching. All participation is governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+ArchSift may reject a proposed feature when it adds complexity without reusable evidence. A reusable
+lesson may originate in non-public work, but its public issue must state only a domain-neutral
+failure mode. Never publish actual case material or a sanitised, paraphrased, transformed, or
+source-mapped derivative. Prove a public change with an independently authored synthetic
+counterexample and regression test, never organisation-specific branching. All participation is
+governed by [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
