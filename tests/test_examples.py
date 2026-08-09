@@ -17,10 +17,16 @@ EXAMPLE_CASES = MANIFEST["examples"]
 
 
 def _source_snapshot(workspace: Path) -> dict[str, bytes]:
+    # Generated decision records under output/ are intentionally ignored and not
+    # maintained sources, so exclude them (but keep the placeholder .gitkeep).
     return {
         path.relative_to(workspace).as_posix(): path.read_bytes()
         for path in sorted(workspace.rglob("*"))
         if path.is_file()
+        and (
+            not path.relative_to(workspace).as_posix().startswith("output/")
+            or path.name == ".gitkeep"
+        )
     }
 
 
