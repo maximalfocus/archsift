@@ -204,13 +204,14 @@ jobs:
                   "failure_reason": None if passed else "Assessment was not completed.",
               })
           usability_path = root / "usability-results.json"
-          usability_path.write_text(json.dumps({
+          usability_payload = {
               "schema_version": 1,
               "protocol_version": "1.0.0",
               "archsift_version_or_commit": package_version(),
               "overall_result": "met",
               "sessions": sessions,
-          }), encoding="utf-8")
+          }
+          usability_path.write_text(json.dumps(usability_payload), encoding="utf-8")
           usability_run = subprocess.run(
               [archsift, "usability-results", usability_path],
               check=True,
@@ -220,6 +221,18 @@ jobs:
           assert usability_run.stdout == (
               "Usability criterion met: 4 of 5 sessions passed (protocol 1.0.0)\n"
           )
+          usability_payload["archsift_version_or_commit"] = "95f2a78"
+          usability_path.write_text(json.dumps(usability_payload), encoding="utf-8")
+          abbreviated_commit_run = subprocess.run(
+              [archsift, "usability-results", usability_path],
+              check=False,
+              capture_output=True,
+              text=True,
+          )
+          assert abbreviated_commit_run.returncode == 12
+          assert abbreviated_commit_run.stdout == ""
+          assert "usability-results-contract" in abbreviated_commit_run.stderr
+          assert "Usability criterion met" not in abbreviated_commit_run.stderr
           review_examples = []
           review_area_rules = {
               "problem-value": ("binding-outcome-met", "decision-observed"),
