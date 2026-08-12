@@ -7,6 +7,17 @@ ArchSift is an open-source, local-first decision-support project for comparing h
 > [!IMPORTANT]
 > ArchSift is currently pre-alpha. The CLI can validate typed evidence, task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison facts, inspect the packaged ruleset, produce immutable content-addressed JSON decision records with deterministic injection-safe Markdown review views, and compare reassessments without mutating either record. The deterministic assessment core resolves minimum-sufficient architecture verdicts and binds canonical dossiers, explicit evidence-artefact bytes, ruleset, configuration, and tool version into each final record identity. User-selected output paths are not implemented yet.
 
+## Publication and validation status
+
+Only this implementation repository is intended for public source publication. Private requirements,
+private case dossiers, case evidence, findings, and operational rationale remain outside it. Repository
+visibility does not publish a package, tag, GitHub release, deployment, hosted service, or documentation
+site; none of those publication events has occurred.
+
+The independent CLI usability cohort and independent architecture-method review have not been
+completed. Their public protocols are available below, but no usability, method-validation,
+certification, production-readiness, or first-release success claim is made.
+
 ## Install for development
 
 ArchSift requires a supported CPython version starting with Python 3.11.
