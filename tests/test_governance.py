@@ -177,3 +177,19 @@ def test_issue_template_configuration_keeps_private_security_route() -> None:
     links = configuration["contact_links"]
     assert len(links) == 1
     assert links[0]["url"] == ("https://github.com/maximalfocus/archsift/security/advisories/new")
+
+
+def test_publication_status_is_explicit_and_conservative() -> None:
+    readme = " ".join((ROOT / "README.md").read_text(encoding="utf-8").casefold().split())
+
+    assert "only this implementation repository is intended for public source publication" in readme
+    assert "private requirements" in readme
+    assert "private case dossiers" in readme
+    assert "repository visibility does not publish a package" in readme
+    assert "none of those publication events has occurred" in readme
+    assert "independent cli usability cohort" in readme
+    assert "independent architecture-method review" in readme
+    assert "have not been completed" in readme
+    assert "no usability, method-validation" in readme
+    assert "production-readiness" in readme
+    assert "first-release success claim is made" in readme
