@@ -95,6 +95,32 @@ field, governing requirement, and remediation.
 A valid but incomplete dossier validates successfully; the assessment may then
 abstain with `insufficient-evidence`.
 
+### `archsift dossier-schema` [`--schema-version` 1|2|3]
+
+Emits one complete packaged dossier JSON Schema. The default is the latest
+supported version, currently 3; `--schema-version` selects an earlier supported
+contract. `--json` writes exact deterministic canonical schema bytes. Human
+mode reports the version, schema content identity, and structural inventory;
+quiet mode emits nothing. The command reads no workspace and performs no
+network operation.
+
+### `archsift prerequisites <case>`
+
+Validates `<case>/case.yaml`, then emits the outstanding decision-prerequisite
+worklist used by assessment. `--json` binds the worklist schema version,
+dossier schema and content identity, ruleset version, completion state, and
+each outstanding rule's field, requirement, effect, fixed message,
+consequence, remediation, evidence IDs, and counterpart. A structurally valid
+but incomplete dossier succeeds with `complete: false`; a complete dossier
+succeeds with an empty worklist and `complete: true`.
+
+The command is read-only and never opens evidence artefact paths, hashes
+material, assesses a verdict, or writes a record. Structural failures retain
+the same FR-012 diagnostics and exit classification as `validate`; those
+diagnostics repair dossier structure, while this worklist repairs decision
+completeness. Human mode reports only generated counts and versions, never
+dossier-authored prose.
+
 ### `archsift register-document <case> <registration-id> <declared-type> <source>` [`--external-material-root` <dir>]
 
 Copies exactly one caller-selected regular file into the case's private,

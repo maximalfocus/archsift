@@ -16,7 +16,8 @@ from archsift.artefacts import (
     EvidenceArtefactFailure,
     evidence_artefact_identities,
 )
-from archsift.canonical import JsonObject
+from archsift.authoring import dossier_schema_surface, prerequisite_worklist
+from archsift.canonical import JsonObject, canonical_json_bytes
 from archsift.case_view import CaseViewError, construct_case_view, load_case_view_request
 from archsift.comparison import (
     ComparisonInputError,
@@ -69,6 +70,8 @@ from archsift.rules import (
 )
 from archsift.usability import validate_usability_results
 from archsift.validation import (
+    LATEST_DOSSIER_SCHEMA_VERSION,
+    SUPPORTED_DOSSIER_SCHEMA_VERSIONS,
     ValidationResult,
     evaluate_agency_necessity_readiness,
     evaluate_autonomy_permission_readiness,
@@ -108,6 +111,30 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="validate a case workspace")
     validate_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
     _output_options(validate_parser)
+
+    schema_parser = subparsers.add_parser(
+        "dossier-schema",
+        help="emit one complete packaged dossier JSON Schema",
+    )
+    schema_parser.add_argument(
+        "--schema-version",
+        type=int,
+        choices=SUPPORTED_DOSSIER_SCHEMA_VERSIONS,
+        default=LATEST_DOSSIER_SCHEMA_VERSION,
+        help="supported dossier schema version; defaults to the latest",
+    )
+    _output_options(schema_parser)
+
+    prerequisites_parser = subparsers.add_parser(
+        "prerequisites",
+        help="emit the outstanding decision-prerequisite worklist",
+    )
+    prerequisites_parser.add_argument(
+        "case",
+        type=Path,
+        help="workspace directory containing case.yaml",
+    )
+    _output_options(prerequisites_parser)
 
     document_parser = subparsers.add_parser(
         "register-document",
@@ -407,6 +434,64 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details=details,
     )
     return int(result.exit_code)
+
+
+def _run_dossier_schema(
+    schema_version: int,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    try:
+        surface = dossier_schema_surface(schema_version)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(surface.canonical_bytes)
+        return int(ExitCode.SUCCESS)
+    _print(
+        f"Dossier schema {surface.schema_version}: {surface.content_identity}; "
+        f"{len(surface.top_level_properties)} top-level properties; "
+        f"{surface.definition_count} definitions",
+        stream=sys.stdout,
+    )
+    return int(ExitCode.SUCCESS)
+
+
+def _run_prerequisites(path: Path, *, json_output: bool, quiet: bool) -> int:
+    try:
+        result = validate_workspace(path)
+        if result.exit_code is not ExitCode.SUCCESS or result.dossier is None:
+            _emit(
+                status="invalid",
+                exit_code=result.exit_code,
+                diagnostics=result.diagnostics,
+                json_output=json_output,
+                quiet=quiet,
+                success_message="",
+                details={"file": "case.yaml"},
+            )
+            return int(result.exit_code)
+        worklist = prerequisite_worklist(result.dossier)
+        content = canonical_json_bytes(worklist)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(content)
+        return int(ExitCode.SUCCESS)
+    findings = cast(list[object], worklist["findings"])
+    state = "complete" if worklist["complete"] else "incomplete"
+    _print(
+        f"Assessment prerequisites {state}: {len(findings)} outstanding; "
+        f"dossier schema {worklist['dossier_schema_version']}; "
+        f"ruleset {worklist['ruleset_version']}",
+        stream=sys.stdout,
+    )
+    return int(ExitCode.SUCCESS)
 
 
 _REGISTRATION_UNAVAILABLE = {
@@ -1220,6 +1305,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_init(args.case, json_output=args.json_output, quiet=args.quiet)
     if args.command == "validate":
         return _run_validate(args.case, json_output=args.json_output, quiet=args.quiet)
+    if args.command == "dossier-schema":
+        return _run_dossier_schema(
+            args.schema_version,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "prerequisites":
+        return _run_prerequisites(
+            args.case,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
     if args.command == "register-document":
         return _run_registration(
             lambda: register_document(

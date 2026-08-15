@@ -93,6 +93,7 @@ jobs:
           with ZipFile(wheel) as archive:
               names = set(archive.namelist())
           assert "archsift/artefacts.py" in names
+          assert "archsift/authoring.py" in names
           assert "archsift/canonical.py" in names
           assert "archsift/corpus.py" in names
           assert "archsift/decision.py" in names
@@ -823,6 +824,28 @@ jobs:
           )
           offline_environment = os.environ.copy()
           offline_environment["PYTHONPATH"] = str(network_blocker)
+          schema_output = subprocess.run(
+              [archsift, "dossier-schema", "--json"],
+              check=True,
+              capture_output=True,
+              env=offline_environment,
+          )
+          emitted_schema = json.loads(schema_output.stdout)
+          assert emitted_schema["properties"]["schema_version"]["const"] == 3
+          complete_prerequisites = subprocess.run(
+              [
+                  archsift,
+                  "prerequisites",
+                  Path("examples/no-technology-change"),
+                  "--json",
+              ],
+              check=True,
+              capture_output=True,
+              env=offline_environment,
+          )
+          complete_worklist = json.loads(complete_prerequisites.stdout)
+          assert complete_worklist["complete"] is True
+          assert complete_worklist["findings"] == []
           registered_case = root / "registered-case"
           subprocess.run(
               [archsift, "init", registered_case, "--quiet"],
@@ -893,6 +916,15 @@ jobs:
           (registered_case / "case.yaml").write_text(
               json.dumps(registered_dossier), encoding="utf-8"
           )
+          incomplete_prerequisites = subprocess.run(
+              [archsift, "prerequisites", registered_case, "--json"],
+              check=True,
+              capture_output=True,
+              env=offline_environment,
+          )
+          incomplete_worklist = json.loads(incomplete_prerequisites.stdout)
+          assert incomplete_worklist["complete"] is False
+          assert incomplete_worklist["findings"]
           registered_assessment = subprocess.run(
               [archsift, "assess", registered_case, "--json"],
               check=True,
