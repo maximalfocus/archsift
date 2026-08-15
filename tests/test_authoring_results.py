@@ -321,8 +321,24 @@ def test_public_protocol_freezes_authoring_contract() -> None:
     assert "exactly four fresh sessions" in words
     assert "four distinct agent products" in words
     assert "at least three of the four sessions" in words
-    assert "no cohort has been run" in words
+    assert "one cohort has been run" in words
     assert "archsift authoring-results authoring-results.json" in protocol
     assert "transcripts" in protocol
     assert "ordinary user-controlled model transport" in words
     assert "outbound sockets blocked" in words
+
+
+def test_committed_first_cohort_is_honest_criterion_not_met(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(__file__).parents[1]
+    monkeypatch.chdir(root)
+
+    result = validate_authoring_results(Path("authoring-results.json"))
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.session_count == 4
+    assert result.passed_session_count == 1
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["authoring-threshold-not-met"]

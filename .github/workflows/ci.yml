@@ -46,6 +46,24 @@ jobs:
       - name: Validate committed simulated usability cohort result
         run: python -m archsift usability-results usability-results.json
 
+      - name: Validate committed simulated authoring cohort result
+        shell: python
+        run: |
+          import json
+          import subprocess
+          import sys
+          run = subprocess.run(
+              [sys.executable, "-m", "archsift", "authoring-results",
+               "authoring-results.json", "--json"],
+              capture_output=True,
+              text=True,
+          )
+          assert run.returncode == 12, run.stderr
+          payload = json.loads(run.stdout)
+          assert payload["status"] == "criterion-not-met"
+          assert payload["session_count"] == 4
+          assert payload["passed_session_count"] == 1
+
       - name: Validate committed simulated method-review cohort result
         shell: python
         run: |
