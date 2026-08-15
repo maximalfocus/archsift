@@ -193,3 +193,26 @@ def test_publication_status_is_explicit_and_conservative() -> None:
     assert "no usability, method-validation" in readme
     assert "production-readiness" in readme
     assert "first-release success claim is made" in readme
+
+
+def test_usage_reference_covers_every_command_and_option() -> None:
+    """The shipped usage reference must stay current with the CLI surface."""
+    from archsift.cli import build_parser
+
+    parser = build_parser()
+    usage = (ROOT / "docs" / "usage.md").read_text(encoding="utf-8")
+    commands: set[str] = set()
+    options: set[str] = {"--version"}
+    for action in parser._actions:  # argparse internals: the subparsers action
+        choices = getattr(action, "choices", None)
+        if not choices:
+            continue
+        commands.update(choices)
+        for subparser in choices.values():
+            for sub_action in subparser._actions:
+                options.update(sub_action.option_strings)
+
+    for command in sorted(commands):
+        assert f"`archsift {command}" in usage or f"`{command}`" in usage, command
+    for option in sorted(options):
+        assert f"`{option}`" in usage, option

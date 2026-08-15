@@ -83,6 +83,7 @@ jobs:
           assert "archsift/docs/method-v1.2.0.md" in names
           assert "archsift/docs/method-review-v1.md" in names
           assert "archsift/docs/usability-check-v1.md" in names
+          assert "archsift/docs/usage.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/schemas/method-review-results-v1.schema.json" in names
           assert "archsift/schemas/usability-results-v1.schema.json" in names

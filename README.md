@@ -18,9 +18,18 @@ The independent CLI usability cohort and independent architecture-method review 
 completed. Their public protocols are available below, but no usability, method-validation,
 certification, production-readiness, or first-release success claim is made.
 
-## Install for development
+## Install
 
-ArchSift requires a supported CPython version starting with Python 3.11.
+ArchSift requires a supported CPython version starting with Python 3.11. Once the
+package is published, install it from PyPI:
+
+```bash
+python -m pip install archsift
+archsift --version
+```
+
+The package has not been published yet; no package, tag, GitHub release, or
+documentation site has been published. Until then, install from a source checkout:
 
 ```bash
 git clone https://github.com/maximalfocus/archsift.git
@@ -29,6 +38,9 @@ python -m venv .venv
 source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 ```
+
+See [the usage reference](docs/usage.md) for the complete command surface,
+workspace and dossier structure, decision-record outputs, and masking policy.
 
 ## Current CLI
 
@@ -51,7 +63,7 @@ archsift method-review-results method-review-results.json
 
 `init` creates `case.yaml`, workspace guidance, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. `rules` lists the immutable packaged rules and their stable public rationale/source mappings without requiring a case workspace. The [versioned method specification](docs/method-v1.2.0.md) defines the current decision constitution, evidence truth boundary, rule rationale, citations, explicit limits, and rule-change governance.
 
-`assess` validates first, hashes only explicit workspace artefacts or external artefacts beneath the caller-granted `--external-evidence-root`, and writes canonical JSON plus a Markdown review view to `output/sha256-<record-id>.json` and `.md`. Both files share the record identity; identical reruns reuse byte-identical outputs without rewriting them, and a non-identical file at either path is never overwritten. Every authored Markdown value is visibly quoted as inert data, including provenance and artefact paths, and no locator is dereferenced. `--json` still emits only the exact canonical JSON bytes, while human and quiet modes never render dossier-authored text. See the [stable exit-code contract](docs/exit-codes.md).
+`assess` validates first, hashes only explicit workspace artefacts or external artefacts beneath the caller-granted `--external-evidence-root`, and writes canonical JSON plus a Markdown review view to `output/sha256-<record-id>.json` and `.md`. Both files share the record identity; identical reruns reuse byte-identical outputs without rewriting them, and a non-identical file at either path is never overwritten. Every authored Markdown value is visibly quoted as inert data, including provenance and artefact paths, and no locator is dereferenced. `--json` still emits only the exact canonical JSON bytes, while human and quiet modes never render dossier-authored text. Before either representation is emitted, authored strings are passed through a deterministic offline sensitive-value masking policy; both outputs disclose the masking and warn that a record is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material. See the [stable exit-code contract](docs/exit-codes.md) and the [usage reference](docs/usage.md).
 
 Reassessment means running `assess` again after the dossier, evidence artefacts, ruleset, configuration, or tool version changes; the result is a new immutable content-addressed record. `compare` reads two generated records beneath the current directory and reports evidence-identity, finding/ruleset, and verdict-field changes. A verdict change names only changed evidence cited by a finding in either record and changed findings as causes; unrelated snapshot changes remain context. The command is offline and read-only, and `--json` emits a stable canonical comparison payload.
 
