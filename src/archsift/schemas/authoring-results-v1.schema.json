@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/maximalfocus/archsift/schemas/authoring-results-v1.schema.json",
-  "title": "ArchSift simulated assisted-authoring results 1.0.0",
+  "title": "ArchSift simulated assisted-authoring results v1",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -14,7 +14,7 @@
   ],
   "properties": {
     "schema_version": { "const": 1 },
-    "protocol_version": { "const": "1.0.0" },
+    "protocol_version": { "enum": ["1.0.0", "1.0.1"] },
     "archsift_source_commit": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"

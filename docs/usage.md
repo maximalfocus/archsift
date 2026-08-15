@@ -376,7 +376,7 @@ errors are not accepted cohort evidence.
 ### `archsift authoring-results <results>`
 
 Validates one completed simulated assisted-authoring cohort against
-[protocol 1.0.0](authoring-check-v1.md) and the packaged privacy-bounded result schema. Exactly four
+[protocol 1.0.1](authoring-check-v1.0.1.md) and the packaged privacy-bounded result schema. Exactly four
 fresh sessions from four distinct agent products are required. A session passes only when material
 registration, schema inspection, dossier authoring, prerequisite completion, validation, and
 assessment all pass without maintainer intervention. Three or four passing sessions exit `0` with
@@ -388,6 +388,12 @@ The result must be a readable regular JSON file beneath the current directory. T
 links and escaping paths, performs no network access, writes nothing, and never opens a cohort
 workspace. `--json` returns protocol, session, pass-count, criterion, diagnostic, and exit-code
 fields; `--quiet` returns only the exit status.
+
+Protocol 1.0.1 requires outbound sockets to be blocked for ArchSift and every local milestone. The
+external authoring product may use its ordinary user-controlled model transport outside ArchSift,
+but may not browse, search, retrieve network sources, load plugins or private context, or continue a
+prior session. The superseded pre-cohort [protocol 1.0.0](authoring-check-v1.md) remains frozen and
+its result version remains supported.
 
 ### `archsift method-review-results <results>`
 

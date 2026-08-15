@@ -12,6 +12,7 @@ from jsonschema import Draft202012Validator
 from archsift.authoring_results import (
     MATERIAL_SET_CONTENT_IDENTITY,
     PROTOCOL_VERSION,
+    PROTOCOL_VERSION_1_0_0,
     REQUIRED_MILESTONES,
     REQUIRED_PASS_COUNT,
     REQUIRED_SESSION_COUNT,
@@ -74,7 +75,10 @@ def test_packaged_schema_and_frozen_material_manifest_are_consistent() -> None:
     )
     Draft202012Validator.check_schema(schema)
     assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION
-    assert schema["properties"]["protocol_version"]["const"] == PROTOCOL_VERSION
+    assert schema["properties"]["protocol_version"]["enum"] == [
+        PROTOCOL_VERSION_1_0_0,
+        PROTOCOL_VERSION,
+    ]
     assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT
     assert schema["properties"]["sessions"]["maxItems"] == REQUIRED_SESSION_COUNT
     milestones = schema["$defs"]["session"]["properties"]["milestones"]
@@ -111,6 +115,18 @@ def test_three_of_four_distinct_sessions_meets_criterion(_authorised_root: Path)
     assert result.passed_session_count == 3
     assert result.criterion_met is True
     assert result.diagnostics == ()
+
+
+def test_protocol_1_0_0_result_remains_supported(_authorised_root: Path) -> None:
+    payload = _cohort()
+    payload["protocol_version"] = PROTOCOL_VERSION_1_0_0
+    path = _authorised_root / "results.json"
+    _write(path, payload)
+
+    result = validate_authoring_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.protocol_version == PROTOCOL_VERSION_1_0_0
 
 
 def test_two_of_four_sessions_is_criterion_not_met(_authorised_root: Path) -> None:
@@ -269,7 +285,7 @@ def test_cli_human_json_quiet_and_failure_modes(
 
     assert main(["authoring-results", "results.json"]) == ExitCode.SUCCESS
     assert capsys.readouterr().out == (
-        "Assisted-authoring criterion met: 3 of 4 sessions passed (protocol 1.0.0)\n"
+        "Assisted-authoring criterion met: 3 of 4 sessions passed (protocol 1.0.1)\n"
     )
 
     assert main(["authoring-results", "results.json", "--json"]) == ExitCode.SUCCESS
@@ -279,7 +295,7 @@ def test_cli_human_json_quiet_and_failure_modes(
         "diagnostics": [],
         "exit_code": 0,
         "passed_session_count": 3,
-        "protocol_version": "1.0.0",
+        "protocol_version": "1.0.1",
         "session_count": 4,
         "status": "criterion-met",
     }
@@ -298,13 +314,15 @@ def test_cli_human_json_quiet_and_failure_modes(
 
 def test_public_protocol_freezes_authoring_contract() -> None:
     root = Path(__file__).parents[1]
-    protocol = (root / "docs/authoring-check-v1.md").read_text(encoding="utf-8")
+    protocol = (root / "docs/authoring-check-v1.0.1.md").read_text(encoding="utf-8")
     words = " ".join(protocol.split())
 
-    assert "protocol 1.0.0" in words
+    assert "protocol 1.0.1" in words
     assert "exactly four fresh sessions" in words
     assert "four distinct agent products" in words
     assert "at least three of the four sessions" in words
     assert "no cohort has been run" in words
     assert "archsift authoring-results authoring-results.json" in protocol
     assert "transcripts" in protocol
+    assert "ordinary user-controlled model transport" in words
+    assert "outbound sockets blocked" in words

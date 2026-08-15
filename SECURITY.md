@@ -33,3 +33,9 @@ records, prompts, command output, and transcripts are temporary private data and
 committed. `authoring-results` reads only one regular JSON file beneath the current directory,
 rejects links and escaping paths, performs no network access, writes nothing, and accepts only the
 strict privacy-bounded result fields in its packaged schema.
+
+Protocol 1.0.1 distinguishes ArchSift's offline boundary from the external author's transport.
+Every ArchSift milestone runs with outbound sockets blocked. A cohort operator may separately
+authorise an agent product's ordinary model transport outside ArchSift, but browser/search access,
+retrieval plugins, network source lookup, private repositories, and continued private context are
+not eligible protocol inputs.
