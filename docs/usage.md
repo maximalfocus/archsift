@@ -1,0 +1,230 @@
+# ArchSift usage
+
+ArchSift is a local-first command-line tool that compares human-owned work, process
+redesign, deterministic automation, fixed AI workflows, and runtime model-directed
+agency for a bounded business task, and either recommends the minimum-sufficient
+architecture or states exactly what evidence is still missing. It runs entirely
+offline: no network service, model API, or telemetry is used.
+
+This guide covers installation, the complete command surface, the case workspace
+and dossier, decision-record outputs (including sensitive-value masking), and
+comparison and reassessment. The [versioned method specification](method-v1.2.0.md)
+defines the decision constitution and rule rationale; the
+[stable exit-code contract](exit-codes.md) defines every command's exit codes.
+
+## Installation
+
+ArchSift requires a supported CPython version starting with Python 3.11.
+
+Once the package is published, install it from PyPI:
+
+```bash
+python -m pip install archsift
+archsift --version
+```
+
+Until the package is published, install from a source checkout:
+
+```bash
+git clone https://github.com/maximalfocus/archsift.git
+cd archsift
+python -m venv .venv
+source .venv/bin/activate  # Windows PowerShell: .venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+archsift --version
+```
+
+The published package is a pure-Python wheel with no compiler requirement. No
+publication event has occurred yet; repository visibility does not publish a
+package, tag, GitHub release, or documentation site.
+
+## Quick start
+
+The four runnable synthetic examples are the fastest way to exercise the tool.
+From the repository root:
+
+```bash
+python -m archsift validate examples/no-technology-change --json
+python -m archsift assess examples/no-technology-change --json
+```
+
+See [the runnable examples](../examples/) for all four workspaces, their expected
+verdicts, and the machine-readable manifest that pins them.
+
+## Command reference
+
+Every command accepts exactly one of the output options:
+
+| Option | Effect |
+|---|---|
+| *(none)* | Concise human-readable output on stdout; diagnostics on stderr. |
+| `--json` | Stable canonical JSON payload on stdout. |
+| `--quiet` | No output at all; only the exit code is available. |
+
+`--json` and `--quiet` are mutually exclusive. Invalid input never produces a
+successful-looking report. Every command also accepts the standard `-h` /
+`--help` options.
+
+### `archsift` `--version`
+
+Prints the installed ArchSift version and exits.
+
+### `archsift init <case>`
+
+Creates a versioned case workspace at the given directory. The target must not
+exist or must be empty. `init` writes `case.yaml` (schema version 1), a workspace
+README with human-readable guidance, and empty `evidence/` and `output/`
+directories. It never overwrites existing files.
+
+### `archsift validate <case>`
+
+Validates the dossier at `<case>/case.yaml`: schema version, references,
+evidence-ledger integrity, task-boundary contract, problem-value,
+agency-necessity, autonomy-permission, and candidate-comparison prerequisites,
+and cross-section consistency. It fails closed on malformed, unsupported,
+unknown, duplicate, or unsafe input, and never opens dossier-supplied paths.
+
+`--json` reports `status: "valid"` or `"invalid"` plus structured readiness
+details (evidence count, defined sections, prerequisite readiness, veto and
+control counts, and consistency readiness) and every diagnostic with its file,
+field, governing requirement, and remediation.
+
+A valid but incomplete dossier validates successfully; the assessment may then
+abstain with `insufficient-evidence`.
+
+### `archsift assess <case>` [`--external-evidence-root` <dir>]
+
+Validates the workspace first, then composes an immutable content-addressed
+decision record and writes two outputs to `<case>/output/`:
+
+- `sha256-<record-id>.json` — the canonical machine-readable record;
+- `sha256-<record-id>.md` — the Markdown review view for architecture review.
+
+Both files share the record identity. `--external-evidence-root` `<dir>`
+explicitly authorises one external directory holding evidence artefacts
+referenced by the dossier; without the grant, assessment fails rather than
+reading an external root. Artefact bytes beneath the workspace or the granted
+root are hashed into the record; paths are never dereferenced as instructions.
+
+Identical reruns reuse byte-identical outputs without rewriting them, and a
+non-identical file at either identity-derived path is never overwritten.
+Reassessing after any input change (dossier, evidence bytes, ruleset,
+configuration, or tool version) produces a new distinct record.
+
+`--json` emits exactly the canonical JSON record bytes. Human and quiet modes
+never render dossier-authored text.
+
+### `archsift compare <old> <new>`
+
+Reads two generated canonical decision-record JSON files beneath the current
+directory and explains the differences: changed evidence identities, changed
+findings and rules, changed verdict fields, and unrelated snapshot context.
+A verdict change names only changed evidence cited by a finding in either record
+and the changed findings as causes. The command is offline and read-only;
+`--json` emits the stable canonical comparison payload.
+
+### `archsift rules` [--json]
+
+Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
+effects, and their public rationale and source mappings. No case workspace is
+required. `--json` emits the stable ruleset catalog including the versioned
+method specification reference.
+
+### `archsift usability-results <results>`
+
+Validates one completed independent usability cohort result against the frozen
+[usability protocol](usability-check-v1.md) and its privacy-bounded result
+contract. A cohort of four or five passing sessions exits `0` with status
+`criterion-met`; three or fewer pass with exit `12` and status
+`criterion-not-met`. Schema, binding, privacy, or contract errors are not
+accepted cohort evidence.
+
+### `archsift method-review-results <results>`
+
+Validates one completed independent architecture-method review result against
+the frozen [method-review protocol](method-review-v1.md). A review that passes
+the four-example causal-trace contract exits `0` with status `criterion-met`;
+a failing or incomplete review exits `12`.
+
+## The case workspace and dossier
+
+A case workspace is one self-contained directory:
+
+```
+my-case/
+├── case.yaml      # the versioned dossier (schema version 1)
+├── README.md      # human-readable workspace guidance
+├── evidence/      # artefact bytes referenced by observed evidence
+└── output/        # generated decision records (never hand-edited)
+```
+
+The dossier is human-editable YAML validated into typed domain models. It
+identifies the case, the operational task boundary (operation, start and
+completion conditions, actors, accountable owner, systems and tools, information
+read, actions with approval boundaries, exclusions), and up to four decision
+areas:
+
+- **problem value** — desired outcome, current baseline, affected volume,
+  material pain, error cost, and why technology may be the limiting factor;
+- **agency necessity** — whether runtime model-directed control is necessary;
+- **autonomy permission** — reversibility, blast radius, regulatory exposure,
+  data confidence, accountability, auditability, human intervention, and safe
+  degradation, with hard vetoes and mandatory human-control boundaries bound to
+  the actions they constrain;
+- **comparative fit** — candidates mapped to control classes, outcome and
+  constraint tests, pairwise comparisons across eleven dimensions, and the
+  evidence-backed strongest-simpler boundary.
+
+Every material claim is recorded in the evidence ledger as one of four kinds:
+
+| Kind | Meaning | Requires |
+|---|---|---|
+| `observed` | Backed by a named artefact or measurement | provenance, observation date |
+| `assumption` | Believed but not yet verified | what would falsify it |
+| `estimate` | Quantified or categorical forecast | method and owner |
+| `missing` | Required evidence not yet available | what would resolve it |
+
+Each evidence entry has a stable ID, an owner, the decision questions it
+affects, and optional artefact references. Duplicate IDs and missing references
+fail validation.
+
+## Decision records and sensitive-value masking
+
+A decision record is immutable and content-addressed by the canonical dossier
+bytes, the content identities of every cited evidence artefact, the ruleset,
+configuration, and tool version. Reassessing any changed input creates a
+distinct record; rerunning identical inputs produces byte-identical outputs.
+
+Before serialising or persisting either representation, ArchSift applies a
+deterministic, offline sensitive-value masking policy (policy v1) to every
+authored string selected for output. The policy replaces only matched values
+with fixed category placeholders, for:
+
+- payment-card numbers that pass the Luhn check and a documented
+  issuer-identification range;
+- SSN- or ITIN-shaped values that pass documented area, group, and serial
+  constraints, in the recognised separated format or under a strong label;
+- credentials matching a documented token or key signature, or following a
+  strong credential label such as `password`, `api_key`, `access_key`,
+  `client_secret`, or `auth_token`;
+- values following prose-ambiguous labels such as `secret`, `token`, or
+  `credential` only when they match a documented credential shape.
+
+A short ordinary word remains unmasked, and the policy is deliberately
+high-precision rather than exhaustive: novel, unlabelled, obfuscated, or
+prose-ambiguous sensitive values may remain. Both outputs identify that masking
+was applied and warn that a record is **not guaranteed to be sensitive-data-free
+and still requires handling appropriate to its source material**. Masking never
+changes assessment, verdicts, evidence, or the content identities that address
+the record; it transforms only emitted field values.
+
+## Offline behaviour and exit codes
+
+Every command runs without network access. Case content is untrusted data: the
+tool never executes instructions, code, templates, or paths supplied by a
+dossier, never dereferences source locators or URLs, and refuses any path that
+would escape the case workspace unless explicitly granted.
+
+See [exit-codes.md](exit-codes.md) for the stable exit-code contract, including
+the distinct codes for malformed input, unsupported schema, validation failure,
+unsafe paths, unavailable artefacts, persistence conflicts, and internal errors.
