@@ -1,0 +1,92 @@
+{
+  "archsift_version_or_commit": "77607067db3119bf74598a2b859e758cd003f281",
+  "overall_result": "met",
+  "protocol_version": "2.0.0",
+  "schema_version": 2,
+  "sessions": [
+    {
+      "agent_model": "deepseek-v4-flash[1m]",
+      "agent_product": "claude-code",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": null,
+      "fresh_session": true,
+      "harness_version": "2.1.233",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "pass",
+        "complete": "pass",
+        "initialize": "pass",
+        "validate": "pass"
+      },
+      "session_id": "session-01",
+      "session_result": "pass"
+    },
+    {
+      "agent_model": "gpt-5.6-sol",
+      "agent_product": "codex",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": null,
+      "fresh_session": true,
+      "harness_version": "0.147.0",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "pass",
+        "complete": "pass",
+        "initialize": "pass",
+        "validate": "pass"
+      },
+      "session_id": "session-02",
+      "session_result": "pass"
+    },
+    {
+      "agent_model": "kimi-k3",
+      "agent_product": "opencode",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": null,
+      "fresh_session": true,
+      "harness_version": "1.18.18",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "pass",
+        "complete": "pass",
+        "initialize": "pass",
+        "validate": "pass"
+      },
+      "session_id": "session-03",
+      "session_result": "pass"
+    },
+    {
+      "agent_model": "deepseek-v4-flash",
+      "agent_product": "pi",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": null,
+      "fresh_session": true,
+      "harness_version": "0.84.2",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "pass",
+        "complete": "pass",
+        "initialize": "pass",
+        "validate": "pass"
+      },
+      "session_id": "session-04",
+      "session_result": "pass"
+    }
+  ]
+}

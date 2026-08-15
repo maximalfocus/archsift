@@ -6,8 +6,12 @@ executor — here, an agent product running from a fresh session — to use the 
 maintainer help. Protocol 1.0.0 remains frozen for human participant cohorts and stays supported by
 the validator.
 
-no simulated sessions have been run, no result records are committed, and ArchSift makes no
-usability-success claim yet.
+One simulated cohort has been run. The committed result is
+[`usability-results.json`](../usability-results.json) (cohort date 2026-08-15, source commit
+`77607067db3119bf74598a2b859e758cd003f281`). `archsift usability-results usability-results.json`
+exits `0` with `criterion-met`: four of four sessions passed. The evidence is simulated: sessions
+were executed by four distinct agent products, and no claim that human target users passed is
+made. Any later cohort is a new result record bound to its own source commit.
 
 ## Success criterion
 
