@@ -395,11 +395,12 @@ but may not browse, search, retrieve network sources, load plugins or private co
 prior session. The superseded pre-cohort [protocol 1.0.0](authoring-check-v1.md) remains frozen and
 its result version remains supported.
 
-Two protocol-1.0.1 cohort results are committed. The current `authoring-results.json` and preserved
-`authoring-results-1-criterion-not-met.json` each contain one of four passing sessions, so both
-return exit `12` and status `criterion-not-met`. These are simulated historical evidence and
-support no human-author or authoring-success claim. A later cohort must use a new precommitment and
-result record rather than replacing sessions.
+Three protocol-1.0.1 cohort results are committed. The current `authoring-results.json` contains
+zero of four passing sessions, while preserved `authoring-results-2-criterion-not-met.json` and
+`authoring-results-1-criterion-not-met.json` each contain one of four passing. All three return exit
+`12` and status `criterion-not-met`. These are simulated historical evidence and support no
+human-author or authoring-success claim. A later cohort must use a new precommitment and result
+record rather than replacing sessions.
 
 ### `archsift method-review-results <results>`
 

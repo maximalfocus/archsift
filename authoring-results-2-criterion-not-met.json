@@ -1,5 +1,5 @@
 {
-  "archsift_source_commit": "da5bbb30a02766d2960d353e30abe7fb980702af",
+  "archsift_source_commit": "cf5c81591b23b4052a1d7cdd8073951f4ee2499f",
   "material_set_content_identity": "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee",
   "overall_result": "not-met",
   "protocol_version": "1.0.1",
@@ -9,20 +9,20 @@
       "agent_model": "gpt-5.6-sol",
       "agent_product": "codex",
       "environment": {
-        "install_mode": "built-wheel",
+        "install_mode": "source-checkout",
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": "Initialization returned exit 1.",
+      "failure_reason": "Validation and assessment milestones were not attempted.",
       "fresh_session": true,
       "harness_version": "0.147.0",
       "maintainer_intervention": false,
       "milestones": {
         "assess": "fail",
-        "author_dossier": "fail",
-        "complete_prerequisites": "fail",
-        "inspect_schema": "fail",
-        "register_material": "fail",
+        "author_dossier": "pass",
+        "complete_prerequisites": "pass",
+        "inspect_schema": "pass",
+        "register_material": "pass",
         "validate": "fail"
       },
       "session_id": "session-01",
@@ -32,11 +32,11 @@
       "agent_model": "sonnet",
       "agent_product": "claude-code",
       "environment": {
-        "install_mode": "built-wheel",
+        "install_mode": "source-checkout",
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": "Harness prompt was unavailable before task receipt.",
+      "failure_reason": "Product configuration prevented task startup.",
       "fresh_session": true,
       "harness_version": "2.1.233",
       "maintainer_intervention": false,
@@ -52,14 +52,14 @@
       "session_result": "fail"
     },
     {
-      "agent_model": "deepseek-v4-flash",
+      "agent_model": "gpt-5.6-luna",
       "agent_product": "opencode",
       "environment": {
-        "install_mode": "built-wheel",
+        "install_mode": "source-checkout",
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": "Harness prompt was unavailable before task receipt.",
+      "failure_reason": "No product event or command was emitted before the startup timeout.",
       "fresh_session": true,
       "harness_version": "1.18.18",
       "maintainer_intervention": false,
@@ -78,24 +78,24 @@
       "agent_model": "deepseek-v4-flash",
       "agent_product": "pi",
       "environment": {
-        "install_mode": "built-wheel",
+        "install_mode": "source-checkout",
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": "Harness prompt was unavailable before task receipt.",
+      "failure_reason": null,
       "fresh_session": true,
       "harness_version": "0.84.2",
       "maintainer_intervention": false,
       "milestones": {
-        "assess": "fail",
-        "author_dossier": "fail",
-        "complete_prerequisites": "fail",
-        "inspect_schema": "fail",
-        "register_material": "fail",
-        "validate": "fail"
+        "assess": "pass",
+        "author_dossier": "pass",
+        "complete_prerequisites": "pass",
+        "inspect_schema": "pass",
+        "register_material": "pass",
+        "validate": "pass"
       },
       "session_id": "session-04",
-      "session_result": "fail"
+      "session_result": "pass"
     }
   ]
 }
