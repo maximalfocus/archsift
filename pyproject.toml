@@ -51,6 +51,12 @@ Repository = "https://github.com/maximalfocus/archsift"
 [tool.hatch.build.targets.wheel]
 packages = ["src/archsift"]
 
+[tool.hatch.build.targets.sdist]
+exclude = [
+  "graphify-out/**",
+  "dist/**",
+]
+
 [tool.hatch.build.targets.wheel.force-include]
 "docs/exit-codes.md" = "archsift/docs/exit-codes.md"
 "docs/method-v1.0.0.md" = "archsift/docs/method-v1.0.0.md"
@@ -58,7 +64,9 @@ packages = ["src/archsift"]
 "docs/method-v1.1.0.md" = "archsift/docs/method-v1.1.0.md"
 "docs/method-v1.2.0.md" = "archsift/docs/method-v1.2.0.md"
 "docs/method-review-v1.md" = "archsift/docs/method-review-v1.md"
+"docs/method-review-v2.md" = "archsift/docs/method-review-v2.md"
 "docs/usability-check-v1.md" = "archsift/docs/usability-check-v1.md"
+"docs/usability-check-v2.md" = "archsift/docs/usability-check-v2.md"
 
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"

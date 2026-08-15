@@ -10,3 +10,4 @@ dist/
 coverage.xml
 htmlcov/
 .DS_Store
+graphify-out/
