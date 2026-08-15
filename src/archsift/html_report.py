@@ -7,8 +7,12 @@ four decision areas, vetoes, recommendation or abstention, trade-offs, evidence
 links with their content identities, unresolved gaps, the dossier schema,
 ruleset and tool versions, and reassessment triggers.
 
-The report is an output of the record, never a separate authoritative
-artifact: it restates the record's own content identity and derives no
+FR-017: the executive HTML report renders the same
+:class:`~archsift.executive_summary.ExecutiveSummary` that the PPTX deck
+renders, so the two presentation formats state identical facts.
+
+Both reports are outputs of the record, never separate authoritative
+artifacts: each restates the record's own content identity and derives no
 identity of its own.
 
 Three properties are structural rather than incidental:
@@ -36,71 +40,30 @@ from html import escape
 from typing import Final
 
 from archsift.canonical import JsonObject, JsonValue
-from archsift.masking import (
-    MASKING_POLICY_VERSION,
-    MASKING_WARNING,
-    masked_decision_record_view,
+from archsift.executive_summary import (
+    EXECUTIVE_SUMMARY_VERSION,
+    ExecutiveSummary,
+    build_executive_summary,
+)
+from archsift.masking import MASKING_POLICY_VERSION, MASKING_WARNING
+from archsift.record_view import (
+    ABSENT,
+    EMPTY,
+    ReportRecordError,
+    masked_record_view,
+    recommendation,
 )
 from archsift.report_text import visible_text
 
 HTML_REPORT_FORMAT_VERSION: Final = 1
 
-_ABSENT: Final = "(not provided)"
-_EMPTY: Final = "(none)"
-_ABSTENTION: Final = "(abstention)"
-_NO_PERMISSIBLE_CANDIDATE: Final = "(no permissible candidate)"
+#: The fixed text joining one summary point's values in a rendered line.
+VALUE_SEPARATOR: Final = " — "
 
 # A declared record field name; any other mapping key is an authored or
 # generated identifier (an evidence ID, a configuration key) and is shown
 # exactly as recorded instead of being reworded into a title.
 _FIELD_NAME: Final = re.compile(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*")
-
-_REQUIRED_RECORD_KEYS: Final[tuple[str, ...]] = (
-    "artefact_links",
-    "assessment",
-    "configuration",
-    "configuration_content_identity",
-    "dossier",
-    "dossier_content_identity",
-    "dossier_schema_version",
-    "evidence_links",
-    "reassessment_triggers",
-    "record_content_identity",
-    "record_schema_version",
-    "ruleset_version",
-    "tool_version",
-    "unresolved_gaps",
-)
-_REQUIRED_DOSSIER_KEYS: Final[tuple[str, ...]] = (
-    "agency_necessity",
-    "autonomy_permission",
-    "candidate_comparison",
-    "case",
-    "decision_conditions",
-    "evidence",
-    "problem_value",
-    "schema_version",
-    "task",
-)
-_REQUIRED_ASSESSMENT_KEYS: Final[tuple[str, ...]] = (
-    "active_hard_veto_ids",
-    "evidence_state",
-    "mandatory_human_control_ids",
-    "ordered_elimination_evaluation",
-    "prerequisite_evaluation",
-    "recommended_class",
-    "ruleset_version",
-    "schema_version",
-    "surviving_candidate_ids",
-    "unmet_conditions",
-    "verdict",
-    "verdict_rule_id",
-)
-
-_ABSTAINING_VERDICTS: Final[dict[str, str]] = {
-    "insufficient-evidence": _ABSTENTION,
-    "no-permissible-candidate": _NO_PERMISSIBLE_CANDIDATE,
-}
 
 # The complete presentation of the document. It is a fixed literal with no
 # authored content, so it cannot be broken out of, and it references no
@@ -128,10 +91,6 @@ p.empty { opacity: 0.7; }
 """
 
 
-class HtmlReportError(ValueError):
-    """A decision record cannot be rendered as HTML without ambiguity."""
-
-
 def _text(value: str) -> str:
     """Return authored text as an inert escaped HTML text node."""
     return escape(visible_text(value), quote=True)
@@ -146,21 +105,21 @@ def _label(key: str) -> str:
 
 def _scalar(value: JsonValue) -> str:
     if value is None:
-        return _ABSENT
+        return ABSENT
     if type(value) is bool:
         return "true" if value else "false"
     if type(value) is int:
         return str(value)
     if type(value) is str:
         return _text(value)
-    raise HtmlReportError(f"Unsupported {type(value).__name__} report scalar.")
+    raise ReportRecordError(f"Unsupported {type(value).__name__} report scalar.")
 
 
 def _emit_value(lines: list[str], value: JsonValue) -> None:
     if type(value) is list:
         items = value
         if not items:
-            lines.append(f'<p class="empty">{_EMPTY}</p>')
+            lines.append(f'<p class="empty">{EMPTY}</p>')
             return
         lines.append("<ol>")
         for item in items:
@@ -172,7 +131,7 @@ def _emit_value(lines: list[str], value: JsonValue) -> None:
     if type(value) is dict:
         mapping = value
         if not mapping:
-            lines.append(f'<p class="empty">{_EMPTY}</p>')
+            lines.append(f'<p class="empty">{EMPTY}</p>')
             return
         lines.append("<dl>")
         # Sorted order keeps the document byte-identical whatever order the
@@ -201,29 +160,6 @@ def _section(lines: list[str], title: str, label: str, value: JsonValue) -> None
     _emit_field(lines, label, value)
 
 
-def _require_object(value: JsonValue, name: str) -> JsonObject:
-    if type(value) is not dict:
-        raise HtmlReportError(f"Decision record {name} is not a JSON object.")
-    return value
-
-
-def _require_keys(mapping: JsonObject, expected: tuple[str, ...], name: str) -> None:
-    missing = [key for key in expected if key not in mapping]
-    if missing:
-        raise HtmlReportError(f"Decision record {name} is missing {', '.join(missing)}.")
-
-
-def _recommendation(assessment: JsonObject) -> JsonValue:
-    """Return the recommendation exactly as the Markdown review view states it."""
-    recommended = assessment["recommended_class"]
-    if recommended is not None:
-        return recommended
-    verdict = assessment["verdict"]
-    if type(verdict) is str and verdict in _ABSTAINING_VERDICTS:
-        return _ABSTAINING_VERDICTS[verdict]
-    raise HtmlReportError("A recommending verdict has no recommended class.")
-
-
 def render_detailed_html_report(record: JsonObject) -> bytes:
     """Return one deterministic self-contained detailed HTML report.
 
@@ -231,31 +167,11 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     applied here rather than by the caller, so the rendered document can never
     carry an unmasked authored value.
     """
-    if type(record) is not dict:
-        raise HtmlReportError("Decision record is not a JSON object.")
-    masked = masked_decision_record_view(record)
-    _require_keys(masked, _REQUIRED_RECORD_KEYS, "$")
-    dossier = _require_object(masked["dossier"], "$.dossier")
-    _require_keys(dossier, _REQUIRED_DOSSIER_KEYS, "$.dossier")
-    assessment = _require_object(masked["assessment"], "$.assessment")
-    _require_keys(assessment, _REQUIRED_ASSESSMENT_KEYS, "$.assessment")
-    recommendation = _recommendation(assessment)
+    view = masked_record_view(record)
+    masked, dossier, assessment = view.record, view.dossier, view.assessment
+    recommended = recommendation(assessment)
 
-    lines: list[str] = [
-        "<!DOCTYPE html>",
-        '<html lang="en">',
-        "<head>",
-        '<meta charset="utf-8">',
-        '<meta name="viewport" content="width=device-width, initial-scale=1">',
-        "<title>ArchSift Decision Report</title>",
-        "<style>",
-        _STYLESHEET.rstrip("\n"),
-        "</style>",
-        "</head>",
-        "<body>",
-        "<h1>ArchSift Decision Report</h1>",
-        "<h2>Record Metadata</h2>",
-    ]
+    lines: list[str] = ["<h2>Record Metadata</h2>"]
     _emit_field(lines, "Report Format Version", HTML_REPORT_FORMAT_VERSION)
     _emit_field(lines, "Record Schema Version", masked["record_schema_version"])
     _emit_field(lines, "Record Content Identity", masked["record_content_identity"])
@@ -288,7 +204,7 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Verdict", assessment["verdict"])
     _emit_field(lines, "Verdict Rule ID", assessment["verdict_rule_id"])
     _emit_field(lines, "Qualitative Evidence State", assessment["evidence_state"])
-    _emit_field(lines, "Recommendation", recommendation)
+    _emit_field(lines, "Recommendation", recommended)
     _emit_field(lines, "Surviving Candidate IDs", assessment["surviving_candidate_ids"])
     _emit_field(lines, "Unmet Conditions", assessment["unmet_conditions"])
     _emit_field(lines, "Active Hard Veto IDs", assessment["active_hard_veto_ids"])
@@ -314,6 +230,55 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Policy Version", MASKING_POLICY_VERSION)
     _emit_field(lines, "Warning", MASKING_WARNING)
     lines.append("</section>")
-    lines.append("</body>")
-    lines.append("</html>")
+    return _document("ArchSift Decision Report", lines)
+
+
+def _document(title: str, body: list[str]) -> bytes:
+    """Wrap rendered body markup in the shared self-contained document shell."""
+    lines = [
+        "<!DOCTYPE html>",
+        '<html lang="en">',
+        "<head>",
+        '<meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>{_text(title)}</title>",
+        "<style>",
+        _STYLESHEET.rstrip("\n"),
+        "</style>",
+        "</head>",
+        "<body>",
+        f"<h1>{_text(title)}</h1>",
+        *body,
+        "</body>",
+        "</html>",
+    ]
     return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
+    """Return one deterministic self-contained executive summary as HTML."""
+    body: list[str] = ["<h2>Summary Metadata</h2>"]
+    _emit_field(body, "Report Format Version", EXECUTIVE_SUMMARY_VERSION)
+    _emit_field(body, "Record Content Identity", summary.record_content_identity)
+    _emit_field(body, "Ruleset Version", summary.ruleset_version)
+    _emit_field(body, "Tool Version", summary.tool_version)
+    for section in summary.sections:
+        body.append(f"<h2>{_text(section.title)}</h2>")
+        body.append("<dl>")
+        for point in section.points:
+            body.append(f"<dt>{_text(point.label)}</dt>")
+            rendered = VALUE_SEPARATOR.join(_text(value) for value in point.values)
+            style = "empty" if point.derived else "value"
+            body.append(f'<dd><p class="{style}">{rendered}</p></dd>')
+        body.append("</dl>")
+    body.append('<section class="notice">')
+    body.append("<h2>Masking Notice</h2>")
+    _emit_field(body, "Policy Version", MASKING_POLICY_VERSION)
+    _emit_field(body, "Warning", MASKING_WARNING)
+    body.append("</section>")
+    return _document("ArchSift Executive Summary", body)
+
+
+def render_executive_html_report(record: JsonObject) -> bytes:
+    """Return one deterministic executive summary of a loaded canonical record."""
+    return render_executive_summary_html(build_executive_summary(record))

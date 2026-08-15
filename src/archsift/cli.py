@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import NoReturn, TextIO
 
@@ -15,6 +15,7 @@ from archsift.artefacts import (
     EvidenceArtefactFailure,
     evidence_artefact_identities,
 )
+from archsift.canonical import JsonObject
 from archsift.comparison import (
     ComparisonInputError,
     canonical_comparison_bytes,
@@ -25,7 +26,7 @@ from archsift.comparison import (
 )
 from archsift.decision_record import compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
-from archsift.html_report import render_detailed_html_report
+from archsift.html_report import render_detailed_html_report, render_executive_html_report
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.masking import masked_canonical_decision_record_bytes
 from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
@@ -37,6 +38,7 @@ from archsift.persistence import (
     persist_report_output,
     report_target_name,
 )
+from archsift.pptx_report import render_executive_pptx_report
 from archsift.rules import (
     RULESET_VERSION,
     evaluate_assessment_prerequisites,
@@ -104,14 +106,14 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("record", type=Path, help="canonical decision-record JSON")
     report_parser.add_argument(
         "--format",
-        choices=("html",),
+        choices=("html", "pptx"),
         default="html",
         dest="report_format",
         help="rendered report format",
     )
     report_parser.add_argument(
         "--level",
-        choices=("detailed",),
+        choices=("detailed", "executive"),
         default="detailed",
         help="rendered report level",
     )
@@ -474,6 +476,16 @@ def _reported_output_path(root: Path, directory: Path, filename: str) -> str:
     return (directory.relative_to(root.resolve(strict=True)) / filename).as_posix()
 
 
+# The report surface a record can be rendered into. FR-016 defines the detailed
+# report in HTML; FR-017 defines the executive summary in HTML and PPTX. A
+# combination absent here has no renderer and is refused as a usage error.
+_REPORT_RENDERERS: dict[tuple[str, str], Callable[[JsonObject], bytes]] = {
+    ("html", "detailed"): render_detailed_html_report,
+    ("html", "executive"): render_executive_html_report,
+    ("pptx", "executive"): render_executive_pptx_report,
+}
+
+
 def _run_report(
     path: Path,
     *,
@@ -492,7 +504,7 @@ def _run_report(
         identity = record["record_content_identity"]
         if type(identity) is not str:
             raise ValueError("loaded record has no content identity")
-        content = render_detailed_html_report(record)
+        content = _REPORT_RENDERERS[(report_format, level)](record)
         filename = report_target_name(identity, level, report_format)
         directory = resolved.parent
         persisted = persist_report_output(
@@ -689,6 +701,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             quiet=args.quiet,
         )
     if args.command == "report":
+        if (args.report_format, args.level) not in _REPORT_RENDERERS:
+            _usage_error(
+                parser,
+                f"--format {args.report_format} does not support --level {args.level}",
+            )
         return _run_report(
             args.record,
             report_format=args.report_format,

@@ -114,32 +114,51 @@ configuration, or tool version) produces a new distinct record.
 `--json` emits exactly the canonical JSON record bytes. Human and quiet modes
 never render dossier-authored text.
 
-### `archsift report <record>` [`--format` html] [`--level` detailed]
+### `archsift report <record>` [`--format` html|pptx] [`--level` detailed|executive]
 
 Renders a generated canonical decision-record JSON file beneath the current
-directory as a standalone report. `--format` `html` and `--level` `detailed`
-are the current values and the defaults, so `archsift report <record>` renders
-the detailed HTML report.
+directory as a standalone report. Three combinations are supported:
 
-The detailed HTML report states the same content as the Markdown review view:
+| `--format` | `--level` | Output | Audience |
+|---|---|---|---|
+| `html` | `detailed` *(default)* | `sha256-<record-id>.detailed.html` | architecture review |
+| `html` | `executive` | `sha256-<record-id>.executive.html` | stakeholder summary |
+| `pptx` | `executive` | `sha256-<record-id>.executive.pptx` | stakeholder presentation |
+
+`--format pptx --level detailed` has no renderer and is rejected as a usage
+error rather than silently producing something else.
+
+The **detailed** report states the same content as the Markdown review view:
 task boundary, candidate comparison, the four decision areas, vetoes,
 recommendation or abstention, trade-offs, evidence links with their content
 identities, unresolved gaps, the dossier schema, ruleset and tool versions, and
 reassessment triggers.
 
-The report is written beside the record it renders, as
-`sha256-<record-id>.detailed.html`. It is an output of the record rather than a
-separate authoritative artifact: its name restates the record's content
-identity and it derives no identity of its own. Identical reruns reuse the
-byte-identical file without rewriting it, and a non-identical file at the
-derived path is preserved rather than overwritten.
+The **executive** summary states the case identity and task boundary in brief,
+the verdict or abstention with its rule ID, the decision space and each
+candidate's role, the active vetoes and mandatory human controls, the evidence
+state with its counts and material gaps, and the trade-offs that most affect
+the verdict — the directional comparison outcomes involving a candidate the
+verdict rests on. The HTML and PPTX forms render one summary, so they cannot
+state different facts about the same record. The summary introduces nothing the
+record does not contain: every value is verbatim record content apart from
+counts and fixed markers for an absent, empty, or abstaining outcome. Nothing
+is truncated; a section longer than one slide continues onto the next.
 
-The document is fully self-contained and offline: it references no network
-resource, script, font, image, or external stylesheet. Every authored string is
-rendered as escaped text — never as markup, script, attribute, or URL — and the
-same sensitive-value masking policy applied to the record is applied to the
+Every report is written beside the record it renders and is an output of that
+record rather than a separate authoritative artifact: its name restates the
+record's content identity and it derives no identity of its own. Identical
+reruns reuse the byte-identical file without rewriting it, and a non-identical
+file at the derived path is preserved rather than overwritten.
+
+Every report is fully self-contained and offline. The HTML references no
+network resource, script, font, image, or external stylesheet. The PPTX deck is
+written by ArchSift itself, embeds no media, and requires no external font,
+image, or template. Every authored string is rendered as inert text — never as
+markup, script, attribute, URL, or presentation XML — and the same
+sensitive-value masking policy applied to the record is applied to every
 report. Rendering is deterministic: identical inputs produce byte-identical
-HTML.
+output, and the deck carries no generation timestamp.
 
 `--json` reports the record identity, the rendered format and level, the output
 path, and whether an existing byte-identical report was reused.

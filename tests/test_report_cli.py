@@ -288,6 +288,108 @@ def test_report_rejects_an_unsupported_format_or_level(
         assert exit_info.value.code == ExitCode.USAGE
 
 
+def test_report_rejects_a_format_and_level_combination_with_no_renderer(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FR-016 defines only a detailed HTML report; PPTX is executive-only."""
+    with pytest.raises(SystemExit) as exit_info:
+        main(["report", str(tmp_path / "record.json"), "--format", "pptx", "--level", "detailed"])
+
+    assert exit_info.value.code == ExitCode.USAGE
+    assert "--format pptx does not support --level detailed" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("report_format", "level", "suffix", "magic"),
+    [
+        ("html", "detailed", ".detailed.html", b"<!DOCTYPE html>"),
+        ("html", "executive", ".executive.html", b"<!DOCTYPE html>"),
+        ("pptx", "executive", ".executive.pptx", b"PK"),
+    ],
+)
+def test_report_renders_every_supported_format_and_level(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    report_format: str,
+    level: str,
+    suffix: str,
+    magic: bytes,
+) -> None:
+    workspace, identity = _assessed_workspace(tmp_path, capsys)
+    monkeypatch.chdir(tmp_path)
+    relative = _record_path(workspace, identity).relative_to(tmp_path)
+
+    assert (
+        main(["report", str(relative), "--format", report_format, "--level", level, "--json"])
+        == ExitCode.SUCCESS
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    target = workspace / "output" / f"sha256-{identity[7:]}{suffix}"
+    assert payload["format"] == report_format
+    assert payload["level"] == level
+    assert payload["record_content_identity"] == identity
+    assert payload["report"] == target.relative_to(tmp_path).as_posix()
+    assert target.read_bytes().startswith(magic)
+
+
+def test_every_report_of_one_record_is_named_from_that_record_identity(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, identity = _assessed_workspace(tmp_path, capsys)
+    monkeypatch.chdir(tmp_path)
+    relative = _record_path(workspace, identity).relative_to(tmp_path)
+    for report_format, level in (
+        ("html", "detailed"),
+        ("html", "executive"),
+        ("pptx", "executive"),
+    ):
+        assert (
+            main(["report", str(relative), "--format", report_format, "--level", level, "--quiet"])
+            == ExitCode.SUCCESS
+        )
+
+    generated = sorted(
+        path.name for path in (workspace / "output").iterdir() if path.name != ".gitkeep"
+    )
+    assert generated == [
+        f"sha256-{identity[7:]}.detailed.html",
+        f"sha256-{identity[7:]}.executive.html",
+        f"sha256-{identity[7:]}.executive.pptx",
+        f"sha256-{identity[7:]}.json",
+        f"sha256-{identity[7:]}.md",
+    ]
+
+
+def test_executive_reports_reuse_byte_identical_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, identity = _assessed_workspace(tmp_path, capsys)
+    monkeypatch.chdir(tmp_path)
+    relative = _record_path(workspace, identity).relative_to(tmp_path)
+    target = workspace / "output" / f"sha256-{identity[7:]}.executive.pptx"
+
+    executive = ["report", str(relative), "--format", "pptx", "--level", "executive", "--json"]
+
+    assert main(executive) == ExitCode.SUCCESS
+    first = json.loads(capsys.readouterr().out)
+    content = target.read_bytes()
+    stamp = target.stat().st_mtime_ns
+
+    assert main(executive) == ExitCode.SUCCESS
+    second = json.loads(capsys.readouterr().out)
+
+    assert first["reused"] is False and second["reused"] is True
+    assert target.read_bytes() == content
+    assert target.stat().st_mtime_ns == stamp
+
+
 def test_report_writes_no_output_beyond_its_own_derived_target(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
