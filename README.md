@@ -22,7 +22,9 @@ committed result validates with `criterion-met` (four of four simulated sessions
 (simulated protocol 2.0.0) has also been completed; see the protocol and results below. No
 method-validation, certification, production-readiness, or first-release success claim is made; the
 usability and method-review evidence is simulated: no claim that human target users passed is made,
-and no claim that human architects passed is made.
+and no claim that human architects passed is made. The simulated assisted-authoring protocol and
+synthetic material set are published, but no assisted-authoring cohort has been run yet and no
+authoring-success claim is made.
 
 ## Install
 
@@ -80,6 +82,7 @@ archsift graph-change proposal.json proposed-snapshot.json --json
 archsift graph-change proposal.json proposed-snapshot.json --base-snapshot base-snapshot.json --json
 archsift graph-view snapshot.json private-case-view-request.json --json
 archsift usability-results usability-results.json
+archsift authoring-results authoring-results.json
 archsift method-review-results method-review-results.json
 ```
 
@@ -111,6 +114,14 @@ three pass. The initial simulated cohort has run and its committed
 [result](usability-results.json) validates with `criterion-met`; the human protocol has not been
 run and no human-participant claim is made. A completed cohort is checked offline with exactly
 `archsift usability-results usability-results.json`.
+
+The [simulated assisted-authoring protocol](docs/authoring-check-v1.md) freezes a synthetic material
+set, six objective CLI milestones, exactly four fresh sessions using distinct agent products, and a
+three-of-four success threshold. The protocol publishes no answer dossier or expected verdict and
+retains only privacy-bounded outcome metadata. No cohort has been run yet. A future completed result
+will be checked offline with exactly
+`archsift authoring-results authoring-results.json`; until such a record exists and validates, no
+assisted-authoring success claim is made.
 
 The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
 four-example causal-trace review and privacy-bounded result contract for the public method. The

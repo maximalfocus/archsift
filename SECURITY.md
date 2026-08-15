@@ -26,3 +26,10 @@ hook, discovery, or network request and does not prove a commit-to-file
 relationship. Registration rejects links, traversal, special files, changing
 sources, and identifier collisions; callers must still protect the workspace
 with permissions appropriate to the source material.
+
+The public `authoring-material/` directory is fully synthetic and is the only material authorised
+for the simulated assisted-authoring protocol. Cohort workspaces, generated dossiers, decision
+records, prompts, command output, and transcripts are temporary private data and must never be
+committed. `authoring-results` reads only one regular JSON file beneath the current directory,
+rejects links and escaping paths, performs no network access, writes nothing, and accepts only the
+strict privacy-bounded result fields in its packaged schema.

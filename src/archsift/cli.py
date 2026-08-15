@@ -17,6 +17,7 @@ from archsift.artefacts import (
     evidence_artefact_identities,
 )
 from archsift.authoring import dossier_schema_surface, prerequisite_worklist
+from archsift.authoring_results import validate_authoring_results
 from archsift.canonical import JsonObject, canonical_json_bytes
 from archsift.case_view import CaseViewError, construct_case_view, load_case_view_request
 from archsift.comparison import (
@@ -232,6 +233,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     usability_parser.add_argument("results", type=Path, help="completed usability-results JSON")
     _output_options(usability_parser)
+
+    authoring_results_parser = subparsers.add_parser(
+        "authoring-results", help="validate one simulated assisted-authoring result cohort"
+    )
+    authoring_results_parser.add_argument(
+        "results", type=Path, help="completed authoring-results JSON"
+    )
+    _output_options(authoring_results_parser)
 
     method_review_parser = subparsers.add_parser(
         "method-review-results", help="validate one independent architecture-method review result"
@@ -927,6 +936,34 @@ def _run_usability_results(path: Path, *, json_output: bool, quiet: bool) -> int
     return int(result.exit_code)
 
 
+def _run_authoring_results(path: Path, *, json_output: bool, quiet: bool) -> int:
+    try:
+        result = validate_authoring_results(path)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    status = "criterion-met" if result.exit_code is ExitCode.SUCCESS else "invalid"
+    if any(item.id == "authoring-threshold-not-met" for item in result.diagnostics):
+        status = "criterion-not-met"
+    _emit(
+        status=status,
+        exit_code=result.exit_code,
+        diagnostics=result.diagnostics,
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Assisted-authoring criterion met: {result.passed_session_count} of "
+            f"{result.session_count} sessions passed (protocol {result.protocol_version})"
+        ),
+        details={
+            "criterion_met": result.criterion_met,
+            "passed_session_count": result.passed_session_count,
+            "protocol_version": result.protocol_version,
+            "session_count": result.session_count,
+        },
+    )
+    return int(result.exit_code)
+
+
 def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) -> int:
     try:
         result = validate_method_review_results(path)
@@ -1377,6 +1414,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     if args.command == "usability-results":
         return _run_usability_results(
+            args.results,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "authoring-results":
+        return _run_authoring_results(
             args.results,
             json_output=args.json_output,
             quiet=args.quiet,
