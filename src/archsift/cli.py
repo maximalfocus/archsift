@@ -21,9 +21,11 @@ from archsift.comparison import (
     compare_decision_records,
     load_decision_record,
     render_human_comparison,
+    resolve_record_path,
 )
 from archsift.decision_record import compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.html_report import render_detailed_html_report
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.masking import masked_canonical_decision_record_bytes
 from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
@@ -32,6 +34,8 @@ from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
     persist_decision_outputs,
+    persist_report_output,
+    report_target_name,
 )
 from archsift.rules import (
     RULESET_VERSION,
@@ -93,6 +97,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="explicitly authorise one external evidence directory",
     )
     _output_options(assess_parser)
+
+    report_parser = subparsers.add_parser(
+        "report", help="render a report from an immutable canonical decision record"
+    )
+    report_parser.add_argument("record", type=Path, help="canonical decision-record JSON")
+    report_parser.add_argument(
+        "--format",
+        choices=("html",),
+        default="html",
+        dest="report_format",
+        help="rendered report format",
+    )
+    report_parser.add_argument(
+        "--level",
+        choices=("detailed",),
+        default="detailed",
+        help="rendered report level",
+    )
+    _output_options(report_parser)
 
     compare_parser = subparsers.add_parser(
         "compare", help="compare two immutable canonical decision records"
@@ -394,9 +417,12 @@ def _run_assess(
     return int(ExitCode.SUCCESS)
 
 
-def _emit_compare_failure(
+def _emit_record_input_failure(
     error: ComparisonInputError,
     *,
+    command: str,
+    file: str,
+    requirement: str,
     json_output: bool,
     quiet: bool,
 ) -> int:
@@ -408,11 +434,11 @@ def _emit_compare_failure(
         ExitCode.UNSUPPORTED_SCHEMA: "unsupported",
     }[exit_code]
     diagnostic = Diagnostic(
-        id=f"compare-{error.category.value}",
+        id=f"{command}-{error.category.value}",
         message=error.message,
-        file=f"{error.role}-record",
+        file=file,
         field=error.field,
-        requirement="FR-013",
+        requirement=requirement,
         remediation=error.remediation,
     )
     _emit(
@@ -425,6 +451,88 @@ def _emit_compare_failure(
         details={},
     )
     return int(exit_code)
+
+
+def _emit_compare_failure(
+    error: ComparisonInputError,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    return _emit_record_input_failure(
+        error,
+        command="compare",
+        file=f"{error.role}-record",
+        requirement="FR-013",
+        json_output=json_output,
+        quiet=quiet,
+    )
+
+
+def _reported_output_path(root: Path, directory: Path, filename: str) -> str:
+    """Return one generated output's authorised-root-relative POSIX path."""
+    return (directory.relative_to(root.resolve(strict=True)) / filename).as_posix()
+
+
+def _run_report(
+    path: Path,
+    *,
+    report_format: str,
+    level: str,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    try:
+        root = Path(".")
+        # The record is resolved once at the shared safe-read boundary; its
+        # containing directory is therefore already proven to sit inside the
+        # authorised root and is where the rendered report is written.
+        resolved = resolve_record_path(path, root=root, role="record")
+        record = load_decision_record(resolved, root=root, role="record")
+        identity = record["record_content_identity"]
+        if type(identity) is not str:
+            raise ValueError("loaded record has no content identity")
+        content = render_detailed_html_report(record)
+        filename = report_target_name(identity, level, report_format)
+        directory = resolved.parent
+        persisted = persist_report_output(
+            directory,
+            filename,
+            content,
+            reported_path=_reported_output_path(root, directory, filename),
+        )
+    except ComparisonInputError as error:
+        return _emit_record_input_failure(
+            error,
+            command="report",
+            file="record",
+            requirement="FR-016",
+            json_output=json_output,
+            quiet=quiet,
+        )
+    except RecordPersistenceError as error:
+        return _emit_assess_failure(error, json_output=json_output, quiet=quiet)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    _emit(
+        status="rendered",
+        exit_code=ExitCode.SUCCESS,
+        diagnostics=(),
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Rendered {level} {report_format} report: {identity} -> {persisted.relative_path}"
+        ),
+        details={
+            "format": report_format,
+            "level": level,
+            "record_content_identity": identity,
+            "report": persisted.relative_path,
+            "reused": persisted.reused,
+        },
+    )
+    return int(ExitCode.SUCCESS)
 
 
 def _run_compare(
@@ -577,6 +685,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_assess(
             args.case,
             external_evidence_root=args.external_evidence_root,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "report":
+        return _run_report(
+            args.record,
+            report_format=args.report_format,
+            level=args.level,
             json_output=args.json_output,
             quiet=args.quiet,
         )

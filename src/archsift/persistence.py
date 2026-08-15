@@ -136,8 +136,7 @@ def _resolve_output_root(workspace: Path) -> Path:
     return output_root
 
 
-def _target_name(record: DecisionRecord, extension: str = "json") -> str:
-    identity = record.record_content_identity
+def _identity_digest(identity: object) -> str:
     if (
         type(identity) is not str
         or len(identity) != 71
@@ -150,6 +149,11 @@ def _target_name(record: DecisionRecord, extension: str = "json") -> str:
             message="The decision record has no valid portable content identity.",
             remediation="Compose and validate the final decision record before persistence.",
         )
+    return identity[7:]
+
+
+def _target_name(record: DecisionRecord, extension: str = "json") -> str:
+    digest = _identity_digest(record.record_content_identity)
     if extension not in {"json", "md"}:
         raise _error(
             RecordPersistenceFailure.TARGET_UNSAFE,
@@ -157,7 +161,25 @@ def _target_name(record: DecisionRecord, extension: str = "json") -> str:
             message="The decision-record output format is unsupported.",
             remediation="Persist only the canonical JSON record or its Markdown review view.",
         )
-    return f"sha256-{identity[7:]}.{extension}"
+    return f"sha256-{digest}.{extension}"
+
+
+def report_target_name(record_identity: str, level: str, extension: str) -> str:
+    """Return the identity-derived filename of one rendered report output.
+
+    A rendered report is an output of its record, not a distinct record: its
+    name restates the record's content identity and adds only the report level
+    and format, so every representation of one record stays visibly bound to it.
+    """
+    digest = _identity_digest(record_identity)
+    if level not in {"detailed"} or extension not in {"html"}:
+        raise _error(
+            RecordPersistenceFailure.TARGET_UNSAFE,
+            requirement="FR-016",
+            message="The requested report level or format is unsupported.",
+            remediation="Request a supported report level and format.",
+        )
+    return f"sha256-{digest}.{level}.{extension}"
 
 
 def _stat_token(status: os.stat_result) -> _FileIdentity:
@@ -318,6 +340,8 @@ def _persist_content(
     output_root: Path,
     filename: str,
     content: bytes,
+    *,
+    reported_path: str | None = None,
 ) -> tuple[PersistedDecisionRecord, _FileIdentity | None]:
     """Create or byte-identically reuse one derived target.
 
@@ -325,10 +349,11 @@ def _persist_content(
     path-surface generation token of the closed file, bound to the opened
     handle, used to clean up only that exact file on any later failure.
     """
+    relative = f"output/{filename}" if reported_path is None else reported_path
     target = output_root / filename
     if target.exists() or target.is_symlink():
         _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", True), None
+        return PersistedDecisionRecord(relative, True), None
 
     opened_identity: os.stat_result | None = None
     created = False
@@ -352,7 +377,7 @@ def _persist_content(
             opened_identity = _opened_stat(stream)
     except FileExistsError:
         _reuse_or_conflict(target, output_root, content)
-        return PersistedDecisionRecord(f"output/{filename}", True), None
+        return PersistedDecisionRecord(relative, True), None
     except OSError as error:
         if created:
             created_identity = _closed_file_identity(target, opened_identity)
@@ -364,7 +389,24 @@ def _persist_content(
             remediation="Restore write access and retry without replacing an existing record.",
         ) from error
     created_identity = _closed_file_identity(target, opened_identity)
-    return PersistedDecisionRecord(f"output/{filename}", False), created_identity
+    return PersistedDecisionRecord(relative, False), created_identity
+
+
+def persist_report_output(
+    output_root: Path,
+    filename: str,
+    content: bytes,
+    *,
+    reported_path: str,
+) -> PersistedDecisionRecord:
+    """Create or byte-identically reuse one rendered report beside its record.
+
+    A rendered report is derived from an immutable record, so it inherits the
+    record's persistence discipline: an identical rerun reuses the existing
+    bytes without rewriting them, and a non-identical file at the
+    identity-derived path is preserved rather than overwritten.
+    """
+    return _persist_content(output_root, filename, content, reported_path=reported_path)[0]
 
 
 def persist_decision_record(

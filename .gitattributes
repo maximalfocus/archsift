@@ -1,5 +1,6 @@
 tests/golden/*.json text eol=lf
 tests/golden/*.md text eol=lf
+tests/golden/*.html text eol=lf
 examples/*.json text eol=lf
 examples/*.md text eol=lf
 examples/*/*.yaml text eol=lf

@@ -7,8 +7,8 @@ architecture or states exactly what evidence is still missing. It runs entirely
 offline: no network service, model API, or telemetry is used.
 
 This guide covers installation, the complete command surface, the case workspace
-and dossier, decision-record outputs (including sensitive-value masking), and
-comparison and reassessment. The [versioned method specification](method-v1.2.0.md)
+and dossier, decision-record outputs (including report rendering and
+sensitive-value masking), and comparison and reassessment. The [versioned method specification](method-v1.2.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -113,6 +113,36 @@ configuration, or tool version) produces a new distinct record.
 
 `--json` emits exactly the canonical JSON record bytes. Human and quiet modes
 never render dossier-authored text.
+
+### `archsift report <record>` [`--format` html] [`--level` detailed]
+
+Renders a generated canonical decision-record JSON file beneath the current
+directory as a standalone report. `--format` `html` and `--level` `detailed`
+are the current values and the defaults, so `archsift report <record>` renders
+the detailed HTML report.
+
+The detailed HTML report states the same content as the Markdown review view:
+task boundary, candidate comparison, the four decision areas, vetoes,
+recommendation or abstention, trade-offs, evidence links with their content
+identities, unresolved gaps, the dossier schema, ruleset and tool versions, and
+reassessment triggers.
+
+The report is written beside the record it renders, as
+`sha256-<record-id>.detailed.html`. It is an output of the record rather than a
+separate authoritative artifact: its name restates the record's content
+identity and it derives no identity of its own. Identical reruns reuse the
+byte-identical file without rewriting it, and a non-identical file at the
+derived path is preserved rather than overwritten.
+
+The document is fully self-contained and offline: it references no network
+resource, script, font, image, or external stylesheet. Every authored string is
+rendered as escaped text — never as markup, script, attribute, or URL — and the
+same sensitive-value masking policy applied to the record is applied to the
+report. Rendering is deterministic: identical inputs produce byte-identical
+HTML.
+
+`--json` reports the record identity, the rendered format and level, the output
+path, and whether an existing byte-identical report was reused.
 
 ### `archsift compare <old> <new>`
 

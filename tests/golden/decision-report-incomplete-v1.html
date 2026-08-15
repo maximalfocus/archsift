@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchSift Decision Report</title>
+<style>
+:root { color-scheme: light dark; }
+body {
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: 2rem 1rem 4rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.25rem; margin-top: 2.5rem; border-bottom: 1px solid currentColor; }
+h3 { font-size: 1.05rem; margin-top: 1.75rem; }
+dl { margin: 0; }
+dt { font-weight: 600; margin-top: 0.75rem; }
+dd { margin: 0 0 0 1.25rem; }
+ol { margin: 0; padding-left: 1.5rem; }
+p { margin: 0.25rem 0; }
+p.value { white-space: pre-wrap; overflow-wrap: anywhere; }
+p.empty { opacity: 0.7; }
+.notice { margin-top: 2.5rem; padding: 0.75rem 1rem; border: 1px solid currentColor; }
+</style>
+</head>
+<body>
+<h1>ArchSift Decision Report</h1>
+<h2>Record Metadata</h2>
+<dl>
+<dt>Report Format Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Record Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Record Content Identity</dt>
+<dd>
+<p class="value">sha256:9569ec21146c0bbcb8d7830fc3386c7cfb823c80c27c52f5100419174d71ee26</p>
+</dd>
+</dl>
+<dl>
+<dt>Dossier Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Dossier Content Identity</dt>
+<dd>
+<p class="value">sha256:bc0a31ec724569a423ff20da43b174cbc847862c50efe9b5167e19f428005d74</p>
+</dd>
+</dl>
+<dl>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+<dl>
+<dt>Tool Version</dt>
+<dd>
+<p class="value">0.1.0-test</p>
+</dd>
+</dl>
+<dl>
+<dt>Assessment Configuration</dt>
+<dd>
+<dl>
+<dt>Entries</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl>
+<dt>Configuration Content Identity</dt>
+<dd>
+<p class="value">sha256:b908f0089fe23bf8f8ec05339261d4bda95251fe99f96d3a9240cc985c48ec8c</p>
+</dd>
+</dl>
+<h2>Case Identity</h2>
+<dl>
+<dt>Case</dt>
+<dd>
+<dl>
+<dt>Id</dt>
+<dd>
+<p class="value">incomplete</p>
+</dd>
+<dt>Title</dt>
+<dd>
+<p class="value">Incomplete synthetic record</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Task Boundary</h2>
+<dl>
+<dt>Task</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+</dl>
+<h2>Evidence Ledger</h2>
+<dl>
+<dt>Evidence</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">problem-value</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">A required observation is missing.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">a-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Resolved By</dt>
+<dd>
+<p class="value">Run the required synthetic observation.</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">problem-value</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">A synthetic assumption remains untested.</p>
+</dd>
+<dt>Falsified By</dt>
+<dd>
+<p class="value">A controlled trial disproves the assumption.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">z-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<h2>Decision Areas</h2>
+<h3>Problem Value</h3>
+<dl>
+<dt>Problem Value</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+</dl>
+<h3>Agency Necessity</h3>
+<dl>
+<dt>Agency Necessity</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+</dl>
+<h3>Autonomy Permission</h3>
+<dl>
+<dt>Autonomy Permission</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+</dl>
+<h3>Comparative Fit</h3>
+<dl>
+<dt>Candidate Comparison and Trade-offs</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+</dl>
+<h2>Decision Conditions</h2>
+<dl>
+<dt>Decision Conditions</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<h2>Verdict and Recommendation</h2>
+<dl>
+<dt>Assessment Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Assessment Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+<dl>
+<dt>Verdict</dt>
+<dd>
+<p class="value">insufficient-evidence</p>
+</dd>
+</dl>
+<dl>
+<dt>Verdict Rule ID</dt>
+<dd>
+<p class="value">verdict-insufficient-evidence</p>
+</dd>
+</dl>
+<dl>
+<dt>Qualitative Evidence State</dt>
+<dd>
+<p class="value">evidence-incomplete</p>
+</dd>
+</dl>
+<dl>
+<dt>Recommendation</dt>
+<dd>
+<p class="value">(abstention)</p>
+</dd>
+</dl>
+<dl>
+<dt>Surviving Candidate IDs</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<dl>
+<dt>Unmet Conditions</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<dl>
+<dt>Active Hard Veto IDs</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<dl>
+<dt>Mandatory Human Control IDs</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<h2>Assessment Trace</h2>
+<dl>
+<dt>Prerequisite Evaluation</dt>
+<dd>
+<dl>
+<dt>Findings</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.task</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define a bounded operational task.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add the task boundary, actions, approval boundaries, and exclusions.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-003</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">task-boundary-missing</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.problem_value</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its problem-value contract.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add measurable outcomes, baselines, constraints, and the four required statements.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-005</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">problem-value-missing</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.agency_necessity</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its agency-necessity facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Answer all eight agency questions and record residual cases explicitly.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agency-necessity-missing</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.autonomy_permission</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its autonomy-permission facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Answer all eight autonomy questions and record hard vetoes and human controls explicitly.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">autonomy-permission-missing</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.candidate_comparison</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define candidate-comparison facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add candidates, roles, tests, and directional trade-off comparisons.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-008</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">candidate-comparison-missing</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Ready</dt>
+<dd>
+<p class="value">false</p>
+</dd>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl>
+<dt>Ordered Elimination Evaluation</dt>
+<dd>
+<dl>
+<dt>Candidates</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Control Classes</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Findings</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Least Surviving Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Evidence Identities</h2>
+<dl>
+<dt>Evidence Links</dt>
+<dd>
+<dl>
+<dt>a-missing</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:b5d63aef88c074bd5e78592e0aadbd6168e7fca5924d28554ed2f819ceb09f45</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">a-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+</dl>
+</dd>
+<dt>z-assumption</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:55de91d70a9cb76f5a7ab7e9bcaa75f1b4ff580fe0d70ac928239916e9d91eed</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">z-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Artefact Identities</h2>
+<dl>
+<dt>Artefact Links</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<h2>Unresolved Gaps</h2>
+<dl>
+<dt>Unresolved Gaps</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.task</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define a bounded operational task.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add the task boundary, actions, approval boundaries, and exclusions.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-003</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">task-boundary-missing</p>
+</dd>
+<dt>Source</dt>
+<dd>
+<p class="value">prerequisite</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.problem_value</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its problem-value contract.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add measurable outcomes, baselines, constraints, and the four required statements.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-005</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">problem-value-missing</p>
+</dd>
+<dt>Source</dt>
+<dd>
+<p class="value">prerequisite</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.agency_necessity</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its agency-necessity facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Answer all eight agency questions and record residual cases explicitly.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agency-necessity-missing</p>
+</dd>
+<dt>Source</dt>
+<dd>
+<p class="value">prerequisite</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.autonomy_permission</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define its autonomy-permission facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Answer all eight autonomy questions and record hard vetoes and human controls explicitly.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">autonomy-permission-missing</p>
+</dd>
+<dt>Source</dt>
+<dd>
+<p class="value">prerequisite</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Architecture assessment cannot proceed until this prerequisite is resolved.</p>
+</dd>
+<dt>Counterpart</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">require-evidence</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Field</dt>
+<dd>
+<p class="value">$.candidate_comparison</p>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">The dossier does not define candidate-comparison facts.</p>
+</dd>
+<dt>Remediation</dt>
+<dd>
+<p class="value">Add candidates, roles, tests, and directional trade-off comparisons.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-008</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">candidate-comparison-missing</p>
+</dd>
+<dt>Source</dt>
+<dd>
+<p class="value">prerequisite</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<h2>Reassessment Triggers</h2>
+<dl>
+<dt>Reassessment Triggers</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">a-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+<dt>Observation</dt>
+<dd>
+<p class="value">Run the required synthetic observation.</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">z-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+<dt>Observation</dt>
+<dd>
+<p class="value">A controlled trial disproves the assumption.</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<section class="notice">
+<h2>Masking Notice</h2>
+<dl>
+<dt>Policy Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Warning</dt>
+<dd>
+<p class="value">This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.</p>
+</dd>
+</dl>
+</section>
+</body>
+</html>

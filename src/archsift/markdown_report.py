@@ -13,33 +13,9 @@ from archsift import decision_record as dr
 from archsift import masking as mk
 from archsift import rules as r
 from archsift import validation as v
+from archsift.report_text import visible_text as _visible_text
 
 REPORT_FORMAT_VERSION: Final = 2
-
-# Fixed code-point ranges avoid Unicode-database drift across supported Python versions.
-_NON_PRINTING_RANGES: Final = (
-    (0x0000, 0x001F),
-    (0x007F, 0x009F),
-    (0x00AD, 0x00AD),
-    (0x034F, 0x034F),
-    (0x061C, 0x061C),
-    (0x115F, 0x1160),
-    (0x17B4, 0x17B5),
-    (0x180B, 0x180F),
-    (0x200B, 0x200F),
-    (0x202A, 0x202E),
-    (0x2060, 0x206F),
-    (0x3164, 0x3164),
-    (0xFE00, 0xFE0F),
-    (0xFEFF, 0xFEFF),
-    (0xFFA0, 0xFFA0),
-    (0xFFF9, 0xFFFB),
-    (0x1BCA0, 0x1BCA3),
-    (0x1D173, 0x1D17A),
-    (0xE0001, 0xE0001),
-    (0xE0020, 0xE007F),
-    (0xE0100, 0xE01EF),
-)
 
 
 class MarkdownReportError(ValueError):
@@ -386,22 +362,6 @@ def _assert_contract(value: object, expected_type: type[object]) -> None:
     expected = _EXPECTED_FIELDS.get(expected_type)
     if expected is None or actual != expected:
         raise MarkdownReportError(f"Unsupported {expected_type.__name__} report contract.")
-
-
-def _visible_text(value: str) -> str:
-    rendered: list[str] = []
-    for character in value:
-        codepoint = ord(character)
-        if character == "\\":
-            rendered.append("\\\\")
-        elif codepoint in {0x2028, 0x2029} or any(
-            start <= codepoint <= end for start, end in _NON_PRINTING_RANGES
-        ):
-            prefix, width = ("u", 4) if codepoint <= 0xFFFF else ("U", 8)
-            rendered.append(f"\\{prefix}{codepoint:0{width}x}")
-        else:
-            rendered.append(character)
-    return "".join(rendered)
 
 
 def _scalar_text(value: object, *, maskable: bool) -> str:

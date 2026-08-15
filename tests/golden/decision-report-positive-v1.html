@@ -1,0 +1,3642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchSift Decision Report</title>
+<style>
+:root { color-scheme: light dark; }
+body {
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: 2rem 1rem 4rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.25rem; margin-top: 2.5rem; border-bottom: 1px solid currentColor; }
+h3 { font-size: 1.05rem; margin-top: 1.75rem; }
+dl { margin: 0; }
+dt { font-weight: 600; margin-top: 0.75rem; }
+dd { margin: 0 0 0 1.25rem; }
+ol { margin: 0; padding-left: 1.5rem; }
+p { margin: 0.25rem 0; }
+p.value { white-space: pre-wrap; overflow-wrap: anywhere; }
+p.empty { opacity: 0.7; }
+.notice { margin-top: 2.5rem; padding: 0.75rem 1rem; border: 1px solid currentColor; }
+</style>
+</head>
+<body>
+<h1>ArchSift Decision Report</h1>
+<h2>Record Metadata</h2>
+<dl>
+<dt>Report Format Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Record Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Record Content Identity</dt>
+<dd>
+<p class="value">sha256:36e20bd87ef5a9be62e622b2180d112fc5789cfe14bbfd6f0e6656cf47d0365f</p>
+</dd>
+</dl>
+<dl>
+<dt>Dossier Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Dossier Content Identity</dt>
+<dd>
+<p class="value">sha256:6303cf44dedd15a165db97f41c7ecd6eba350b0bba492fae0d954d585065d109</p>
+</dd>
+</dl>
+<dl>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+<dl>
+<dt>Tool Version</dt>
+<dd>
+<p class="value">0.1.0-test</p>
+</dd>
+</dl>
+<dl>
+<dt>Assessment Configuration</dt>
+<dd>
+<dl>
+<dt>Entries</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl>
+<dt>Configuration Content Identity</dt>
+<dd>
+<p class="value">sha256:b908f0089fe23bf8f8ec05339261d4bda95251fe99f96d3a9240cc985c48ec8c</p>
+</dd>
+</dl>
+<h2>Case Identity</h2>
+<dl>
+<dt>Case</dt>
+<dd>
+<dl>
+<dt>Id</dt>
+<dd>
+<p class="value">decision-record</p>
+</dd>
+<dt>Title</dt>
+<dd>
+<p class="value">Decision record café \u202e synthetic</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Task Boundary</h2>
+<dl>
+<dt>Task</dt>
+<dd>
+<dl>
+<dt>Accountable Owner</dt>
+<dd>
+<p class="value">Synthetic owner</p>
+</dd>
+<dt>Actions</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Approval Boundary</dt>
+<dd>
+<p class="value">An approver must approve release.</p>
+</dd>
+<dt>Consequential</dt>
+<dd>
+<p class="value">true</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Release the disposition.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">release</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Actors</dt>
+<dd>
+<ol>
+<li>
+<p class="value">Reviewer</p>
+</li>
+<li>
+<p class="value">Approver</p>
+</li>
+</ol>
+</dd>
+<dt>Completes When</dt>
+<dd>
+<p class="value">An approved disposition is recorded.</p>
+</dd>
+<dt>Exclusions</dt>
+<dd>
+<ol>
+<li>
+<p class="value">Changing policy</p>
+</li>
+</ol>
+</dd>
+<dt>Information Read</dt>
+<dd>
+<ol>
+<li>
+<p class="value">Synthetic request</p>
+</li>
+</ol>
+</dd>
+<dt>Operation</dt>
+<dd>
+<p class="value">Review one bounded synthetic case.</p>
+</dd>
+<dt>Starts When</dt>
+<dd>
+<p class="value">A complete request arrives.</p>
+</dd>
+<dt>Systems And Tools</dt>
+<dd>
+<ol>
+<li>
+<p class="value">Case register</p>
+</li>
+</ol>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Evidence Ledger</h2>
+<dl>
+<dt>Evidence</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">problem-value</p>
+</li>
+<li>
+<p class="value">comparative-fit</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">Synthetic comparative-fit observation.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">decision-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+<dt>Observed At</dt>
+<dd>
+<p class="value">2026-08-08</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Provenance</dt>
+<dd>
+<p class="value">evidence/decision-observed.txt</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-necessity</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">Synthetic agency-necessity observation.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">agency-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+<dt>Observed At</dt>
+<dd>
+<p class="value">2026-08-08</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Provenance</dt>
+<dd>
+<p class="value">evidence/agency-observed.txt</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-permission</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">Synthetic autonomy-permission observation.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">autonomy-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+<dt>Observed At</dt>
+<dd>
+<p class="value">2026-08-08</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Provenance</dt>
+<dd>
+<p class="value">evidence/autonomy-observed.txt</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">comparative-fit</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">Synthetic comparative-fit observation.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">condition-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+<dt>Observed At</dt>
+<dd>
+<p class="value">2026-08-08</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Provenance</dt>
+<dd>
+<p class="value">evidence/condition-observed.txt</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">comparative-fit</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">A synthetic bounded assumption.\u001b</p>
+</dd>
+<dt>Falsified By</dt>
+<dd>
+<p class="value">A controlled synthetic observation disproves it.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">a-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Affects</dt>
+<dd>
+<ol>
+<li>
+<p class="value">comparative-fit</p>
+</li>
+</ol>
+</dd>
+<dt>Artefacts</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Claim</dt>
+<dd>
+<p class="value">A synthetic non-material gap.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">z-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+<dt>Owner</dt>
+<dd>
+<p class="value">Synthetic reviewer</p>
+</dd>
+<dt>Resolved By</dt>
+<dd>
+<p class="value">Run the named synthetic observation.</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<h2>Decision Areas</h2>
+<h3>Problem Value</h3>
+<dl>
+<dt>Problem Value</dt>
+<dd>
+<dl>
+<dt>Affected Volume</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Material volume.</p>
+</dd>
+</dl>
+</dd>
+<dt>Baselines</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Description</dt>
+<dd>
+<p class="value">Current synthetic quality.</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">quality-baseline</p>
+</dd>
+<dt>Measure</dt>
+<dd>
+<p class="value">Accepted cases</p>
+</dd>
+<dt>Value</dt>
+<dd>
+<p class="value">90 percent</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Constraints</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Binding</dt>
+<dd>
+<p class="value">true</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Approval is required.</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Required Result</dt>
+<dd>
+<p class="value">Approval exists</p>
+</dd>
+<dt>Test</dt>
+<dd>
+<p class="value">Check approval before release.</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Error Cost</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Material rework.</p>
+</dd>
+</dl>
+</dd>
+<dt>Material Pain</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Material delay.</p>
+</dd>
+</dl>
+</dd>
+<dt>Outcomes</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Baseline Id</dt>
+<dd>
+<p class="value">quality-baseline</p>
+</dd>
+<dt>Binding</dt>
+<dd>
+<p class="value">true</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Meet synthetic quality.</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Measure</dt>
+<dd>
+<p class="value">Accepted cases</p>
+</dd>
+<dt>Target</dt>
+<dd>
+<p class="value">At least 95 percent</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Technology Limitation</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Current tooling is constrained.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h3>Agency Necessity</h3>
+<dl>
+<dt>Agency Necessity</dt>
+<dd>
+<dl>
+<dt>Completion Independently Verifiable</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Effects Independently Verifiable</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Environmental Feedback Available</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Execution Steps Predefinable</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Fixed Workflow Sufficient</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Residual Cases</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Runtime Replanning Required</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">no</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Runtime Tool Choice Required</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">no</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Step Count Or Order Predictable</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic agency rationale.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h3>Autonomy Permission</h3>
+<dl>
+<dt>Autonomy Permission</dt>
+<dd>
+<dl>
+<dt>Accountable Owner Assigned</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Actions Reversible</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Data Confidence Sufficient</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Decision Path Auditable</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Failure Blast Radius Bounded</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Hard Vetoes</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Condition</dt>
+<dd>
+<p class="value">Release lacks review.</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">Release is prohibited until review completes.</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">review-before-release</p>
+</dd>
+<dt>Prohibited Control Classes</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agentic-control</p>
+</li>
+</ol>
+</dd>
+<dt>Status</dt>
+<dd>
+<p class="value">active</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Mandatory Human Controls</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Control Point</dt>
+<dd>
+<p class="value">Immediately before release.</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Approve before release.</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">approve-release</p>
+</dd>
+<dt>Responsible Role</dt>
+<dd>
+<p class="value">Approver</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Regulatory Automation Permitted</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Safe Degradation Available</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+<dt>Timely Human Intervention Available</dt>
+<dd>
+<dl>
+<dt>Answer</dt>
+<dd>
+<p class="value">yes</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic autonomy rationale.</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h3>Comparative Fit</h3>
+<dl>
+<dt>Candidate Comparison and Trade-offs</dt>
+<dd>
+<dl>
+<dt>Candidates</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Constraint Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Constraint Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic approval result for human.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">meets</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">human-owned-work</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Synthetic human-owned-work candidate.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Material Deviations</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Name</dt>
+<dd>
+<p class="value">Synthetic human</p>
+</dd>
+<dt>Outcome Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Outcome Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic quality result for human.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">fails</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Roles</dt>
+<dd>
+<ol>
+<li>
+<p class="value">current-baseline</p>
+</li>
+</ol>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Authority</dt>
+<dd>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Retained Human Control Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">approve-release</p>
+</li>
+</ol>
+</dd>
+</dl>
+</dd>
+<dt>Constraint Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Constraint Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic approval result for deterministic.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">meets</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Synthetic deterministic-automation candidate.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Material Deviations</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Name</dt>
+<dd>
+<p class="value">Synthetic deterministic</p>
+</dd>
+<dt>Outcome Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Outcome Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic quality result for deterministic.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">fails</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Roles</dt>
+<dd>
+<ol>
+<li>
+<p class="value">strongest-simpler</p>
+</li>
+</ol>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Authority</dt>
+<dd>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Retained Human Control Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">approve-release</p>
+</li>
+</ol>
+</dd>
+</dl>
+</dd>
+<dt>Constraint Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Constraint Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic approval result for fixed.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">meets</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Description</dt>
+<dd>
+<p class="value">Synthetic fixed-ai-workflow candidate.</p>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Material Deviations</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Name</dt>
+<dd>
+<p class="value">Synthetic fixed</p>
+</dd>
+<dt>Outcome Tests</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Outcome Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic quality result for fixed.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">meets</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Roles</dt>
+<dd>
+<ol>
+<li>
+<p class="value">proposed</p>
+</li>
+</ol>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Comparisons</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Comparator Candidate Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Dimensions</dt>
+<dd>
+<dl>
+<dt>Cost</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Difficult Case Performance</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Evaluation Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Failure Impact</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Human Effort</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Integration Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Latency</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Maintainability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Operability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Outcome Quality</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Security Exposure</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>Subject Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Comparator Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Dimensions</dt>
+<dd>
+<dl>
+<dt>Cost</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Difficult Case Performance</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Evaluation Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Failure Impact</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Human Effort</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Integration Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Latency</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Maintainability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Operability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Outcome Quality</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Security Exposure</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>Subject Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Comparator Candidate Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Dimensions</dt>
+<dd>
+<dl>
+<dt>Cost</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Difficult Case Performance</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Evaluation Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Failure Impact</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Human Effort</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Integration Burden</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Latency</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Maintainability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Operability</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Outcome Quality</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+<dt>Security Exposure</dt>
+<dd>
+<dl>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Synthetic directional comparison.</p>
+</dd>
+<dt>Result</dt>
+<dd>
+<p class="value">equivalent</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>Subject Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Strongest Simpler Boundary</dt>
+<dd>
+<dl>
+<dt>Considered Candidate Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">human</p>
+</li>
+<li>
+<p class="value">deterministic</p>
+</li>
+</ol>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Rationale</dt>
+<dd>
+<p class="value">Deterministic automation is the strongest represented simpler option.</p>
+</dd>
+<dt>Scope</dt>
+<dd>
+<p class="value">All represented candidates below the fixed workflow.</p>
+</dd>
+<dt>Strongest Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Decision Conditions</h2>
+<dl>
+<dt>Decision Conditions</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Decision Area</dt>
+<dd>
+<p class="value">comparative-fit</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">condition-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">verify-capacity</p>
+</dd>
+<dt>Resolved By</dt>
+<dd>
+<p class="value">Run the named production-capacity test.</p>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Verify production capacity before adoption.\u001b</p>
+</dd>
+<dt>Status</dt>
+<dd>
+<p class="value">unmet</p>
+</dd>
+<dt>Target Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<h2>Verdict and Recommendation</h2>
+<dl>
+<dt>Assessment Schema Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Assessment Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+<dl>
+<dt>Verdict</dt>
+<dd>
+<p class="value">conditional</p>
+</dd>
+</dl>
+<dl>
+<dt>Verdict Rule ID</dt>
+<dd>
+<p class="value">verdict-conditional</p>
+</dd>
+</dl>
+<dl>
+<dt>Qualitative Evidence State</dt>
+<dd>
+<p class="value">evidence-complete</p>
+</dd>
+</dl>
+<dl>
+<dt>Recommendation</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+</dl>
+<dl>
+<dt>Surviving Candidate IDs</dt>
+<dd>
+<ol>
+<li>
+<p class="value">fixed</p>
+</li>
+</ol>
+</dd>
+</dl>
+<dl>
+<dt>Unmet Conditions</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Decision Area</dt>
+<dd>
+<p class="value">comparative-fit</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">condition-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Id</dt>
+<dd>
+<p class="value">verify-capacity</p>
+</dd>
+<dt>Resolved By</dt>
+<dd>
+<p class="value">Run the named production-capacity test.</p>
+</dd>
+<dt>Statement</dt>
+<dd>
+<p class="value">Verify production capacity before adoption.\u001b</p>
+</dd>
+<dt>Status</dt>
+<dd>
+<p class="value">unmet</p>
+</dd>
+<dt>Target Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<dl>
+<dt>Active Hard Veto IDs</dt>
+<dd>
+<ol>
+<li>
+<p class="value">review-before-release</p>
+</li>
+</ol>
+</dd>
+</dl>
+<dl>
+<dt>Mandatory Human Control IDs</dt>
+<dd>
+<ol>
+<li>
+<p class="value">approve-release</p>
+</li>
+</ol>
+</dd>
+</dl>
+<h2>Assessment Trace</h2>
+<dl>
+<dt>Prerequisite Evaluation</dt>
+<dd>
+<dl>
+<dt>Findings</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Ready</dt>
+<dd>
+<p class="value">true</p>
+</dd>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<dl>
+<dt>Ordered Elimination Evaluation</dt>
+<dd>
+<dl>
+<dt>Candidates</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">human-owned-work</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">eliminated</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">eliminated</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">survives</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Control Classes</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Candidate Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">human</p>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">human-owned-work</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">eliminated</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Candidate Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">deterministic</p>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">eliminated</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Candidate Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">fixed</p>
+</li>
+</ol>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Disposition</dt>
+<dd>
+<p class="value">survives</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Findings</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The candidate is eliminated from its represented control class.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">human-owned-work</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">outcome</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">block</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;human&#x27; failed binding outcome &#x27;quality&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-outcome-failed</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">human</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The binding constraint supports the candidate but cannot override a block.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">human-owned-work</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">constraint</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">support-candidate</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;human&#x27; met binding constraint &#x27;approval&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-constraint-met</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The candidate is eliminated from its represented control class.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">outcome</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">block</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;deterministic&#x27; failed binding outcome &#x27;quality&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-outcome-failed</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The binding constraint supports the candidate but cannot override a block.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">constraint</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">support-candidate</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;deterministic&#x27; met binding constraint &#x27;approval&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-constraint-met</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The boundary has no effect on this candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">review-before-release</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">hard-veto</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Active hard veto &#x27;review-before-release&#x27; does not prohibit candidate &#x27;deterministic&#x27;&#x27;s control class.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">autonomy-boundary-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">deterministic</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The candidate may remain eligible only with the named human control retained.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">deterministic-automation</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">approve-release</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">human-control</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">constrain-autonomy</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;deterministic&#x27; retains mandatory human control &#x27;approve-release&#x27;.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">mandatory-human-control-retained</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The binding outcome supports the candidate but cannot override a block.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">quality</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">outcome</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">support-candidate</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;fixed&#x27; met binding outcome &#x27;quality&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-outcome-met</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The binding constraint supports the candidate but cannot override a block.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">approval</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">constraint</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">support-candidate</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">decision-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;fixed&#x27; met binding constraint &#x27;approval&#x27; with credible evidence.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">binding-constraint-met</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The boundary has no effect on this candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">review-before-release</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">hard-veto</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Active hard veto &#x27;review-before-release&#x27; does not prohibit candidate &#x27;fixed&#x27;&#x27;s control class.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">autonomy-boundary-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">release</p>
+</li>
+</ol>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">fixed</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The candidate may remain eligible only with the named human control retained.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">approve-release</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">human-control</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">constrain-autonomy</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">autonomy-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Candidate &#x27;fixed&#x27; retains mandatory human control &#x27;approve-release&#x27;.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-007/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">mandatory-human-control-retained</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">execution_steps_predefinable</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;execution_steps_predefinable&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">step_count_or_order_predictable</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;step_count_or_order_predictable&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">runtime_tool_choice_required</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;runtime_tool_choice_required&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">runtime_replanning_required</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;runtime_replanning_required&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">environmental_feedback_available</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;environmental_feedback_available&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">completion_independently_verifiable</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;completion_independently_verifiable&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">effects_independently_verifiable</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;effects_independently_verifiable&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Action Ids</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+<dt>Candidate Id</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Consequence</dt>
+<dd>
+<p class="value">The fact has no effect on this agentic candidate&#x27;s disposition.</p>
+</dd>
+<dt>Control Class</dt>
+<dd>
+<p class="value">(not provided)</p>
+</dd>
+<dt>Criterion Id</dt>
+<dd>
+<p class="value">fixed_workflow_sufficient</p>
+</dd>
+<dt>Criterion Kind</dt>
+<dd>
+<p class="value">agency-question</p>
+</dd>
+<dt>Effect</dt>
+<dd>
+<p class="value">non-decisive</p>
+</dd>
+<dt>Evidence Ids</dt>
+<dd>
+<ol>
+<li>
+<p class="value">agency-observed</p>
+</li>
+</ol>
+</dd>
+<dt>Message</dt>
+<dd>
+<p class="value">Agency question &#x27;fixed_workflow_sufficient&#x27; is non-decisive: no agentic candidate is represented.</p>
+</dd>
+<dt>Requirement</dt>
+<dd>
+<p class="value">FR-006/FR-009</p>
+</dd>
+<dt>Rule Id</dt>
+<dd>
+<p class="value">agentic-agency-fact-non-decisive</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+<dt>Least Surviving Class</dt>
+<dd>
+<p class="value">fixed-ai-workflow</p>
+</dd>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Evidence Identities</h2>
+<dl>
+<dt>Evidence Links</dt>
+<dd>
+<dl>
+<dt>a-assumption</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:8b9fe07183477fb98d397dad46281ba775c23edc719ab9861edb883b74704e9f</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">a-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+</dl>
+</dd>
+<dt>agency-observed</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:8d5c153fdb6177b0c4ffcfdb66ec0a071222f1bd0c3b4688fa38acf66e461f54</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">agency-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+</dl>
+</dd>
+<dt>autonomy-observed</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:9b9dde69b7c917bff541a36c53aa7df604e77ef64428e69f4b23f2bd4e9e41dc</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">autonomy-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+</dl>
+</dd>
+<dt>condition-observed</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:8a32af6b3ea6ca833aca88ab27df88c433cb1380c064eaf0675ae21f772fc4ec</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">condition-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+</dl>
+</dd>
+<dt>decision-observed</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:f32d0b97a65b866105d4d2038aebcb5f4bda979b02051092be18afa24d785454</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">decision-observed</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">observed</p>
+</dd>
+</dl>
+</dd>
+<dt>z-missing</dt>
+<dd>
+<dl>
+<dt>Content Identity</dt>
+<dd>
+<p class="value">sha256:4a156c0640c37942b4cdca585bdfd4771a95f509ef1275300863252ecc9ad6c3</p>
+</dd>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">z-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+<h2>Artefact Identities</h2>
+<dl>
+<dt>Artefact Links</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<h2>Unresolved Gaps</h2>
+<dl>
+<dt>Unresolved Gaps</dt>
+<dd>
+<p class="empty">(none)</p>
+</dd>
+</dl>
+<h2>Reassessment Triggers</h2>
+<dl>
+<dt>Reassessment Triggers</dt>
+<dd>
+<ol>
+<li>
+<dl>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">a-assumption</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">assumption</p>
+</dd>
+<dt>Observation</dt>
+<dd>
+<p class="value">A controlled synthetic observation disproves it.</p>
+</dd>
+</dl>
+</li>
+<li>
+<dl>
+<dt>Evidence Id</dt>
+<dd>
+<p class="value">z-missing</p>
+</dd>
+<dt>Kind</dt>
+<dd>
+<p class="value">missing</p>
+</dd>
+<dt>Observation</dt>
+<dd>
+<p class="value">Run the named synthetic observation.</p>
+</dd>
+</dl>
+</li>
+</ol>
+</dd>
+</dl>
+<section class="notice">
+<h2>Masking Notice</h2>
+<dl>
+<dt>Policy Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Warning</dt>
+<dd>
+<p class="value">This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.</p>
+</dd>
+</dl>
+</section>
+</body>
+</html>
