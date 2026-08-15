@@ -186,6 +186,20 @@ def _read_contained_regular_file(path: Path) -> bytes:
             "authoring-results-outside-root",
             "The authoring-result path resolves outside the current authorised root.",
         )
+    try:
+        surface_before = resolved.lstat()
+    except OSError as error:
+        raise _InputFailure(
+            ExitCode.UNSAFE_PATH,
+            "authoring-results-path-unsafe",
+            "The authoring-result file cannot be inspected safely.",
+        ) from error
+    if not stat.S_ISREG(surface_before.st_mode):
+        raise _InputFailure(
+            ExitCode.UNSAFE_PATH,
+            "authoring-results-not-regular",
+            "The authoring-result input is not a regular file.",
+        )
     flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(resolved, flags)
