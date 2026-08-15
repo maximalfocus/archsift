@@ -62,18 +62,29 @@ jobs:
           payload = json.loads(run.stdout)
           assert payload["status"] == "criterion-not-met"
           assert payload["session_count"] == 4
-          assert payload["passed_session_count"] == 1
-          historical = subprocess.run(
+          assert payload["passed_session_count"] == 0
+          first = subprocess.run(
               [sys.executable, "-m", "archsift", "authoring-results",
                "authoring-results-1-criterion-not-met.json", "--json"],
               capture_output=True,
               text=True,
           )
-          assert historical.returncode == 12, historical.stderr
-          historical_payload = json.loads(historical.stdout)
-          assert historical_payload["status"] == "criterion-not-met"
-          assert historical_payload["session_count"] == 4
-          assert historical_payload["passed_session_count"] == 1
+          assert first.returncode == 12, first.stderr
+          first_payload = json.loads(first.stdout)
+          assert first_payload["status"] == "criterion-not-met"
+          assert first_payload["session_count"] == 4
+          assert first_payload["passed_session_count"] == 1
+          second = subprocess.run(
+              [sys.executable, "-m", "archsift", "authoring-results",
+               "authoring-results-2-criterion-not-met.json", "--json"],
+              capture_output=True,
+              text=True,
+          )
+          assert second.returncode == 12, second.stderr
+          second_payload = json.loads(second.stdout)
+          assert second_payload["status"] == "criterion-not-met"
+          assert second_payload["session_count"] == 4
+          assert second_payload["passed_session_count"] == 1
 
       - name: Validate committed simulated method-review cohort result
         shell: python

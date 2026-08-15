@@ -5,11 +5,13 @@ milestones, privacy contract, and success threshold while clarifying the boundar
 ArchSift's offline runtime and an external authoring product's ordinary user-controlled model
 transport. Protocol 1.0.0 remains frozen at [authoring-check-v1.md](authoring-check-v1.md).
 
-As of 2026-08-16, two cohorts have been run. The current
+As of 2026-08-16, three cohorts have been run. The current
 [result](../authoring-results.json), bound to source commit
-`cf5c81591b23b4052a1d7cdd8073951f4ee2499f`, validates with `criterion-not-met`: one of four
-sessions passed. The byte-preserved [first result](../authoring-results-1-criterion-not-met.json),
-bound to `02a1dbaef73df683957654b5195fc2f2ff4835b9`, also records one of four passing. The evidence is
+`da5bbb30a02766d2960d353e30abe7fb980702af`, validates with `criterion-not-met`: zero of four
+sessions passed. The byte-preserved [second result](../authoring-results-2-criterion-not-met.json),
+bound to `cf5c81591b23b4052a1d7cdd8073951f4ee2499f`, and
+[first result](../authoring-results-1-criterion-not-met.json), bound to
+`02a1dbaef73df683957654b5195fc2f2ff4835b9`, each record one of four passing. The evidence is
 simulated, no human-author claim is made, and no assisted-authoring success claim is made. A later
 attempt must be a separately precommitted cohort and a new result record.
 
