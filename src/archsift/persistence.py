@@ -172,7 +172,7 @@ def report_target_name(record_identity: str, level: str, extension: str) -> str:
     and format, so every representation of one record stays visibly bound to it.
     """
     digest = _identity_digest(record_identity)
-    if level not in {"detailed"} or extension not in {"html"}:
+    if level not in {"detailed", "executive"} or extension not in {"html", "pptx"}:
         raise _error(
             RecordPersistenceFailure.TARGET_UNSAFE,
             requirement="FR-016",

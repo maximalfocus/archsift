@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ArchSift Executive Summary</title>
+<style>
+:root { color-scheme: light dark; }
+body {
+  margin: 0 auto;
+  max-width: 60rem;
+  padding: 2rem 1rem 4rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+}
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.25rem; margin-top: 2.5rem; border-bottom: 1px solid currentColor; }
+h3 { font-size: 1.05rem; margin-top: 1.75rem; }
+dl { margin: 0; }
+dt { font-weight: 600; margin-top: 0.75rem; }
+dd { margin: 0 0 0 1.25rem; }
+ol { margin: 0; padding-left: 1.5rem; }
+p { margin: 0.25rem 0; }
+p.value { white-space: pre-wrap; overflow-wrap: anywhere; }
+p.empty { opacity: 0.7; }
+.notice { margin-top: 2.5rem; padding: 0.75rem 1rem; border: 1px solid currentColor; }
+</style>
+</head>
+<body>
+<h1>ArchSift Executive Summary</h1>
+<h2>Summary Metadata</h2>
+<dl>
+<dt>Report Format Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Record Content Identity</dt>
+<dd>
+<p class="value">sha256:c9266b2a7f807aa4bc1e71380a45544ec7b9a918cbf0c4fe00d3a31bb4c2cd37</p>
+</dd>
+</dl>
+<dl>
+<dt>Ruleset Version</dt>
+<dd>
+<p class="value">1.8.0</p>
+</dd>
+</dl>
+<dl>
+<dt>Tool Version</dt>
+<dd>
+<p class="value">0.1.0-test</p>
+</dd>
+</dl>
+<h2>Case and Task Boundary</h2>
+<dl>
+<dt>Case ID</dt>
+<dd><p class="value">insufficient-evidence</p></dd>
+<dt>Case</dt>
+<dd><p class="value">Fictional decision with an unresolved comparison</p></dd>
+<dt>Operation</dt>
+<dd><p class="value">Review one bounded synthetic case.</p></dd>
+<dt>Starts When</dt>
+<dd><p class="value">A complete case arrives.</p></dd>
+<dt>Completes When</dt>
+<dd><p class="value">An approved disposition is recorded.</p></dd>
+<dt>Accountable Owner</dt>
+<dd><p class="value">Fictional operations owner</p></dd>
+<dt>Consequential Actions</dt>
+<dd><p class="empty">1 of 2</p></dd>
+</dl>
+<h2>Verdict</h2>
+<dl>
+<dt>Verdict</dt>
+<dd><p class="value">insufficient-evidence</p></dd>
+<dt>Verdict Rule</dt>
+<dd><p class="value">verdict-insufficient-evidence</p></dd>
+<dt>Recommendation</dt>
+<dd><p class="empty">(abstention)</p></dd>
+<dt>Evidence State</dt>
+<dd><p class="value">evidence-incomplete</p></dd>
+<dt>Unmet Conditions</dt>
+<dd><p class="empty">(none)</p></dd>
+</dl>
+<h2>Decision Space</h2>
+<dl>
+<dt>Candidate</dt>
+<dd><p class="value">human-review — Fictional human review — human-owned-work — current-baseline — strongest-simpler</p></dd>
+<dt>Candidate</dt>
+<dd><p class="value">fixed-workflow — Fictional fixed AI workflow — fixed-ai-workflow — proposed</p></dd>
+<dt>Strongest Simpler Alternative</dt>
+<dd><p class="value">human-review — All represented synthetic candidates below the proposal.</p></dd>
+</dl>
+<h2>Vetoes and Mandatory Human Controls</h2>
+<dl>
+<dt>Active Veto</dt>
+<dd><p class="value">human-release-required — The fictional disposition would be released without approval. — Release is prohibited until a fictional approver accepts it.</p></dd>
+<dt>Mandatory Human Control</dt>
+<dd><p class="value">approve-release — Approve the fictional disposition before release. — Immediately before release-disposition. — Fictional approver</p></dd>
+</dl>
+<h2>Evidence State</h2>
+<dl>
+<dt>Observed</dt>
+<dd><p class="empty">3</p></dd>
+<dt>Assumption</dt>
+<dd><p class="empty">0</p></dd>
+<dt>Estimate</dt>
+<dd><p class="empty">0</p></dd>
+<dt>Missing</dt>
+<dd><p class="empty">0</p></dd>
+<dt>Unresolved Gap</dt>
+<dd><p class="value">candidate-test-result-unknown — Candidate &#x27;fixed-workflow&#x27; has an unknown outcome_tests result.</p></dd>
+<dt>Unresolved Gap</dt>
+<dd><p class="value">comparison-result-unknown — Comparison dimension &#x27;outcome_quality&#x27; is unknown for &#x27;fixed-workflow&#x27; versus &#x27;human-review&#x27;.</p></dd>
+<dt>Unresolved Gap</dt>
+<dd><p class="value">candidate-test-result-unknown — Candidate &#x27;fixed-workflow&#x27; has an unknown result for binding outcome &#x27;required-quality&#x27;.</p></dd>
+</dl>
+<h2>Decisive Trade-offs</h2>
+<dl>
+<dt>Directional Trade-offs</dt>
+<dd><p class="empty">(none)</p></dd>
+</dl>
+<section class="notice">
+<h2>Masking Notice</h2>
+<dl>
+<dt>Policy Version</dt>
+<dd>
+<p class="value">1</p>
+</dd>
+</dl>
+<dl>
+<dt>Warning</dt>
+<dd>
+<p class="value">This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.</p>
+</dd>
+</dl>
+</section>
+</body>
+</html>

@@ -35,6 +35,10 @@ dev = [
   "build>=1.2.2",
   "mypy>=1.15",
   "pytest>=8.3",
+  # Verification only: ArchSift writes its own deterministic PPTX package, and
+  # this independent reader proves the result opens as a real presentation.
+  # It is never imported by the shipped package.
+  "python-pptx>=1.0.2",
   "ruff>=0.11",
   "types-jsonschema>=4.23",
   "types-PyYAML>=6.0.12",

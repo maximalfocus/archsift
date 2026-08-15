@@ -12,16 +12,13 @@ from typing import Any, cast
 import pytest
 
 from archsift.canonical import JsonObject, JsonValue
-from archsift.html_report import (
-    HTML_REPORT_FORMAT_VERSION,
-    HtmlReportError,
-    render_detailed_html_report,
-)
+from archsift.html_report import HTML_REPORT_FORMAT_VERSION, render_detailed_html_report
 from archsift.masking import (
     MASKING_POLICY_VERSION,
     MASKING_WARNING,
     masked_decision_record_view,
 )
+from archsift.record_view import ReportRecordError
 from archsift.report_text import visible_text
 
 _GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -274,7 +271,7 @@ def test_unknown_record_shape_fails_closed(
     record = _record()
     mutate(record)
 
-    with pytest.raises(HtmlReportError, match=match):
+    with pytest.raises(ReportRecordError, match=match):
         render_detailed_html_report(record)
 
 
@@ -284,7 +281,7 @@ def test_recommending_verdict_without_a_recommended_class_fails_closed() -> None
     assessment["recommended_class"] = None
     assessment["verdict"] = "supported"
 
-    with pytest.raises(HtmlReportError, match="recommending verdict"):
+    with pytest.raises(ReportRecordError, match="recommending verdict"):
         render_detailed_html_report(record)
 
 
@@ -307,7 +304,7 @@ def test_unsupported_scalar_type_fails_closed() -> None:
     record = _record()
     cast(dict[str, Any], record["dossier"])["case"]["title"] = 1.5
 
-    with pytest.raises(HtmlReportError, match="float"):
+    with pytest.raises(ReportRecordError, match="float"):
         render_detailed_html_report(record)
 
 
