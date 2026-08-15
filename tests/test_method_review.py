@@ -14,9 +14,13 @@ from archsift.method_review import (
     CORPUS_VERSION,
     FAILURE_REASONS,
     PROTOCOL_VERSION,
+    PROTOCOL_VERSION_2,
     REQUIRED_DECISION_AREAS,
     REQUIRED_EXAMPLES,
+    REQUIRED_PASS_COUNT_2,
+    REQUIRED_SESSION_COUNT_2,
     RESULT_SCHEMA_VERSION,
+    RESULT_SCHEMA_VERSION_2,
     SUPPORTED_ARCHSIFT_VERSION,
     validate_method_review_results,
 )
@@ -688,3 +692,222 @@ def test_public_docs_freeze_protocol_and_exact_offline_command() -> None:
     assert command in protocol
     assert command in readme
     assert "docs/method-review-v1.md" in readme
+
+
+# --- Protocol 2.0.0 simulated cohort ---
+
+_SIMULATED_PRODUCTS = ("claude-code", "codex", "opencode", "pi")
+
+
+def _simulated_session(index: int, product: str) -> dict[str, Any]:
+    return {
+        "session_id": f"session-{index:02d}",
+        "agent_product": product,
+        "agent_model": f"model-{product}",
+        "harness_version": "1.0.0",
+        "fresh_session": True,
+        "environment": {
+            "operating_system": "linux",
+            "python_version": "3.11",
+            "install_mode": "source-checkout",
+        },
+        "examples": [
+            _example(example_index, example_id)
+            for example_index, example_id in enumerate(REQUIRED_EXAMPLES, start=1)
+        ],
+        "disagreements": [],
+        "maintainer_intervention": False,
+        "failure_reasons": [],
+        "session_result": "pass",
+    }
+
+
+def _simulated_cohort(pass_count: int) -> dict[str, Any]:
+    sessions = [
+        _simulated_session(index, product)
+        for index, product in enumerate(_SIMULATED_PRODUCTS, start=1)
+    ]
+    for index in range(pass_count, 4):
+        sessions[index]["examples"][0]["decision_areas"][0] = _area(
+            "problem-value", outcome="display-only"
+        )
+        sessions[index]["examples"][0]["example_result"] = "fail"
+        sessions[index]["session_result"] = "fail"
+        sessions[index]["failure_reasons"] = ["display-only-decision-area"]
+    return {
+        "schema_version": RESULT_SCHEMA_VERSION_2,
+        "protocol_version": PROTOCOL_VERSION_2,
+        "archsift_version_or_commit": "77607067db3119bf74598a2b859e758cd003f281",
+        "method_version": METHOD_VERSION,
+        "ruleset_version": RULESET_VERSION,
+        "corpus_version": CORPUS_VERSION,
+        "overall_result": "met" if pass_count >= REQUIRED_PASS_COUNT_2 else "not-met",
+        "sessions": sessions,
+    }
+
+
+def test_packaged_simulated_method_review_schema_is_valid() -> None:
+    path = Path(__file__).parents[1] / "src/archsift/schemas/method-review-results-v2.schema.json"
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION_2
+    assert schema["properties"]["protocol_version"]["const"] == PROTOCOL_VERSION_2
+    assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT_2
+    assert schema["properties"]["sessions"]["maxItems"] == REQUIRED_SESSION_COUNT_2
+    session = schema["$defs"]["session"]
+    assert session["properties"]["fresh_session"]["const"] is True
+    assert session["properties"]["examples"]["items"]["$ref"].endswith("/exampleReview")
+    assert REQUIRED_PASS_COUNT_2 == 3
+
+
+def test_three_of_four_simulated_sessions_meets_criterion(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(3))
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.protocol_version == PROTOCOL_VERSION_2
+    assert result.session_count == 4
+    assert result.passed_session_count == 3
+    assert result.criterion_met is True
+    assert result.diagnostics == ()
+
+
+def test_two_of_four_simulated_sessions_rejects_the_cohort(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(2))
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.passed_session_count == 2
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["method-review-criterion-not-met"]
+
+
+def test_duplicate_agent_product_is_rejected(tmp_path: Path) -> None:
+    payload = _simulated_cohort(4)
+    payload["sessions"][3]["agent_product"] = payload["sessions"][0]["agent_product"]
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["method-review-agent-product-duplicate"]
+
+
+def test_simulated_session_outcome_must_match_evidence(tmp_path: Path) -> None:
+    payload = _simulated_cohort(4)
+    payload["sessions"][3]["examples"][0]["decision_areas"][0] = _area(
+        "problem-value", outcome="display-only"
+    )
+    payload["sessions"][3]["examples"][0]["example_result"] = "fail"
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    ids = [item.id for item in result.diagnostics]
+    assert "method-review-session-inconsistent" in ids
+    assert "method-review-failures-inconsistent" in ids
+    assert result.passed_session_count == 3  # three of four sessions still pass
+
+
+def test_simulated_requires_exactly_four_sessions(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"].pop()
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "method-review-results-contract"
+    assert result.diagnostics[0].field == "$.sessions"
+
+
+def test_simulated_session_extra_field_is_rejected(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"][0]["reviewer_name"] = "private identity"
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "method-review-results-contract"
+    assert result.diagnostics[0].field == "$.sessions[0]"
+
+
+def test_simulated_with_v1_protocol_is_unsupported(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["protocol_version"] = PROTOCOL_VERSION
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "method-review-binding-unsupported"
+
+
+def test_unknown_schema_version_is_unsupported(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["schema_version"] = 3
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "method-review-binding-unsupported"
+
+
+def test_simulated_cli_reports_success_in_human_and_json_modes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(3))
+
+    assert main(["method-review-results", str(path)]) == ExitCode.SUCCESS
+    assert capsys.readouterr().out == (
+        "Architecture-method review criterion met: 3 of 4 sessions passed (protocol 2.0.0)\n"
+    )
+
+    assert main(["method-review-results", str(path), "--json"]) == ExitCode.SUCCESS
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "criterion-met"
+    assert output["criterion_met"] is True
+    assert output["protocol_version"] == "2.0.0"
+    assert output["session_count"] == 4
+    assert output["passed_session_count"] == 3
+
+
+def test_v1_review_still_meets_criterion(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _review())
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.session_count == 0
+    assert result.passed_session_count == 0
+
+
+def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
+    root = Path(__file__).parents[1]
+    protocol = (root / "docs/method-review-v2.md").read_text(encoding="utf-8")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    protocol_words = " ".join(protocol.split())
+
+    assert "protocol 2.0.0" in protocol_words
+    assert "exactly four independent simulated review sessions" in protocol_words
+    assert "at least three of the four sessions" in protocol_words
+    assert "no simulated review sessions have been run" in protocol_words
+    assert "archsift method-review-results method-review-results.json" in protocol
+    assert "docs/method-review-v2.md" in readme

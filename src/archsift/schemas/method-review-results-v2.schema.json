@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maximalfocus/archsift/schemas/method-review-results-v2.schema.json",
+  "title": "ArchSift simulated architecture-method review results 2.0.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_version",
+    "archsift_version_or_commit",
+    "method_version",
+    "ruleset_version",
+    "corpus_version",
+    "overall_result",
+    "sessions"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 2
+    },
+    "protocol_version": {
+      "type": "string",
+      "const": "2.0.0"
+    },
+    "archsift_version_or_commit": {
+      "type": "string",
+      "pattern": "^(?:[0-9]+\\.[0-9]+\\.[0-9]+(?:[A-Za-z0-9.+-]*)?|[0-9a-f]{40})(?![\\s\\S])$"
+    },
+    "method_version": {
+      "type": "string",
+      "const": "1.2.0"
+    },
+    "ruleset_version": {
+      "type": "string",
+      "const": "1.8.0"
+    },
+    "corpus_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "overall_result": {
+      "enum": ["met", "not-met"]
+    },
+    "sessions": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/session"
+      }
+    }
+  },
+  "$defs": {
+    "stableId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "stableIdArray": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "nonEmptyStableIdArray": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/stableId"
+      }
+    },
+    "exampleId": {
+      "enum": ["agentic-control", "fixed-workflow", "insufficient-evidence", "no-technology-change"]
+    },
+    "decisionArea": {
+      "enum": ["problem-value", "agency-necessity", "autonomy-permission", "comparative-fit"]
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operating_system", "python_version", "install_mode"],
+      "properties": {
+        "operating_system": {
+          "enum": ["linux", "macos", "windows"]
+        },
+        "python_version": {
+          "type": "string",
+          "pattern": "^3\\.(?:11|12|13|14)(?:\\.[0-9]+)?$"
+        },
+        "install_mode": {
+          "enum": ["source-checkout", "built-wheel"]
+        }
+      }
+    },
+    "decisionAreaReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision_area",
+        "trace_outcome",
+        "rule_ids",
+        "evidence_ids",
+        "candidate_ids",
+        "verdict_rule_id"
+      ],
+      "properties": {
+        "decision_area": {
+          "$ref": "#/$defs/decisionArea"
+        },
+        "trace_outcome": {
+          "enum": ["causal", "explicitly-non-decisive", "display-only"]
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/nonEmptyStableIdArray"
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "candidate_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "verdict_rule_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/stableId"
+            }
+          ]
+        }
+      }
+    },
+    "exampleReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "example_id",
+        "decision_record_identity",
+        "decision_areas",
+        "example_result"
+      ],
+      "properties": {
+        "example_id": {
+          "$ref": "#/$defs/exampleId"
+        },
+        "decision_record_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "decision_areas": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/decisionAreaReview"
+          }
+        },
+        "example_result": {
+          "enum": ["pass", "fail"]
+        }
+      }
+    },
+    "disagreement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disagreement_id",
+        "example_id",
+        "decision_area",
+        "classification",
+        "decision_critical",
+        "evidence_ids",
+        "rule_ids",
+        "product_gap_id"
+      ],
+      "properties": {
+        "disagreement_id": {
+          "type": "string",
+          "pattern": "^disagreement-[0-9]{2}$"
+        },
+        "example_id": {
+          "$ref": "#/$defs/exampleId"
+        },
+        "decision_area": {
+          "$ref": "#/$defs/decisionArea"
+        },
+        "classification": {
+          "enum": ["declared-evidence", "public-rule", "product-gap", "unclassified"]
+        },
+        "decision_critical": {
+          "type": "boolean"
+        },
+        "evidence_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "rule_ids": {
+          "$ref": "#/$defs/stableIdArray"
+        },
+        "product_gap_id": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "pattern": "^gap-[0-9]{2}$"
+            }
+          ]
+        }
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "session_id",
+        "agent_product",
+        "agent_model",
+        "harness_version",
+        "fresh_session",
+        "environment",
+        "examples",
+        "disagreements",
+        "maintainer_intervention",
+        "failure_reasons",
+        "session_result"
+      ],
+      "properties": {
+        "session_id": {
+          "type": "string",
+          "pattern": "^session-[0-9]{2}$"
+        },
+        "agent_product": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "agent_model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "harness_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+        },
+        "fresh_session": {
+          "const": true
+        },
+        "environment": {
+          "$ref": "#/$defs/environment"
+        },
+        "examples": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/exampleReview"
+          }
+        },
+        "disagreements": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/disagreement"
+          }
+        },
+        "maintainer_intervention": {
+          "type": "boolean"
+        },
+        "failure_reasons": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "display-only-decision-area",
+              "unclassified-disagreement",
+              "decision-critical-product-gap",
+              "maintainer-intervention"
+            ]
+          }
+        },
+        "session_result": {
+          "enum": ["pass", "fail"]
+        }
+      }
+    }
+  }
+}

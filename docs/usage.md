@@ -144,10 +144,12 @@ errors are not accepted cohort evidence.
 
 ### `archsift method-review-results <results>`
 
-Validates one completed independent architecture-method review result against
-the frozen [method-review protocol](method-review-v1.md). A review that passes
-the four-example causal-trace contract exits `0` with status `criterion-met`;
-a failing or incomplete review exits `12`.
+Validates one completed architecture-method review result against the frozen
+[human protocol](method-review-v1.md) or the [simulated protocol](method-review-v2.md).
+Under protocol 1.0.0, a single review that passes the four-example causal-trace contract
+exits `0` with status `criterion-met`; a failing or incomplete review exits `12`.
+Under protocol 2.0.0, three or four simulated sessions meeting the session criterion exit `0`;
+two or fewer pass with exit `12`; a duplicate agent product across sessions is a contract error.
 
 ## The case workspace and dossier
 

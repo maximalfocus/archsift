@@ -1,4 +1,4 @@
-"""Deterministic validation for the independent architecture-method review protocol."""
+"""Deterministic validation for the independent architecture-method review protocols."""
 
 from __future__ import annotations
 
@@ -39,8 +39,15 @@ FAILURE_REASONS = (
     "decision-critical-product-gap",
     "maintainer-intervention",
 )
+
+PROTOCOL_VERSION_2 = "2.0.0"
+RESULT_SCHEMA_VERSION_2 = 2
+REQUIRED_SESSION_COUNT_2 = 4
+REQUIRED_PASS_COUNT_2 = 3
+
 MAX_RESULT_BYTES = 128 * 1024
 _REQUIREMENT = "METHOD-REVIEW-1.0.0"
+_REQUIREMENT_2 = "METHOD-REVIEW-2.0.0"
 # The protocol binds the exact public source commit, so only the full 40-character
 # lowercase commit ID is a supported source-commit binding.
 _COMMIT = re.compile(r"^[0-9a-f]{40}$")
@@ -56,6 +63,8 @@ class MethodReviewValidationResult:
     example_count: int
     disagreement_count: int
     criterion_met: bool
+    session_count: int = 0
+    passed_session_count: int = 0
 
 
 class _DuplicateKeyError(ValueError):
@@ -71,13 +80,14 @@ def _diagnostic(
     message: str,
     field: str,
     remediation: str,
+    requirement: str = _REQUIREMENT,
 ) -> Diagnostic:
     return Diagnostic(
         id=id,
         message=message,
         file="method-review-results",
         field=field,
-        requirement=_REQUIREMENT,
+        requirement=requirement,
         remediation=remediation,
     )
 
@@ -89,6 +99,8 @@ def _result(
     protocol_version: str | None = None,
     example_count: int = 0,
     disagreement_count: int = 0,
+    session_count: int = 0,
+    passed_session_count: int = 0,
 ) -> MethodReviewValidationResult:
     return MethodReviewValidationResult(
         exit_code=exit_code,
@@ -97,6 +109,8 @@ def _result(
         example_count=example_count,
         disagreement_count=disagreement_count,
         criterion_met=exit_code is ExitCode.SUCCESS,
+        session_count=session_count,
+        passed_session_count=passed_session_count,
     )
 
 
@@ -114,11 +128,9 @@ def _reject_constant(_: str) -> NoReturn:
 
 
 @cache
-def _schema_validator() -> Draft202012Validator:
+def _schema_validator(schema_name: str) -> Draft202012Validator:
     raw = json.loads(
-        files("archsift")
-        .joinpath("schemas/method-review-results-v1.schema.json")
-        .read_text(encoding="utf-8")
+        files("archsift").joinpath(f"schemas/{schema_name}.schema.json").read_text(encoding="utf-8")
     )
     if type(raw) is not dict:
         raise TypeError("packaged method-review schema must be an object")
@@ -156,10 +168,22 @@ def _malformed(message: str, remediation: str) -> MethodReviewValidationResult:
     )
 
 
-def _unsupported_binding(payload: dict[str, object]) -> MethodReviewValidationResult | None:
+def _declared_protocol(payload: object) -> str | None:
+    if type(payload) is dict and type(payload.get("protocol_version")) is str:
+        return cast(str, payload["protocol_version"])
+    return None
+
+
+def _unsupported_binding(
+    payload: dict[str, object],
+    *,
+    schema_version: int,
+    protocol_version: str,
+    requirement: str,
+) -> MethodReviewValidationResult | None:
     supported: tuple[tuple[str, object, str], ...] = (
-        ("schema_version", RESULT_SCHEMA_VERSION, "result schema version"),
-        ("protocol_version", PROTOCOL_VERSION, "protocol version"),
+        ("schema_version", schema_version, "result schema version"),
+        ("protocol_version", protocol_version, "protocol version"),
         ("method_version", METHOD_VERSION, "method version"),
         ("ruleset_version", RULESET_VERSION, "ruleset version"),
         ("corpus_version", CORPUS_VERSION, "corpus version"),
@@ -175,13 +199,10 @@ def _unsupported_binding(payload: dict[str, object]) -> MethodReviewValidationRe
                         f"The declared {label} is unsupported.",
                         f"$.{field}",
                         f"Use {label} {expected}.",
+                        requirement=requirement,
                     ),
                 ),
-                protocol_version=(
-                    cast(str, payload["protocol_version"])
-                    if type(payload.get("protocol_version")) is str
-                    else None
-                ),
+                protocol_version=_declared_protocol(payload),
             )
     tool_binding = payload.get("archsift_version_or_commit")
     if (
@@ -200,13 +221,10 @@ def _unsupported_binding(payload: dict[str, object]) -> MethodReviewValidationRe
                         f"Use version {SUPPORTED_ARCHSIFT_VERSION} or the full "
                         "40-character lowercase commit ID."
                     ),
+                    requirement=requirement,
                 ),
             ),
-            protocol_version=(
-                cast(str, payload["protocol_version"])
-                if type(payload.get("protocol_version")) is str
-                else None
-            ),
+            protocol_version=_declared_protocol(payload),
         )
     return None
 
@@ -218,13 +236,17 @@ def _set_diagnostic(
     message: str,
     field: str,
     remediation: str,
+    requirement: str = _REQUIREMENT,
 ) -> None:
-    diagnostics.append(_diagnostic(id, message, field, remediation))
+    diagnostics.append(_diagnostic(id, message, field, remediation, requirement=requirement))
 
 
 def _trace_diagnostics(
     examples: list[dict[str, object]],
     diagnostics: list[Diagnostic],
+    *,
+    examples_field: str = "$.examples",
+    requirement: str = _REQUIREMENT,
 ) -> set[str]:
     failure_reasons: set[str] = set()
     rule_effects = _rule_effects()
@@ -234,8 +256,9 @@ def _trace_diagnostics(
             diagnostics,
             id="method-review-example-set",
             message="The review must contain each fixed corpus example exactly once.",
-            field="$.examples",
+            field=f"{examples_field}",
             remediation="Record each protocol corpus example once without substitutions.",
+            requirement=requirement,
         )
     record_ids = [cast(str, example["decision_record_identity"]) for example in examples]
     if len(record_ids) != len(set(record_ids)):
@@ -243,8 +266,9 @@ def _trace_diagnostics(
             diagnostics,
             id="method-review-record-duplicate",
             message="Each corpus example must bind a distinct generated decision record.",
-            field="$.examples",
+            field=f"{examples_field}",
             remediation="Record the content identity generated by assessing each fixed example.",
+            requirement=requirement,
         )
 
     for example_index, example in enumerate(examples):
@@ -257,11 +281,12 @@ def _trace_diagnostics(
                 diagnostics,
                 id="method-review-area-set",
                 message="Each example must contain every required decision area exactly once.",
-                field=f"$.examples[{example_index}].decision_areas",
+                field=f"{examples_field}[{example_index}].decision_areas",
                 remediation=(
                     "Record problem value, agency necessity, autonomy permission, and "
                     "comparative fit once."
                 ),
+                requirement=requirement,
             )
 
         derived_example_pass = True
@@ -275,8 +300,11 @@ def _trace_diagnostics(
                     diagnostics,
                     id="method-review-rule-reference",
                     message="A decision-area trace references an unknown packaged rule.",
-                    field=f"$.examples[{example_index}].decision_areas[{area_index}].rule_ids",
+                    field=(
+                        f"{examples_field}[{example_index}].decision_areas[{area_index}].rule_ids"
+                    ),
                     remediation="Use only rule IDs exposed by the bound ArchSift ruleset.",
+                    requirement=requirement,
                 )
             if verdict_rule_id is not None and verdict_rule_id not in _verdict_rule_ids():
                 _set_diagnostic(
@@ -286,11 +314,13 @@ def _trace_diagnostics(
                         "A decision-area verdict rule reference is not a packaged verdict rule."
                     ),
                     field=(
-                        f"$.examples[{example_index}].decision_areas[{area_index}].verdict_rule_id"
+                        f"{examples_field}[{example_index}].decision_areas"
+                        f"[{area_index}].verdict_rule_id"
                     ),
                     remediation=(
                         "Reference the packaged verdict rule that resolves the example (verdict-*)."
                     ),
+                    requirement=requirement,
                 )
             if outcome == "explicitly-non-decisive" and any(
                 rule_effects.get(rule_id) is not RuleEffect.NON_DECISIVE for rule_id in rule_ids
@@ -302,10 +332,13 @@ def _trace_diagnostics(
                         "An explicitly non-decisive trace references a decision-affecting "
                         "packaged rule."
                     ),
-                    field=f"$.examples[{example_index}].decision_areas[{area_index}].rule_ids",
+                    field=(
+                        f"{examples_field}[{example_index}].decision_areas[{area_index}].rule_ids"
+                    ),
                     remediation=(
                         "Reference only public non-decisive rules that explain the area outcome."
                     ),
+                    requirement=requirement,
                 )
             if outcome == "causal" and not any(
                 rule_effects.get(rule_id) not in {None, RuleEffect.NON_DECISIVE}
@@ -315,11 +348,14 @@ def _trace_diagnostics(
                     diagnostics,
                     id="method-review-causal-trace",
                     message="A causal trace lacks a decision-affecting packaged rule.",
-                    field=f"$.examples[{example_index}].decision_areas[{area_index}].rule_ids",
+                    field=(
+                        f"{examples_field}[{example_index}].decision_areas[{area_index}].rule_ids"
+                    ),
                     remediation=(
                         "Reference a public rule whose effect participates in disposition or "
                         "verdict resolution."
                     ),
+                    requirement=requirement,
                 )
             if outcome == "display-only":
                 derived_example_pass = False
@@ -331,8 +367,9 @@ def _trace_diagnostics(
                 diagnostics,
                 id="method-review-example-inconsistent",
                 message="An example outcome conflicts with its decision-area traces.",
-                field=f"$.examples[{example_index}].example_result",
+                field=f"{examples_field}[{example_index}].example_result",
                 remediation="Pass an example only when none of its required areas is display-only.",
+                requirement=requirement,
             )
     return failure_reasons
 
@@ -361,6 +398,9 @@ def _disagreement_diagnostics(
     disagreements: list[dict[str, object]],
     examples: list[dict[str, object]],
     diagnostics: list[Diagnostic],
+    *,
+    disagreements_field: str = "$.disagreements",
+    requirement: str = _REQUIREMENT,
 ) -> set[str]:
     failure_reasons: set[str] = set()
     rule_effects = _rule_effects()
@@ -370,8 +410,9 @@ def _disagreement_diagnostics(
             diagnostics,
             id="method-review-disagreement-duplicate",
             message="Disagreement IDs must be unique within the review result.",
-            field="$.disagreements",
+            field=f"{disagreements_field}",
             remediation="Assign each disagreement one unused pseudonymous ID.",
+            requirement=requirement,
         )
 
     for index, disagreement in enumerate(disagreements):
@@ -412,10 +453,11 @@ def _disagreement_diagnostics(
                 message=(
                     "A disagreement classification conflicts with its bounded trace references."
                 ),
-                field=f"$.disagreements[{index}]",
+                field=f"{disagreements_field}[{index}]",
                 remediation=(
                     "Use only the reference field required by the declared disagreement class."
                 ),
+                requirement=requirement,
             )
         if classification == "public-rule" and any(
             rule_id not in rule_effects for rule_id in rule_ids
@@ -424,8 +466,9 @@ def _disagreement_diagnostics(
                 diagnostics,
                 id="method-review-rule-reference",
                 message="A disagreement references an unknown packaged rule.",
-                field=f"$.disagreements[{index}].rule_ids",
+                field=f"{disagreements_field}[{index}].rule_ids",
                 remediation="Use only rule IDs exposed by the bound ArchSift ruleset.",
+                requirement=requirement,
             )
         matching_area = _matching_area(disagreement, examples)
         if (
@@ -440,10 +483,11 @@ def _disagreement_diagnostics(
                     "A declared-evidence disagreement cites evidence absent from the matching "
                     "area trace."
                 ),
-                field=f"$.disagreements[{index}].evidence_ids",
+                field=f"{disagreements_field}[{index}].evidence_ids",
                 remediation=(
                     "Cite only evidence IDs recorded in that example's decision-area trace."
                 ),
+                requirement=requirement,
             )
         if (
             classification == "public-rule"
@@ -466,10 +510,11 @@ def _disagreement_diagnostics(
                 message=(
                     "A public-rule disagreement cites a rule absent from the matching area trace."
                 ),
-                field=f"$.disagreements[{index}].rule_ids",
+                field=f"{disagreements_field}[{index}].rule_ids",
                 remediation=(
                     "Cite only packaged rule IDs recorded in that example's decision-area trace."
                 ),
+                requirement=requirement,
             )
         if classification == "unclassified":
             failure_reasons.add("unclassified-disagreement")
@@ -478,8 +523,202 @@ def _disagreement_diagnostics(
     return failure_reasons
 
 
+def _validate_v1(payload: dict[str, object]) -> MethodReviewValidationResult:
+    errors = sorted(
+        _schema_validator("method-review-results-v1").iter_errors(payload),
+        key=_error_sort_key,
+    )
+    if errors:
+        first = errors[0]
+        return _result(
+            ExitCode.VALIDATION_FAILED,
+            (
+                _diagnostic(
+                    "method-review-results-contract",
+                    "The result data does not match the method-review-results-v1 contract.",
+                    _path(first.absolute_path),
+                    "Correct the named field using the protocol and packaged JSON schema.",
+                ),
+            ),
+            protocol_version=_declared_protocol(payload),
+        )
+
+    examples = cast(list[dict[str, object]], payload["examples"])
+    disagreements = cast(list[dict[str, object]], payload["disagreements"])
+    diagnostics: list[Diagnostic] = []
+    derived_failures = _trace_diagnostics(examples, diagnostics)
+    derived_failures.update(_disagreement_diagnostics(disagreements, examples, diagnostics))
+    if cast(bool, payload["maintainer_intervention"]):
+        derived_failures.add("maintainer-intervention")
+
+    declared_failures = cast(list[str], payload["failure_reasons"])
+    expected_failures = [reason for reason in FAILURE_REASONS if reason in derived_failures]
+    if declared_failures != expected_failures:
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-failures-inconsistent",
+            message="The declared failure reasons conflict with the review evidence.",
+            field="$.failure_reasons",
+            remediation="Record each derived protocol failure reason once in protocol order.",
+        )
+
+    criterion_met = not derived_failures
+    declared_met = payload["overall_result"] == "met"
+    if declared_met != criterion_met:
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-overall-inconsistent",
+            message="The overall result conflicts with the derived review state.",
+            field="$.overall_result",
+            remediation=(
+                "Claim met only when every trace passes without a critical gap or intervention."
+            ),
+        )
+    if not criterion_met:
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-criterion-not-met",
+            message="The independent architecture-method review criterion was not met.",
+            field="$.overall_result",
+            remediation=(
+                "Preserve the review result and address any recorded product gap separately."
+            ),
+        )
+
+    return _result(
+        ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
+        diagnostics,
+        protocol_version=PROTOCOL_VERSION,
+        example_count=len(examples),
+        disagreement_count=len(disagreements),
+    )
+
+
+def _validate_v2(payload: dict[str, object]) -> MethodReviewValidationResult:
+    errors = sorted(
+        _schema_validator("method-review-results-v2").iter_errors(payload),
+        key=_error_sort_key,
+    )
+    if errors:
+        first = errors[0]
+        return _result(
+            ExitCode.VALIDATION_FAILED,
+            (
+                _diagnostic(
+                    "method-review-results-contract",
+                    "The result data does not match the method-review-results-v2 contract.",
+                    _path(first.absolute_path),
+                    "Correct the named field using the protocol and packaged JSON schema.",
+                    requirement=_REQUIREMENT_2,
+                ),
+            ),
+            protocol_version=PROTOCOL_VERSION_2,
+        )
+
+    sessions = cast(list[dict[str, object]], payload["sessions"])
+    diagnostics: list[Diagnostic] = []
+    products = [cast(str, session["agent_product"]) for session in sessions]
+    if len(products) != len(set(products)):
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-agent-product-duplicate",
+            message="Agent product names must be unique within the four-session simulated cohort.",
+            field="$.sessions",
+            remediation="Assign each independent simulated session one distinct agent product.",
+            requirement=_REQUIREMENT_2,
+        )
+
+    passed_session_count = 0
+    disagreement_count = 0
+    for index, session in enumerate(sessions):
+        examples = cast(list[dict[str, object]], session["examples"])
+        disagreements = cast(list[dict[str, object]], session["disagreements"])
+        disagreement_count += len(disagreements)
+        derived_failures = _trace_diagnostics(
+            examples,
+            diagnostics,
+            examples_field=f"$.sessions[{index}].examples",
+            requirement=_REQUIREMENT_2,
+        )
+        derived_failures.update(
+            _disagreement_diagnostics(
+                disagreements,
+                examples,
+                diagnostics,
+                disagreements_field=f"$.sessions[{index}].disagreements",
+                requirement=_REQUIREMENT_2,
+            )
+        )
+        if cast(bool, session["maintainer_intervention"]):
+            derived_failures.add("maintainer-intervention")
+
+        declared_failures = cast(list[str], session["failure_reasons"])
+        expected_failures = [reason for reason in FAILURE_REASONS if reason in derived_failures]
+        if declared_failures != expected_failures:
+            _set_diagnostic(
+                diagnostics,
+                id="method-review-failures-inconsistent",
+                message="The declared failure reasons conflict with the review evidence.",
+                field=f"$.sessions[{index}].failure_reasons",
+                remediation="Record each derived protocol failure reason once in protocol order.",
+                requirement=_REQUIREMENT_2,
+            )
+
+        session_passed = not derived_failures
+        if session_passed:
+            passed_session_count += 1
+        declared_pass = session["session_result"] == "pass"
+        if declared_pass != session_passed:
+            _set_diagnostic(
+                diagnostics,
+                id="method-review-session-inconsistent",
+                message="A session outcome conflicts with its review evidence.",
+                field=f"$.sessions[{index}].session_result",
+                remediation=(
+                    "Pass a session only when its trace, disagreements, and intervention "
+                    "state meet the session criterion."
+                ),
+                requirement=_REQUIREMENT_2,
+            )
+
+    criterion_met = passed_session_count >= REQUIRED_PASS_COUNT_2
+    declared_met = payload["overall_result"] == "met"
+    if declared_met != criterion_met:
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-overall-inconsistent",
+            message="The overall result conflicts with the derived cohort state.",
+            field="$.overall_result",
+            remediation=(
+                "Claim met only when at least three of exactly four simulated sessions pass."
+            ),
+            requirement=_REQUIREMENT_2,
+        )
+    if not criterion_met:
+        _set_diagnostic(
+            diagnostics,
+            id="method-review-criterion-not-met",
+            message="The simulated architecture-method review criterion was not met.",
+            field="$.overall_result",
+            remediation=(
+                "Preserve the cohort result and address any recorded product gap separately."
+            ),
+            requirement=_REQUIREMENT_2,
+        )
+
+    return _result(
+        ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
+        diagnostics,
+        protocol_version=PROTOCOL_VERSION_2,
+        example_count=len(REQUIRED_EXAMPLES),
+        disagreement_count=disagreement_count,
+        session_count=len(sessions),
+        passed_session_count=passed_session_count,
+    )
+
+
 def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
-    """Validate one completed protocol-1.0.0 architecture-method review result."""
+    """Validate one completed protocol result file and its success criterion."""
     try:
         content = path.read_bytes()
     except OSError:
@@ -516,80 +755,44 @@ def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
             "Provide one JSON object without duplicate keys or non-standard numbers.",
         )
 
-    if type(payload) is dict:
-        unsupported = _unsupported_binding(cast(dict[str, object], payload))
-        if unsupported is not None:
-            return unsupported
-
-    errors = sorted(_schema_validator().iter_errors(payload), key=_error_sort_key)
-    if errors:
-        first = errors[0]
-        return _result(
-            ExitCode.VALIDATION_FAILED,
-            (
-                _diagnostic(
-                    "method-review-results-contract",
-                    "The result data does not match the method-review-results-v1 contract.",
-                    _path(first.absolute_path),
-                    "Correct the named field using the protocol and packaged JSON schema.",
-                ),
-            ),
-            protocol_version=(
-                cast(str, payload["protocol_version"])
-                if type(payload) is dict and type(payload.get("protocol_version")) is str
-                else None
-            ),
-        )
+    if type(payload) is not dict:
+        return _validate_v1(cast(dict[str, object], payload))
 
     result_payload = cast(dict[str, object], payload)
-    examples = cast(list[dict[str, object]], result_payload["examples"])
-    disagreements = cast(list[dict[str, object]], result_payload["disagreements"])
-    diagnostics: list[Diagnostic] = []
-    derived_failures = _trace_diagnostics(examples, diagnostics)
-    derived_failures.update(_disagreement_diagnostics(disagreements, examples, diagnostics))
-    if cast(bool, result_payload["maintainer_intervention"]):
-        derived_failures.add("maintainer-intervention")
-
-    declared_failures = cast(list[str], result_payload["failure_reasons"])
-    expected_failures = [reason for reason in FAILURE_REASONS if reason in derived_failures]
-    if declared_failures != expected_failures:
-        _set_diagnostic(
-            diagnostics,
-            id="method-review-failures-inconsistent",
-            message="The declared failure reasons conflict with the review evidence.",
-            field="$.failure_reasons",
-            remediation="Record each derived protocol failure reason once in protocol order.",
+    declared_schema = result_payload.get("schema_version")
+    declared_protocol = result_payload.get("protocol_version")
+    if declared_schema == RESULT_SCHEMA_VERSION and declared_protocol == PROTOCOL_VERSION:
+        unsupported = _unsupported_binding(
+            result_payload,
+            schema_version=RESULT_SCHEMA_VERSION,
+            protocol_version=PROTOCOL_VERSION,
+            requirement=_REQUIREMENT,
         )
-
-    criterion_met = not derived_failures
-    declared_met = result_payload["overall_result"] == "met"
-    if declared_met != criterion_met:
-        _set_diagnostic(
-            diagnostics,
-            id="method-review-overall-inconsistent",
-            message="The overall result conflicts with the derived review state.",
-            field="$.overall_result",
-            remediation=(
-                "Claim met only when every trace passes without a critical gap or intervention."
-            ),
+        if unsupported is not None:
+            return unsupported
+        return _validate_v1(result_payload)
+    if declared_schema == RESULT_SCHEMA_VERSION_2 and declared_protocol == PROTOCOL_VERSION_2:
+        unsupported = _unsupported_binding(
+            result_payload,
+            schema_version=RESULT_SCHEMA_VERSION_2,
+            protocol_version=PROTOCOL_VERSION_2,
+            requirement=_REQUIREMENT_2,
         )
-    if not criterion_met:
-        _set_diagnostic(
-            diagnostics,
-            id="method-review-criterion-not-met",
-            message="The independent architecture-method review criterion was not met.",
-            field="$.overall_result",
-            remediation=(
-                "Preserve the review result and address any recorded product gap separately."
-            ),
-        )
-
+        if unsupported is not None:
+            return unsupported
+        return _validate_v2(result_payload)
     return _result(
-        ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
-        diagnostics,
-        protocol_version=PROTOCOL_VERSION,
-        example_count=len(examples),
-        disagreement_count=len(disagreements),
+        ExitCode.UNSUPPORTED_SCHEMA,
+        (
+            _diagnostic(
+                "method-review-binding-unsupported",
+                "The declared result schema or protocol version is unsupported.",
+                "$.schema_version",
+                f"Use schema version {RESULT_SCHEMA_VERSION} with protocol {PROTOCOL_VERSION}, "
+                f"or schema version {RESULT_SCHEMA_VERSION_2} with protocol {PROTOCOL_VERSION_2}.",
+            ),
+        ),
+        protocol_version=_declared_protocol(result_payload),
     )
 
 
@@ -597,9 +800,13 @@ __all__ = [
     "CORPUS_VERSION",
     "FAILURE_REASONS",
     "PROTOCOL_VERSION",
+    "PROTOCOL_VERSION_2",
     "REQUIRED_DECISION_AREAS",
     "REQUIRED_EXAMPLES",
+    "REQUIRED_PASS_COUNT_2",
+    "REQUIRED_SESSION_COUNT_2",
     "RESULT_SCHEMA_VERSION",
+    "RESULT_SCHEMA_VERSION_2",
     "SUPPORTED_ARCHSIFT_VERSION",
     "MethodReviewValidationResult",
     "validate_method_review_results",
