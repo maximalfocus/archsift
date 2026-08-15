@@ -46,6 +46,21 @@ jobs:
       - name: Validate committed simulated usability cohort result
         run: python -m archsift usability-results usability-results.json
 
+      - name: Validate committed simulated method-review cohort result
+        shell: python
+        run: |
+          import json
+          import subprocess
+          import sys
+          run = subprocess.run(
+              [sys.executable, "-m", "archsift", "method-review-results",
+               "method-review-results.json", "--json"],
+              capture_output=True,
+              text=True,
+          )
+          assert run.returncode == 12, run.stderr
+          assert json.loads(run.stdout)["status"] == "criterion-not-met"
+
       - name: Lint
         run: python -m ruff check .
 

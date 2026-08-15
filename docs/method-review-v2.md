@@ -6,8 +6,15 @@ area to candidate disposition and verdict resolution, executed by independent si
 sessions. Protocol 1.0.0 remains frozen for human architect reviews and stays supported by the
 validator.
 
-no simulated review sessions have been run, no review result is committed, and ArchSift makes no
-independent method-validation claim yet.
+One simulated review cohort has been run. The committed result is
+[`method-review-results.json`](../method-review-results.json) (cohort date 2026-08-15, source
+commit `75fb242e2207486dd52cd356f07966dc86790f6c`). `archsift method-review-results
+method-review-results.json` exits `12` with `criterion-not-met`: one of four sessions met the
+session criterion. The evidence is simulated: sessions were executed by four distinct agent
+products, and no claim that a human architect passed is made. The finding that drove the outcome —
+decision areas whose facts are visible without a completing causal or explicitly non-decisive
+trace in three of the four corpus examples — is a recorded product gap for follow-up work. Any
+later cohort is a new result record bound to its own source commit.
 
 ## Success criterion
 

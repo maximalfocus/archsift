@@ -85,9 +85,11 @@ The [independent architecture-method review protocol](docs/method-review-v1.md) 
 four-example causal-trace review and privacy-bounded result contract for the public method. The
 [simulated architecture-method review protocol](docs/method-review-v2.md) freezes the
 initial-release gate: four independent simulated review sessions by distinct agent products,
-criterion met when at least three pass. No review of either protocol has been run and no
-method-validation claim is made yet. A completed result is checked offline with exactly
-`archsift method-review-results method-review-results.json`.
+criterion met when at least three pass. The initial simulated cohort has run and its committed
+[result](method-review-results.json) validates with `criterion-not-met` (one of four sessions
+passed); the human protocol has not been run. No method-validation claim is made, the evidence is
+simulated, and no claim that a human architect passed is made. A completed result is checked
+offline with exactly `archsift method-review-results method-review-results.json`.
 
 ## Runnable examples
 
