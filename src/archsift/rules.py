@@ -16,7 +16,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.8.0"
+RULESET_VERSION = "1.9.0"
 
 
 class RuleEffect(StrEnum):
@@ -94,6 +94,16 @@ class AssessmentPrerequisiteEvaluation:
             "ready": self.ready,
             "ruleset_version": self.ruleset_version,
         }
+
+
+@dataclass(frozen=True, slots=True)
+class ComparisonUnknownClassification:
+    """Counterfactual materiality of one unknown pairwise comparison result."""
+
+    field: str
+    material: bool
+    counterfactual_verdicts: tuple[str, ...]
+    within_bound: bool
 
 
 _PREREQUISITE_CONSEQUENCE = (
@@ -543,6 +553,15 @@ DECISION_RULES = tuple(
                 "Eligibility support must remain criterion-specific and evidence-traceable.",
             ),
             _decision_rule(
+                "comparison-result-unknown-non-decisive",
+                RuleEffect.NON_DECISIVE,
+                "Record a verdict-invariant unknown pairwise trade-off explicitly.",
+                "The unknown comparison remains visible but does not alter the verdict.",
+                "An unanswered trade-off is not material when every admissible value leaves "
+                "the verdict unchanged under the packaged rules.",
+                requirement="FR-008/FR-009",
+            ),
+            _decision_rule(
                 "credible-authority-evidence-missing",
                 RuleEffect.REQUIRE_EVIDENCE,
                 "Require observed or method-backed evidence for candidate authority scope.",
@@ -675,22 +694,56 @@ def get_rule_definition(identifier: str) -> RuleDefinition:
         raise RuntimeError(f"No packaged rule definition for {identifier!r}.") from error
 
 
-def _assessment_finding(source: PrerequisiteFinding) -> AssessmentPrerequisiteFinding:
-    rule = get_rule_definition(source.id)
+def _assessment_finding(
+    source: PrerequisiteFinding,
+    comparison_unknowns: dict[str, ComparisonUnknownClassification],
+) -> AssessmentPrerequisiteFinding:
+    classification = comparison_unknowns.get(source.field)
+    rule_id = source.id
+    message = source.message
+    remediation = source.remediation
+    counterpart = source.counterpart
+    if source.id == "comparison-result-unknown" and classification is not None:
+        rendered = ", ".join(classification.counterfactual_verdicts)
+        if not classification.within_bound:
+            message = (
+                f"{source.message} Materiality enumeration exceeds the packaged bound, "
+                "so this unknown fails closed as material."
+            )
+            remediation = (
+                "Resolve enough unknown trade-off dimensions to bring counterfactual "
+                "enumeration within the documented bound."
+            )
+            counterpart = "counterfactual enumeration bound exceeded"
+        elif classification.material:
+            message = f"{source.message} Admissible values produce differing verdicts: {rendered}."
+            counterpart = f"counterfactual verdicts: {rendered}"
+        else:
+            rule_id = "comparison-result-unknown-non-decisive"
+            message = (
+                f"{source.message} Every admissible value preserves the verdict under the "
+                "packaged rules."
+            )
+            remediation = "Resolve the comparison when useful; it does not block this verdict."
+            counterpart = f"counterfactual verdict: {rendered}"
+    rule = get_rule_definition(rule_id)
     return AssessmentPrerequisiteFinding(
         rule_id=rule.id,
         field=source.field,
-        requirement=source.requirement,
+        requirement=rule.requirement,
         effect=rule.effect,
-        message=source.message,
+        message=message,
         consequence=rule.consequence,
-        remediation=source.remediation,
+        remediation=remediation,
         evidence_ids=source.evidence_ids,
-        counterpart=source.counterpart,
+        counterpart=counterpart,
     )
 
 
-def evaluate_assessment_prerequisites(dossier: Dossier) -> AssessmentPrerequisiteEvaluation:
+def evaluate_assessment_prerequisites(
+    dossier: Dossier,
+    comparison_unknown_classifications: tuple[ComparisonUnknownClassification, ...] = (),
+) -> AssessmentPrerequisiteEvaluation:
     """Compose FR-003 and FR-005 through FR-008 readiness without issuing a verdict."""
     source_findings: list[PrerequisiteFinding] = []
     if dossier.task is None:
@@ -708,9 +761,13 @@ def evaluate_assessment_prerequisites(dossier: Dossier) -> AssessmentPrerequisit
     source_findings.extend(evaluate_autonomy_permission_readiness(dossier).findings)
     source_findings.extend(evaluate_candidate_comparison_readiness(dossier).findings)
     source_findings.extend(evaluate_consistency_readiness(dossier).findings)
-    findings = tuple(_assessment_finding(source) for source in source_findings)
+    classifications = {
+        classification.field: classification
+        for classification in comparison_unknown_classifications
+    }
+    findings = tuple(_assessment_finding(source, classifications) for source in source_findings)
     return AssessmentPrerequisiteEvaluation(
         ruleset_version=RULESET_VERSION,
-        ready=not findings,
+        ready=all(finding.effect is RuleEffect.NON_DECISIVE for finding in findings),
         findings=findings,
     )

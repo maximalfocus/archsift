@@ -467,7 +467,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.8.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.9.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
     assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
@@ -498,6 +498,40 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert b"\x1b" not in content
     assert b"datetime.date" not in content
     assert b"<object at" not in content
+
+
+def test_non_decisive_unknown_comparison_persists_as_typed_gap() -> None:
+    dossier = positive_dossier()
+    assert dossier.candidate_comparison is not None
+    pair = dossier.candidate_comparison.comparisons[0]
+    changed_pair = replace(
+        pair,
+        dimensions=replace(
+            pair.dimensions,
+            cost=replace(pair.dimensions.cost, result=ComparisonResult.UNKNOWN),
+        ),
+    )
+    dossier = replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            comparisons=(changed_pair, *dossier.candidate_comparison.comparisons[1:]),
+        ),
+    )
+
+    record = compose_decision_record(dossier, tool_version=_TOOL_VERSION)
+
+    assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL
+    assert record.assessment.prerequisite_evaluation.ready is True
+    assert len(record.unresolved_gaps) == 1
+    gap = record.unresolved_gaps[0]
+    assert type(gap) is PrerequisiteGap
+    assert gap.rule_id == "comparison-result-unknown-non-decisive"
+    assert gap.effect.value == "non-decisive"
+    assert gap.field.endswith(".dimensions.cost.result")
+    assert gap.counterpart == "counterfactual verdict: conditional"
+    payload = canonical_decision_record_dict(record)
+    assert payload["unresolved_gaps"][0]["effect"] == "non-decisive"
 
 
 def test_agentic_findings_persist_in_record_json_and_markdown() -> None:

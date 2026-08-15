@@ -175,7 +175,7 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
     rules = list_prerequisite_rules()
     ids = [rule.id for rule in rules]
 
-    assert RULESET_VERSION == "1.8.0"
+    assert RULESET_VERSION == "1.9.0"
     assert ids == sorted(ids)
     assert len(ids) == len(set(ids)) == 34
     assert set(ids) == {
@@ -224,13 +224,13 @@ def test_rule_catalog_is_versioned_complete_canonical_and_immutable() -> None:
         for rule in rules
     )
     catalog = list_rules()
-    assert len(catalog) == 65
+    assert len(catalog) == 66
     assert len(catalog) == len({rule.id for rule in catalog})
     assert [rule.effect.value for rule in catalog].count("block") == 8
     assert [rule.effect.value for rule in catalog].count("require-evidence") == 44
     assert [rule.effect.value for rule in catalog].count("support-candidate") == 10
     assert [rule.effect.value for rule in catalog].count("constrain-autonomy") == 1
-    assert [rule.effect.value for rule in catalog].count("non-decisive") == 2
+    assert [rule.effect.value for rule in catalog].count("non-decisive") == 3
     with pytest.raises(FrozenInstanceError):
         rules[0].description = "changed"  # type: ignore[misc]
 

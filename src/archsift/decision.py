@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from enum import StrEnum
+from itertools import product
 
 from archsift.rules import (
     RULESET_VERSION,
     AssessmentPrerequisiteEvaluation,
+    ComparisonUnknownClassification,
     RuleEffect,
     evaluate_assessment_prerequisites,
     get_rule_definition,
@@ -19,6 +21,9 @@ from archsift.validation import (
     CandidateConstraintTest,
     CandidateOutcomeTest,
     CandidateTestResult,
+    ComparisonDimension,
+    ComparisonDimensions,
+    ComparisonResult,
     ControlClass,
     DecisionCondition,
     DecisionConditionStatus,
@@ -27,6 +32,13 @@ from archsift.validation import (
     Evidence,
     HardVetoStatus,
     ObservedEvidence,
+)
+
+MAX_COMPARISON_MATERIALITY_EVALUATIONS = 81
+_COMPARISON_RESULTS = (
+    ComparisonResult.BETTER,
+    ComparisonResult.EQUIVALENT,
+    ComparisonResult.WORSE,
 )
 
 
@@ -950,9 +962,117 @@ def evaluate_ordered_elimination(dossier: Dossier) -> OrderedEliminationEvaluati
     )
 
 
-def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
-    """Resolve an FR-010 verdict without performing I/O or fabricating conditions."""
-    prerequisites = evaluate_assessment_prerequisites(dossier)
+@dataclass(frozen=True, slots=True)
+class _UnknownComparison:
+    pair_index: int
+    dimension_name: str
+    field: str
+
+
+def _unknown_comparisons(dossier: Dossier) -> tuple[_UnknownComparison, ...]:
+    comparison = dossier.candidate_comparison
+    if comparison is None:
+        return ()
+    unknowns: list[_UnknownComparison] = []
+    dimension_names = tuple(field.name for field in fields(ComparisonDimensions))
+    for pair_index, pair in enumerate(comparison.comparisons):
+        for dimension_name in dimension_names:
+            dimension = getattr(pair.dimensions, dimension_name)
+            if dimension.result is ComparisonResult.UNKNOWN:
+                unknowns.append(
+                    _UnknownComparison(
+                        pair_index,
+                        dimension_name,
+                        f"$.candidate_comparison.comparisons[{pair_index}]."
+                        f"dimensions.{dimension_name}.result",
+                    )
+                )
+    return tuple(unknowns)
+
+
+def _counterfactual_dossier(
+    dossier: Dossier,
+    unknowns: tuple[_UnknownComparison, ...],
+    assignment: tuple[ComparisonResult, ...],
+) -> Dossier:
+    comparison = dossier.candidate_comparison
+    assert comparison is not None
+    replacements: dict[int, dict[str, ComparisonDimension]] = {}
+    for unknown, result in zip(unknowns, assignment, strict=True):
+        pair = comparison.comparisons[unknown.pair_index]
+        dimension = getattr(pair.dimensions, unknown.dimension_name)
+        replacements.setdefault(unknown.pair_index, {})[unknown.dimension_name] = replace(
+            dimension, result=result
+        )
+    pairs = tuple(
+        replace(pair, dimensions=replace(pair.dimensions, **replacements[index]))
+        if index in replacements
+        else pair
+        for index, pair in enumerate(comparison.comparisons)
+    )
+    return replace(
+        dossier,
+        candidate_comparison=replace(
+            comparison,
+            comparisons=pairs,
+        ),
+    )
+
+
+def _comparison_unknown_classifications(
+    dossier: Dossier,
+) -> tuple[ComparisonUnknownClassification, ...]:
+    unknowns = _unknown_comparisons(dossier)
+    if not unknowns:
+        return ()
+    evaluation_count = len(_COMPARISON_RESULTS) ** len(unknowns)
+    if evaluation_count > MAX_COMPARISON_MATERIALITY_EVALUATIONS:
+        return tuple(
+            ComparisonUnknownClassification(unknown.field, True, (), False) for unknown in unknowns
+        )
+
+    evaluated = tuple(
+        (
+            assignment,
+            _evaluate_assessment_core(
+                _counterfactual_dossier(dossier, unknowns, assignment),
+                (),
+            ).verdict,
+        )
+        for assignment in product(_COMPARISON_RESULTS, repeat=len(unknowns))
+    )
+    classifications: list[ComparisonUnknownClassification] = []
+    for target_index, unknown in enumerate(unknowns):
+        contexts: dict[tuple[ComparisonResult, ...], set[ArchitectureVerdict]] = {}
+        for assignment, verdict in evaluated:
+            context = (*assignment[:target_index], *assignment[target_index + 1 :])
+            contexts.setdefault(context, set()).add(verdict)
+        differing = {
+            verdict for verdicts in contexts.values() if len(verdicts) > 1 for verdict in verdicts
+        }
+        all_verdicts = {verdict for _, verdict in evaluated}
+        relevant = differing if differing else all_verdicts
+        classifications.append(
+            ComparisonUnknownClassification(
+                field=unknown.field,
+                material=bool(differing),
+                counterfactual_verdicts=tuple(
+                    verdict.value for verdict in ArchitectureVerdict if verdict in relevant
+                ),
+                within_bound=True,
+            )
+        )
+    return tuple(classifications)
+
+
+def _evaluate_assessment_core(
+    dossier: Dossier,
+    comparison_unknown_classifications: tuple[ComparisonUnknownClassification, ...],
+) -> AssessmentEvaluation:
+    prerequisites = evaluate_assessment_prerequisites(
+        dossier,
+        comparison_unknown_classifications,
+    )
     elimination = evaluate_ordered_elimination(dossier)
     recommended_class: ControlClass | None = None
     surviving_candidate_ids: tuple[str, ...] = ()
@@ -1039,3 +1159,8 @@ def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
         prerequisite_evaluation=prerequisites,
         ordered_elimination_evaluation=elimination,
     )
+
+
+def evaluate_assessment(dossier: Dossier) -> AssessmentEvaluation:
+    """Resolve an FR-010 verdict without performing I/O or fabricating conditions."""
+    return _evaluate_assessment_core(dossier, _comparison_unknown_classifications(dossier))

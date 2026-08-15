@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-METHOD_VERSION = "1.2.0"
-METHOD_RULESET_VERSION = "1.8.0"
-METHOD_SPECIFICATION = "docs/method-v1.2.0.md"
+METHOD_VERSION = "1.3.0"
+METHOD_RULESET_VERSION = "1.9.0"
+METHOD_SPECIFICATION = "docs/method-v1.3.0.md"
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +144,7 @@ _RULE_GROUPS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
             "candidate-role-incompatible",
             "candidate-test-result-unknown",
             "comparison-result-unknown",
+            "comparison-result-unknown-non-decisive",
             "required-candidate-role-missing",
             "required-comparison-missing",
             "strongest-simpler-boundary-coverage-missing",

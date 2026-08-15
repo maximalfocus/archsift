@@ -23,7 +23,7 @@
       "verdict": "insufficient-evidence",
       "recommended_class": null,
       "evidence_state": "evidence-incomplete",
-      "representative_rule_id": "comparison-result-unknown",
+      "representative_rule_id": "candidate-test-result-unknown",
       "representative_evidence_id": "decision-observed"
     },
     {

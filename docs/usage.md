@@ -10,7 +10,7 @@ This guide covers installation, the complete command surface, the case workspace
 and dossier, decision-record outputs (including report rendering and
 sensitive-value masking), comparison and reassessment, and published knowledge-graph
 corpus inspection, snapshot validation, and governed evolution. The
-[versioned method specification](method-v1.2.0.md)
+[versioned method specification](method-v1.3.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -220,7 +220,7 @@ method specification reference.
 ### `archsift graph-corpus`
 
 Reports the exact identity and typed inventory of the wheel-packaged
-[initial architecture knowledge publication](architecture-knowledge-v1.md).
+[current architecture knowledge publication](architecture-knowledge-v2.md).
 `--json` emits the exact canonical snapshot bytes, suitable for explicit shell
 redirection into a file consumed by `graph-snapshot`, `graph-view`, or paired
 graph-supported assessment. `--quiet` emits nothing. The command validates the
