@@ -79,6 +79,8 @@ archsift method-review-results method-review-results.json
 
 Reassessment means running `assess` again after the dossier, evidence artefacts, ruleset, configuration, or tool version changes; the result is a new immutable content-addressed record. `compare` reads two generated records beneath the current directory and reports evidence-identity, finding/ruleset, and verdict-field changes. A verdict change names only changed evidence cited by a finding in either record and changed findings as causes; unrelated snapshot changes remain context. The command is offline and read-only, and `--json` emits a stable canonical comparison payload.
 
+The [architecture knowledge graph snapshot contract](docs/graph-snapshot-v1.md) defines the reusable public knowledge layer: typed nodes and relations with declared semantics, provenance and an epistemic state on every assertion, competing theories kept visibly in conflict rather than merged, and canonical bytes addressed by an immutable graph version and a snapshot content identity. A snapshot never contains case material, a source locator is provenance that is never dereferenced, and no graph-derived measure or inferred edge may determine a verdict. No command exposes the graph yet.
+
 No network service, model API, or telemetry is used by the current CLI.
 
 The [independent CLI usability-check protocol](docs/usability-check-v1.md) freezes a fictional,
