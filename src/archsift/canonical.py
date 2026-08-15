@@ -790,21 +790,38 @@ def _decision_condition(value: DecisionCondition) -> JsonObject:
     )
 
 
-def _evidence_artefact(value: EvidenceArtefactReference) -> JsonObject:
-    expected = ("id", "root", "path")
+def _evidence_artefact(
+    value: EvidenceArtefactReference,
+    *,
+    schema_version: int,
+) -> JsonObject:
+    expected = (
+        "id",
+        "root",
+        "path",
+        "registration_id",
+        "registration_logical_path",
+    )
+    rendered: JsonObject = {
+        "id": value.id,
+        "root": _enum_value(
+            value.root,
+            EvidenceArtefactRoot,
+            ("workspace", "external"),
+        ),
+        "path": value.path,
+    }
+    if schema_version == 3:
+        rendered["registration_id"] = value.registration_id
+        rendered["registration_logical_path"] = value.registration_logical_path
     return _checked_object(
         value,
         EvidenceArtefactReference,
         expected,
-        {
-            "id": value.id,
-            "root": _enum_value(
-                value.root,
-                EvidenceArtefactRoot,
-                ("workspace", "external"),
-            ),
-            "path": value.path,
-        },
+        rendered,
+        omitted_keys=("registration_id", "registration_logical_path")
+        if schema_version in {1, 2}
+        else (),
     )
 
 
@@ -826,7 +843,7 @@ def _evidence_authorship(value: EvidenceAuthorship) -> JsonObject:
 
 def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> JsonObject:
     """Return one complete versioned evidence entry as canonical JSON data."""
-    if schema_version not in {1, 2}:
+    if schema_version not in {1, 2, 3}:
         raise CanonicalizationError("Unsupported evidence schema version for canonicalization.")
     _check_typed_value(entry, Evidence)
     common: JsonObject = {
@@ -846,9 +863,12 @@ def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> Json
             )
             for area in entry.affects
         ],
-        "artefacts": [_evidence_artefact(artefact) for artefact in entry.artefacts],
+        "artefacts": [
+            _evidence_artefact(artefact, schema_version=schema_version)
+            for artefact in entry.artefacts
+        ],
     }
-    if schema_version == 2:
+    if schema_version in {2, 3}:
         common["authorship"] = _evidence_authorship(entry.authorship)
     omitted = ("authorship",) if schema_version == 1 else ()
     evidence_kind_values = ("observed", "assumption", "estimate", "missing")
@@ -954,7 +974,7 @@ def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
 def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
     """Return the complete normalized versioned dossier as canonical JSON data."""
     _check_typed_value(dossier, Dossier)
-    if dossier.schema_version not in {1, 2}:
+    if dossier.schema_version not in {1, 2, 3}:
         raise CanonicalizationError("Unsupported dossier schema version for canonicalization.")
     expected = (
         "schema_version",

@@ -103,6 +103,7 @@ jobs:
           assert "archsift/method.py" in names
           assert "archsift/method_review.py" in names
           assert "archsift/persistence.py" in names
+          assert "archsift/registration.py" in names
           assert "archsift/rules.py" in names
           assert "archsift/usability.py" in names
           assert "archsift/docs/exit-codes.md" in names
@@ -120,6 +121,7 @@ jobs:
           assert "archsift/docs/usage.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/schemas/dossier-v2.schema.json" in names
+          assert "archsift/schemas/dossier-v3.schema.json" in names
           assert "archsift/schemas/graph-change-v1.schema.json" in names
           assert "archsift/schemas/graph-snapshot-v1.schema.json" in names
           assert "archsift/schemas/method-review-results-v1.schema.json" in names
@@ -821,6 +823,88 @@ jobs:
           )
           offline_environment = os.environ.copy()
           offline_environment["PYTHONPATH"] = str(network_blocker)
+          registered_case = root / "registered-case"
+          subprocess.run(
+              [archsift, "init", registered_case, "--quiet"],
+              check=True,
+              env=offline_environment,
+          )
+          (registered_case / "source.bin").write_bytes(b"installed inert bytes\x00\xff")
+          registered_document = subprocess.run(
+              [
+                  archsift,
+                  "register-document",
+                  registered_case,
+                  "installed-document",
+                  "application/octet-stream",
+                  "source.bin",
+                  "--json",
+              ],
+              check=True,
+              capture_output=True,
+              env=offline_environment,
+          )
+          assert json.loads(registered_document.stdout)["status"] == "registered"
+          subprocess.run(
+              [
+                  archsift,
+                  "register-repository",
+                  registered_case,
+                  "installed-repository",
+                  "git-source",
+                  "--commit",
+                  "a" * 40,
+                  "--file",
+                  "source.bin",
+                  "--quiet",
+              ],
+              check=True,
+              env=offline_environment,
+          )
+          registration = json.loads(
+              (
+                  registered_case
+                  / "evidence/registered/installed-document/registration.json"
+              ).read_text(encoding="utf-8")
+          )
+          registered_file = registration["files"][0]
+          registered_dossier = {
+              "schema_version": 3,
+              "case": {"id": "installed-registration", "title": "Installed registration"},
+              "evidence": [{
+                  "id": "registered-observation",
+                  "kind": "observed",
+                  "claim": "Installed wheel registration smoke.",
+                  "owner": "Synthetic owner",
+                  "affects": ["problem-value"],
+                  "provenance": "Synthetic registered bytes.",
+                  "observed_at": "2026-08-16",
+                  "artefacts": [{
+                      "id": "registered-file",
+                      "root": "workspace",
+                      "path": (
+                          "registered/installed-document/"
+                          + registered_file["stored_path"]
+                      ),
+                      "registration_id": "installed-document",
+                  }],
+              }],
+          }
+          (registered_case / "case.yaml").write_text(
+              json.dumps(registered_dossier), encoding="utf-8"
+          )
+          registered_assessment = subprocess.run(
+              [archsift, "assess", registered_case, "--json"],
+              check=True,
+              capture_output=True,
+              env=offline_environment,
+          )
+          registered_record = json.loads(registered_assessment.stdout)
+          assert registered_record["record_schema_version"] == 2
+          assert registered_record["dossier_schema_version"] == 3
+          assert registered_record["artefact_links"][0]["registration_id"] == (
+              "installed-document"
+          )
           for example in manifest["examples"]:
               installed_example = installed_examples / example["path"]
               shutil.copytree(Path("examples") / example["path"], installed_example)

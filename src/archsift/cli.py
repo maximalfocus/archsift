@@ -56,6 +56,13 @@ from archsift.persistence import (
     report_target_name,
 )
 from archsift.pptx_report import render_executive_pptx_report
+from archsift.registration import (
+    MaterialRegistration,
+    RegistrationError,
+    RegistrationFailure,
+    register_document,
+    register_repository,
+)
 from archsift.rules import (
     RULESET_VERSION,
     list_rules,
@@ -101,6 +108,47 @@ def build_parser() -> argparse.ArgumentParser:
     validate_parser = subparsers.add_parser("validate", help="validate a case workspace")
     validate_parser.add_argument("case", type=Path, help="workspace directory containing case.yaml")
     _output_options(validate_parser)
+
+    document_parser = subparsers.add_parser(
+        "register-document",
+        help="copy one explicit document into the inert case-material store",
+    )
+    document_parser.add_argument("case", type=Path, help="existing case workspace")
+    document_parser.add_argument("registration_id", help="portable immutable registration ID")
+    document_parser.add_argument("declared_type", help="caller-declared material type")
+    document_parser.add_argument("source", help="authorised-root-relative source path")
+    document_parser.add_argument(
+        "--external-material-root",
+        type=Path,
+        help="explicitly authorise one external source directory",
+    )
+    _output_options(document_parser)
+
+    repository_parser = subparsers.add_parser(
+        "register-repository",
+        help="copy explicit repository files with caller-supplied commit provenance",
+    )
+    repository_parser.add_argument("case", type=Path, help="existing case workspace")
+    repository_parser.add_argument("registration_id", help="portable immutable registration ID")
+    repository_parser.add_argument("declared_type", help="caller-declared repository type")
+    repository_parser.add_argument(
+        "--commit",
+        required=True,
+        help="full lowercase SHA-1 or SHA-256 commit identity",
+    )
+    repository_parser.add_argument(
+        "--file",
+        action="append",
+        required=True,
+        dest="files",
+        help="explicit repository-relative regular file; repeat for each file",
+    )
+    repository_parser.add_argument(
+        "--external-material-root",
+        type=Path,
+        help="explicitly authorise one external repository directory",
+    )
+    _output_options(repository_parser)
 
     rules_parser = subparsers.add_parser("rules", help="list packaged decision rules")
     _output_options(rules_parser)
@@ -359,6 +407,84 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details=details,
     )
     return int(result.exit_code)
+
+
+_REGISTRATION_UNAVAILABLE = {
+    RegistrationFailure.ROOT_UNAVAILABLE,
+    RegistrationFailure.TARGET_MISSING,
+    RegistrationFailure.TARGET_UNREADABLE,
+}
+_REGISTRATION_UNSAFE = {
+    RegistrationFailure.PATH_UNSAFE,
+    RegistrationFailure.TARGET_NOT_REGULAR,
+    RegistrationFailure.TARGET_CHANGED,
+}
+
+
+def _run_registration(
+    operation: Callable[[], MaterialRegistration],
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    try:
+        registration = operation()
+    except RegistrationError as error:
+        if error.category in _REGISTRATION_UNAVAILABLE:
+            exit_code = ExitCode.ARTEFACT_UNAVAILABLE
+            status = "artefact-unavailable"
+        elif error.category in _REGISTRATION_UNSAFE:
+            exit_code = ExitCode.UNSAFE_PATH
+            status = "unsafe"
+        elif error.category is RegistrationFailure.PUBLISH_FAILED:
+            exit_code = ExitCode.PERSISTENCE_FAILED
+            status = "persistence-failed"
+        else:
+            exit_code = ExitCode.VALIDATION_FAILED
+            status = "invalid"
+        diagnostic = Diagnostic(
+            id=f"material-registration-{error.category.value}",
+            message=error.message,
+            file="evidence/registered",
+            field=error.field,
+            requirement="FR-018/NFR-004",
+            remediation=(
+                "Use explicit, unique regular-file inputs beneath the authorised root and a "
+                "new registration ID when material differs."
+            ),
+        )
+        _emit(
+            status=status,
+            exit_code=exit_code,
+            diagnostics=(diagnostic,),
+            json_output=json_output,
+            quiet=quiet,
+            success_message="",
+            details={},
+        )
+        return int(exit_code)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    _emit(
+        status="registered",
+        exit_code=ExitCode.SUCCESS,
+        diagnostics=(),
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Registered inert {registration.registration_kind.value} material: "
+            f"{registration.registration_id} ({registration.registration_content_identity})"
+        ),
+        details={
+            "declared_type": registration.declared_type,
+            "file_count": len(registration.files),
+            "registration_content_identity": registration.registration_content_identity,
+            "registration_id": registration.registration_id,
+            "registration_kind": registration.registration_kind.value,
+            "repository_commit": registration.repository_commit,
+        },
+    )
+    return int(ExitCode.SUCCESS)
 
 
 _ARTEFACT_UNAVAILABLE_FAILURES = {
@@ -1094,6 +1220,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_init(args.case, json_output=args.json_output, quiet=args.quiet)
     if args.command == "validate":
         return _run_validate(args.case, json_output=args.json_output, quiet=args.quiet)
+    if args.command == "register-document":
+        return _run_registration(
+            lambda: register_document(
+                args.case,
+                args.registration_id,
+                args.declared_type,
+                args.source,
+                external_material_root=args.external_material_root,
+            ),
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "register-repository":
+        return _run_registration(
+            lambda: register_repository(
+                args.case,
+                args.registration_id,
+                args.declared_type,
+                args.commit,
+                tuple(args.files),
+                external_material_root=args.external_material_root,
+            ),
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
     if args.command == "rules":
         return _run_rules(json_output=args.json_output, quiet=args.quiet)
     if args.command == "assess":

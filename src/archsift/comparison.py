@@ -20,7 +20,8 @@ from archsift.decision_record import RECORD_SCHEMA_VERSION
 from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
-COMPARISON_SCHEMA_VERSION = 3
+COMPARISON_SCHEMA_VERSION = 4
+_SUPPORTED_RECORD_SCHEMAS = {1, RECORD_SCHEMA_VERSION}
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -433,13 +434,13 @@ def _parse_record(content: bytes, *, role: str) -> JsonObject:
         _validate_json_value(loaded)
         record = _require_object(loaded, "$")
         schema = record.get("record_schema_version")
-        if type(schema) is int and schema != RECORD_SCHEMA_VERSION:
+        if type(schema) is int and schema not in _SUPPORTED_RECORD_SCHEMAS:
             raise _input_error(
                 ComparisonInputFailure.UNSUPPORTED_SCHEMA,
                 role,
                 "$.record_schema_version",
                 f"Decision-record schema version {schema} is not supported.",
-                f"Use record schema version {RECORD_SCHEMA_VERSION} or upgrade ArchSift.",
+                "Use record schema version 1 or 2, or upgrade ArchSift.",
             )
         _validate_record(record)
         canonical = canonical_json_bytes(cast(JsonObject, record))
@@ -679,11 +680,13 @@ def _validate_record(record: dict[str, object]) -> None:
         {"graph_use"} if "graph_use" in record else set()
     )
     _require_keys(record, _RECORD_KEYS | optional, "$")
-    if record["record_schema_version"] != RECORD_SCHEMA_VERSION:
+    record_schema = record["record_schema_version"]
+    if type(record_schema) is not int or record_schema not in _SUPPORTED_RECORD_SCHEMAS:
         raise ValueError("record schema version is missing or unsupported")
     record_identity = _require_identity(record["record_content_identity"], "record identity")
     dossier_schema = record["dossier_schema_version"]
-    if type(dossier_schema) is not int or dossier_schema not in {1, 2}:
+    supported_dossiers = {1, 2} if record_schema == 1 else {1, 2, 3}
+    if type(dossier_schema) is not int or dossier_schema not in supported_dossiers:
         raise ValueError("dossier schema version is unsupported")
     ruleset_version = cast(str, _require_text(record["ruleset_version"], "ruleset version"))
     _require_text(record["tool_version"], "tool version")
@@ -695,7 +698,7 @@ def _validate_record(record: dict[str, object]) -> None:
     if next(_dossier_validator(dossier_schema).iter_errors(schema_view), None) is not None:
         raise ValueError(f"embedded dossier does not satisfy schema version {dossier_schema}")
     evidence = _require_list(dossier.get("evidence"), "$.dossier.evidence")
-    if dossier_schema == 2 and any(
+    if dossier_schema in {2, 3} and any(
         type(entry) is not dict or "authorship" not in entry for entry in evidence
     ):
         raise ValueError("canonical schema-version-2 record evidence lacks effective authorship")
@@ -752,13 +755,26 @@ def _validate_record(record: dict[str, object]) -> None:
     artefact_links = _require_list(record["artefact_links"], "$.artefact_links")
     artefact_keys: set[tuple[str, str]] = set()
     actual_artefact_contract: set[tuple[str, str, str, str]] = set()
+    registration_contracts: dict[str, tuple[object, object, object]] = {}
     for index, raw in enumerate(artefact_links):
         link = _require_object(raw, f"$.artefact_links[{index}]")
-        _require_keys(
-            link,
-            {"artefact_id", "byte_length", "content_identity", "evidence_id", "path", "root"},
-            "artefact link",
-        )
+        link_keys = {
+            "artefact_id",
+            "byte_length",
+            "content_identity",
+            "evidence_id",
+            "path",
+            "root",
+        }
+        if record_schema == 2:
+            link_keys |= {
+                "declared_material_type",
+                "registration_content_identity",
+                "registration_id",
+                "repository_commit",
+                "repository_logical_path",
+            }
+        _require_keys(link, link_keys, "artefact link")
         evidence_id = cast(str, _require_text(link["evidence_id"], "artefact evidence id"))
         artefact_id = cast(str, _require_text(link["artefact_id"], "artefact id"))
         if evidence_id not in evidence_by_id or (evidence_id, artefact_id) in artefact_keys:
@@ -771,6 +787,53 @@ def _validate_record(record: dict[str, object]) -> None:
         if type(link["byte_length"]) is not int or link["byte_length"] < 0:
             raise ValueError("artefact byte length is invalid")
         _require_identity(link["content_identity"], "artefact content identity")
+        if record_schema == 2:
+            registration_id = _require_text(
+                link["registration_id"],
+                "artefact registration ID",
+                nullable=True,
+            )
+            registration_values = (
+                link["registration_content_identity"],
+                link["declared_material_type"],
+                link["repository_commit"],
+                link["repository_logical_path"],
+            )
+            if registration_id is None:
+                if any(value is not None for value in registration_values):
+                    raise ValueError("unregistered artefact has registration provenance")
+            else:
+                _require_identity(
+                    link["registration_content_identity"],
+                    "registration content identity",
+                )
+                _require_text(link["declared_material_type"], "declared material type")
+                commit = _require_text(
+                    link["repository_commit"],
+                    "repository commit",
+                    nullable=True,
+                )
+                if commit is not None and (
+                    len(commit) not in {40, 64}
+                    or any(character not in "0123456789abcdef" for character in commit)
+                ):
+                    raise ValueError("repository commit identity is invalid")
+                _require_text(
+                    link["repository_logical_path"],
+                    "repository logical path",
+                    nullable=True,
+                )
+                registration_contract = (
+                    link["registration_content_identity"],
+                    link["declared_material_type"],
+                    link["repository_commit"],
+                )
+                previous = registration_contracts.setdefault(
+                    registration_id,
+                    registration_contract,
+                )
+                if previous != registration_contract:
+                    raise ValueError("one registration ID has conflicting immutable provenance")
     expected_artefact_contract = {
         (
             identifier,
@@ -783,6 +846,28 @@ def _validate_record(record: dict[str, object]) -> None:
     }
     if actual_artefact_contract != expected_artefact_contract:
         raise ValueError("artefact links do not match the dossier artefact contract")
+    if record_schema == 2:
+        dossier_registrations = {
+            (
+                identifier,
+                cast(str, artefact["id"]),
+                artefact.get("registration_id"),
+                artefact.get("registration_logical_path"),
+            )
+            for identifier, entry in evidence_by_id.items()
+            for artefact in cast(list[dict[str, object]], entry["artefacts"])
+        }
+        record_registrations = {
+            (
+                cast(str, link["evidence_id"]),
+                cast(str, link["artefact_id"]),
+                link["registration_id"],
+                link["repository_logical_path"],
+            )
+            for link in cast(list[dict[str, object]], artefact_links)
+        }
+        if dossier_registrations != record_registrations:
+            raise ValueError("artefact registration provenance does not match the dossier")
 
     gaps = _require_list(record["unresolved_gaps"], "$.unresolved_gaps")
     for index, raw in enumerate(gaps):
@@ -1130,6 +1215,76 @@ def _attestation_eligibility_changes(
     return changed
 
 
+def _registration_snapshot(record: Mapping[str, object]) -> dict[str, JsonObject]:
+    registrations: dict[str, JsonObject] = {}
+    for raw in cast(list[dict[str, object]], record["artefact_links"]):
+        registration_id = raw.get("registration_id")
+        if type(registration_id) is not str:
+            continue
+        snapshot = registrations.setdefault(
+            registration_id,
+            {
+                "declared_material_type": cast(str, raw["declared_material_type"]),
+                "files": [],
+                "registration_content_identity": cast(
+                    str,
+                    raw["registration_content_identity"],
+                ),
+                "repository_commit": cast(JsonValue, raw["repository_commit"]),
+            },
+        )
+        cast(list[JsonValue], snapshot["files"]).append(
+            {
+                "artefact_id": cast(str, raw["artefact_id"]),
+                "byte_length": cast(int, raw["byte_length"]),
+                "content_identity": cast(str, raw["content_identity"]),
+                "evidence_id": cast(str, raw["evidence_id"]),
+                "repository_logical_path": cast(
+                    JsonValue,
+                    raw["repository_logical_path"],
+                ),
+            }
+        )
+    for snapshot in registrations.values():
+        cast(list[JsonValue], snapshot["files"]).sort(
+            key=lambda item: (
+                cast(dict[str, object], item)["evidence_id"],
+                cast(dict[str, object], item)["artefact_id"],
+            )
+        )
+    return registrations
+
+
+def _registration_delta(old: Mapping[str, object], new: Mapping[str, object]) -> JsonObject:
+    old_registrations = _registration_snapshot(old)
+    new_registrations = _registration_snapshot(new)
+    old_ids = set(old_registrations)
+    new_ids = set(new_registrations)
+    changed: list[JsonValue] = []
+    for registration_id in sorted(old_ids & new_ids):
+        old_snapshot = old_registrations[registration_id]
+        new_snapshot = new_registrations[registration_id]
+        if old_snapshot != new_snapshot:
+            changed.append(
+                {
+                    "new_content_identity": cast(
+                        str,
+                        new_snapshot["registration_content_identity"],
+                    ),
+                    "old_content_identity": cast(
+                        str,
+                        old_snapshot["registration_content_identity"],
+                    ),
+                    "registration_id": registration_id,
+                }
+            )
+    return {
+        "added": cast(list[JsonValue], sorted(new_ids - old_ids)),
+        "changed": changed,
+        "removed": cast(list[JsonValue], sorted(old_ids - new_ids)),
+    }
+
+
 def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     """Return the stable canonical comparison payload for two validated records."""
     old_assessment = _assessment(old)
@@ -1195,6 +1350,27 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
         if item["evidence_id"] not in set(causal_attestations)
     )
     changed_graph = _changed_graph(old, new)
+    registration_delta = _registration_delta(old, new)
+    changed_registration_ids = {
+        *cast(list[str], registration_delta["added"]),
+        *cast(list[str], registration_delta["removed"]),
+        *(
+            cast(str, item["registration_id"])
+            for item in cast(list[dict[str, object]], registration_delta["changed"])
+        ),
+    }
+    registration_evidence = {
+        cast(str, link["evidence_id"])
+        for record in (old, new)
+        for link in cast(list[dict[str, object]], record["artefact_links"])
+        if link.get("registration_id") in changed_registration_ids
+    }
+    causal_registrations = (
+        sorted(changed_registration_ids)
+        if verdict_changed and registration_evidence & all_finding_evidence
+        else []
+    )
+    contextual_registrations = sorted(changed_registration_ids - set(causal_registrations))
     graph_entries = _graph_changed_entry_keys(changed_graph)
     graph_findings = cast(dict[str, list[str]], changed_graph["supported_finding_rule_ids"])
     changed_graph_finding_ids = sorted(
@@ -1208,6 +1384,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
         "graph_supported_finding_rule_ids": cast(
             list[JsonValue], changed_graph_finding_ids if verdict_changed else []
         ),
+        "registration_ids": cast(list[JsonValue], causal_registrations),
     }
     snapshot_fields: list[str] = []
     for field in ("artefact_links", "configuration_content_identity", "tool_version"):
@@ -1238,6 +1415,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
         "graph_supported_finding_rule_ids": cast(
             list[JsonValue], [] if verdict_changed else changed_graph_finding_ids
         ),
+        "registration_ids": cast(list[JsonValue], contextual_registrations),
         "snapshot_fields": cast(list[JsonValue], sorted(snapshot_fields)),
     }
 
@@ -1246,6 +1424,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
         "changed_attestations": cast(list[JsonValue], attestation_changes),
         "changed_evidence": evidence_delta,
         "changed_graph": changed_graph,
+        "changed_registrations": registration_delta,
         "changed_rules": changed_rules,
         "changed_verdict_fields": verdict_fields,
         "comparison_schema_version": COMPARISON_SCHEMA_VERSION,

@@ -204,6 +204,10 @@ STRUCTURAL_KEYS: Final[frozenset[str]] = frozenset(
         "record_content_identity",
         "dossier_content_identity",
         "configuration_content_identity",
+        "registration_content_identity",
+        "registration_id",
+        "repository_commit",
+        "repository_logical_path",
         "graph_snapshot_content_identity",
         "case_view_content_identity",
         # versions and tool metadata
@@ -217,6 +221,7 @@ STRUCTURAL_KEYS: Final[frozenset[str]] = frozenset(
         "supported_finding_rule_ids",
         # controlled vocabularies
         "kind",
+        "declared_material_type",
         "status",
         "answer",
         "result",

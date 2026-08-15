@@ -405,6 +405,8 @@ class EvidenceArtefactReference:
     id: str
     root: EvidenceArtefactRoot
     path: str
+    registration_id: str | None = None
+    registration_logical_path: str | None = None
 
 
 class DecisionArea(StrEnum):
@@ -571,6 +573,7 @@ class ValidationResult:
 _SCHEMA_RESOURCES = {
     1: "schemas/dossier-v1.schema.json",
     2: "schemas/dossier-v2.schema.json",
+    3: "schemas/dossier-v3.schema.json",
 }
 _AGENCY_QUESTION_FIELDS = (
     "execution_steps_predefinable",
@@ -1908,6 +1911,11 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                 id=cast(str, raw["id"]),
                 root=EvidenceArtefactRoot(cast(str, raw["root"])),
                 path=cast(str, raw["path"]),
+                registration_id=cast(str | None, raw.get("registration_id")),
+                registration_logical_path=cast(
+                    str | None,
+                    raw.get("registration_logical_path"),
+                ),
             )
             for raw in cast(Sequence[Mapping[str, Any]], entry.get("artefacts", ()))
         )
@@ -2936,7 +2944,7 @@ def validate_workspace(workspace: Path) -> ValidationResult:
                     f"Schema version {declared_version!r} is not supported.",
                     "$.schema_version",
                     "FR-002",
-                    "Use schema_version 1 or 2, or upgrade ArchSift when a newer version is "
+                    "Use schema_version 1, 2, or 3, or upgrade ArchSift when a newer version is "
                     "supported.",
                 ),
             ),

@@ -50,7 +50,7 @@ from archsift.validation import (
     MissingEvidence,
 )
 
-RECORD_SCHEMA_VERSION = 1
+RECORD_SCHEMA_VERSION = 2
 CONFIGURATION_SCHEMA_VERSION = 1
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
@@ -739,6 +739,11 @@ def _artefact_link_dict(value: EvidenceArtefactIdentity) -> JsonObject:
         "path",
         "byte_length",
         "content_identity",
+        "registration_id",
+        "registration_content_identity",
+        "declared_material_type",
+        "repository_commit",
+        "repository_logical_path",
     )
     _checked_dataclass(value, EvidenceArtefactIdentity, expected)
     _require_non_empty_string(value.evidence_id, "Artefact-link evidence_id")
@@ -747,12 +752,51 @@ def _artefact_link_dict(value: EvidenceArtefactIdentity) -> JsonObject:
     if type(value.byte_length) is not int or value.byte_length < 0:
         raise DecisionRecordError("Artefact-link byte_length must be a non-negative integer.")
     _require_content_identity(value.content_identity, "Artefact-link content_identity")
+    registration_values = (
+        value.registration_content_identity,
+        value.declared_material_type,
+    )
+    if value.registration_id is None:
+        provenance = (
+            *registration_values,
+            value.repository_commit,
+            value.repository_logical_path,
+        )
+        if any(item is not None for item in provenance):
+            raise DecisionRecordError(
+                "Unregistered artefact links cannot carry registration provenance."
+            )
+    else:
+        _require_non_empty_string(value.registration_id, "Artefact-link registration_id")
+        _require_content_identity(
+            value.registration_content_identity,
+            "Artefact-link registration_content_identity",
+        )
+        _require_non_empty_string(
+            value.declared_material_type,
+            "Artefact-link declared_material_type",
+        )
+        if value.repository_commit is not None:
+            _require_non_empty_string(
+                value.repository_commit,
+                "Artefact-link repository_commit",
+            )
+        if value.repository_logical_path is not None:
+            _require_non_empty_string(
+                value.repository_logical_path,
+                "Artefact-link repository_logical_path",
+            )
     return {
         "artefact_id": value.artefact_id,
         "byte_length": value.byte_length,
         "content_identity": value.content_identity,
         "evidence_id": value.evidence_id,
         "path": value.path,
+        "declared_material_type": value.declared_material_type,
+        "registration_content_identity": value.registration_content_identity,
+        "registration_id": value.registration_id,
+        "repository_commit": value.repository_commit,
+        "repository_logical_path": value.repository_logical_path,
         "root": _enum_value(
             value.root,
             EvidenceArtefactRoot,
@@ -988,11 +1032,21 @@ def _expected_evidence_links(dossier: Dossier) -> tuple[EvidenceLink, ...]:
 
 def _expected_artefact_contract(
     dossier: Dossier,
-) -> tuple[tuple[str, str, EvidenceArtefactRoot, str], ...]:
+) -> tuple[
+    tuple[str, str, EvidenceArtefactRoot, str, str | None, str | None],
+    ...,
+]:
     contract = tuple(
         sorted(
             (
-                (evidence.id, reference.id, reference.root, reference.path)
+                (
+                    evidence.id,
+                    reference.id,
+                    reference.root,
+                    reference.path,
+                    reference.registration_id,
+                    reference.registration_logical_path,
+                )
                 for evidence in dossier.evidence
                 for reference in evidence.artefacts
             ),
@@ -1018,8 +1072,30 @@ def _validated_artefact_links(
         raise DecisionRecordError(
             "Decision-record artefact links require unique canonical evidence/artefact order."
         )
+    registrations: dict[str, tuple[str | None, str | None, str | None]] = {}
+    for value in typed:
+        if value.registration_id is None:
+            continue
+        registration_contract = (
+            value.registration_content_identity,
+            value.declared_material_type,
+            value.repository_commit,
+        )
+        previous = registrations.setdefault(value.registration_id, registration_contract)
+        if previous != registration_contract:
+            raise DecisionRecordError(
+                "One registration ID cannot carry conflicting immutable provenance."
+            )
     actual = tuple(
-        (value.evidence_id, value.artefact_id, value.root, value.path) for value in typed
+        (
+            value.evidence_id,
+            value.artefact_id,
+            value.root,
+            value.path,
+            value.registration_id,
+            value.repository_logical_path,
+        )
+        for value in typed
     )
     if actual != _expected_artefact_contract(dossier):
         raise DecisionRecordError(
