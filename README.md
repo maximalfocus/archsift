@@ -68,6 +68,8 @@ archsift report my-case/output/sha256-<record-id>.json --format html --level exe
 archsift report my-case/output/sha256-<record-id>.json --format pptx --level executive
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
+archsift graph-corpus
+archsift graph-corpus --json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json --json
 archsift graph-change proposal.json proposed-snapshot.json --json
@@ -90,6 +92,8 @@ Reassessment means running `assess` again after the dossier, evidence artefacts,
 The [architecture knowledge graph snapshot contract](docs/graph-snapshot-v1.md) defines the reusable public knowledge layer: typed nodes and relations with declared semantics, provenance and an epistemic state on every assertion, competing theories kept visibly in conflict rather than merged, and canonical bytes addressed by an immutable graph version and a snapshot content identity. A snapshot never contains case material, a source locator is provenance that is never dereferenced, and no graph-derived measure or inferred edge may determine a verdict. `graph-snapshot` safely validates one canonical published snapshot beneath the current directory, re-verifies both addressing values, and reports its typed node and relation inventory without writing, fetching, or querying anything.
 
 The [graph-change proposal contract](docs/graph-change-v1.md) makes publication and evolution reviewable. `graph-change` checks one public issue, mandatory privacy and open-world attestations, exact immutable base/proposed identities, every stable-ID semantic delta, evidence-source bindings, visible lifecycle or typed-relation rationales, and synthetic proof for behavior changes. It is deterministic, offline, read-only, and never renders authored graph text.
+
+The [initial architecture knowledge publication](docs/architecture-knowledge-v1.md) is a wheel-packaged immutable snapshot with all graph node/relation kinds, all five control classes, all six public method sources, and one exact source-mapped decision-rule node and complete rationale path for every packaged rule. `graph-corpus` reports its identity or emits its exact canonical bytes without assuming an installation path. The corpus is finite and open-world: absence is never evidence of nonexistence, and its public sources inform rather than mandate ArchSift's local design.
 
 `graph-view` combines a validated published snapshot with one explicit, canonical private request naming relevance roots and private finding-to-rule bindings. It returns a deterministic private view with reusable claim traces, visible conflicts, and reusable-knowledge gaps; it never infers applicability, changes a verdict, persists the view, or merges case material into the public snapshot.
 

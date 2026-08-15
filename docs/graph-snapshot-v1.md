@@ -15,6 +15,8 @@ own case.
 constructs an explicit private case view, and `archsift graph-change` enforces
 evidence-backed publication and evolution. See the
 [graph-change proposal contract](graph-change-v1.md).
+The first governed publication and its exact identities are documented in
+[architecture-knowledge-v1.md](architecture-knowledge-v1.md).
 
 ## What a snapshot is
 
@@ -47,6 +49,11 @@ version and the same bytes.
 Each node carries a stable semantic identifier (`id`), a `kind`, a `label`, a
 `statement`, a `lifecycle` state, its `citations`, and — for evidence sources
 only — a `source`.
+
+Semantic identifiers use lowercase alphanumeric segments separated by hyphens
+or dots. Dots preserve established public version-bearing IDs such as
+`nist-ai-rmf-1.0`; mutable labels, statements, provenance, and lifecycle state
+never enter the stable identifier.
 
 | `kind` | Holds |
 |---|---|

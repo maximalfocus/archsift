@@ -9,7 +9,8 @@ offline: no network service, model API, or telemetry is used.
 This guide covers installation, the complete command surface, the case workspace
 and dossier, decision-record outputs (including report rendering and
 sensitive-value masking), comparison and reassessment, and published knowledge-graph
-snapshot validation. The [versioned method specification](method-v1.2.0.md)
+corpus inspection, snapshot validation, and governed evolution. The
+[versioned method specification](method-v1.2.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -215,6 +216,18 @@ Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
 method specification reference.
+
+### `archsift graph-corpus`
+
+Reports the exact identity and typed inventory of the wheel-packaged
+[initial architecture knowledge publication](architecture-knowledge-v1.md).
+`--json` emits the exact canonical snapshot bytes, suitable for explicit shell
+redirection into a file consumed by `graph-snapshot`, `graph-view`, or paired
+graph-supported assessment. `--quiet` emits nothing. The command validates the
+packaged snapshot and its canonical initial graph-change proposal together
+before use; missing, drifting, or invalid package assets are an internal
+integrity failure. It writes nothing, is offline, and never dereferences source
+locators.
 
 ### `archsift graph-snapshot <snapshot>`
 

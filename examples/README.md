@@ -22,3 +22,14 @@ Assessment writes an immutable JSON record and Markdown review view beneath that
 `output/` directory. Generated records are intentionally ignored; the maintained sources are
 `case.yaml`, `evidence/`, the workspace README, and an empty `output/.gitkeep`. The
 machine-readable [manifest](manifest.json) is the test and CI contract for every example.
+
+The independently authored synthetic
+[`graph-corpus-request.json`](graph-corpus-request.json) demonstrates an
+explicit reusable rationale-to-rule trace and visible competing knowledge using
+the packaged corpus while preserving the fixed-workflow assessment and verdict:
+
+```bash
+archsift graph-corpus --json > architecture-v1.json
+archsift graph-view architecture-v1.json examples/graph-corpus-request.json --json
+archsift assess examples/fixed-workflow --graph-snapshot architecture-v1.json --graph-request examples/graph-corpus-request.json --json
+```
