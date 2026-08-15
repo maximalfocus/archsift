@@ -13,8 +13,8 @@ Only this implementation repository is intended for public source publication. P
 private case dossiers, case evidence, findings, and operational rationale remain outside it. Repository
 visibility does not publish a package, tag, GitHub release, deployment, hosted service, or
 documentation site by itself; those events occur only through an explicit release action. The first
-public release — the version tag, GitHub release, and PyPI package — was published on 2026-08-15, and
-no deployment, hosted service, or documentation site has been published.
+public release — the version tag and GitHub release — was published on 2026-08-15; the PyPI package has
+not been published yet, and no deployment, hosted service, or documentation site has been published.
 
 The independent CLI usability cohort (simulated protocol 2.0.0) has been completed and its
 committed result validates with `criterion-met` (four of four simulated sessions passed; see
@@ -26,15 +26,16 @@ and no claim that human architects passed is made.
 
 ## Install
 
-ArchSift requires a supported CPython version starting with Python 3.11. Install
-from PyPI:
+ArchSift requires a supported CPython version starting with Python 3.11. Once the
+package is published on PyPI, install it with:
 
 ```bash
 python -m pip install archsift
 archsift --version
 ```
 
-For a development checkout, install from source:
+The PyPI package has not been published yet; until then, install from a source
+checkout:
 
 ```bash
 git clone https://github.com/maximalfocus/archsift.git
