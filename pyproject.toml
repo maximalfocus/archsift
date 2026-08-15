@@ -72,6 +72,7 @@ exclude = [
 "docs/method-v1.1.0.md" = "archsift/docs/method-v1.1.0.md"
 "docs/method-v1.2.0.md" = "archsift/docs/method-v1.2.0.md"
 "docs/method-v1.3.0.md" = "archsift/docs/method-v1.3.0.md"
+"docs/method-v1.4.0.md" = "archsift/docs/method-v1.4.0.md"
 "docs/method-review-v1.md" = "archsift/docs/method-review-v1.md"
 "docs/method-review-v2.md" = "archsift/docs/method-review-v2.md"
 "docs/usability-check-v1.md" = "archsift/docs/usability-check-v1.md"

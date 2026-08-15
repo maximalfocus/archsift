@@ -16,7 +16,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.9.0"
+RULESET_VERSION = "1.10.0"
 
 
 class RuleEffect(StrEnum):
@@ -242,56 +242,62 @@ PREREQUISITE_RULES = tuple(
             _rule(
                 "credible-agency-evidence-missing",
                 "FR-006",
-                "Require credible support for every agency-necessity answer.",
-                "An assumption or known gap cannot establish the need for runtime agency.",
+                "Require eligible credible support for every agency-necessity answer.",
+                "An assumption, known gap, or unattested assistant claim cannot establish the "
+                "need for runtime agency.",
             ),
             _rule(
                 "credible-candidate-test-evidence-missing",
                 "FR-008",
-                "Require credible support for every authored candidate test.",
-                "Assumptions and known gaps cannot establish candidate outcome or constraint fit.",
+                "Require eligible credible support for every authored candidate test.",
+                "Assumptions, known gaps, and unattested assistant claims cannot establish "
+                "candidate outcome or constraint fit.",
             ),
             _rule(
                 "credible-comparison-evidence-missing",
                 "FR-008",
-                "Require credible support for every pairwise trade-off dimension.",
-                "Assumptions and known gaps cannot establish a comparative advantage.",
+                "Require eligible credible support for every pairwise trade-off dimension.",
+                "Assumptions, known gaps, and unattested assistant claims cannot establish a "
+                "comparative advantage.",
             ),
             _rule(
                 "credible-autonomy-evidence-missing",
                 "FR-007",
-                "Require credible support for every autonomy-permission answer.",
-                "An assumption or known gap cannot establish an autonomy boundary.",
+                "Require eligible credible support for every autonomy-permission answer.",
+                "An assumption, known gap, or unattested assistant claim cannot establish an "
+                "autonomy boundary.",
             ),
             _rule(
                 "credible-baseline-missing",
                 "FR-005",
-                "Require a credible baseline for every binding outcome.",
-                "An observed or method-backed baseline is required before comparison.",
+                "Require an eligible credible baseline for every binding outcome.",
+                "An eligible observed or method-backed baseline is required before comparison.",
             ),
             _rule(
                 "credible-hard-veto-evidence-missing",
                 "FR-007",
-                "Require credible support for every hard veto.",
+                "Require eligible credible support for every hard veto.",
                 "A hard boundary must remain explicit and evidence-backed rather than scored.",
             ),
             _rule(
                 "credible-human-control-evidence-missing",
                 "FR-007",
-                "Require credible support for every mandatory human control.",
+                "Require eligible credible support for every mandatory human control.",
                 "A mandatory control must remain explicit and evidence-backed.",
             ),
             _rule(
                 "credible-residual-case-evidence-missing",
                 "FR-006",
-                "Require credible support for every fixed-workflow residual case.",
-                "Unsupported residual cases cannot justify greater runtime freedom.",
+                "Require eligible credible support for every fixed-workflow residual case.",
+                "Unsupported or unattested assistant residual cases cannot justify greater "
+                "runtime freedom.",
             ),
             _rule(
                 "credible-strongest-simpler-evidence-missing",
                 "FR-008",
-                "Require credible support for the authored strongest-simpler boundary.",
-                "An assumption or known gap cannot justify the selected simpler alternative.",
+                "Require eligible credible support for the authored strongest-simpler boundary.",
+                "An assumption, known gap, or unattested assistant claim cannot justify the "
+                "selected simpler alternative.",
             ),
             _rule(
                 "fixed-workflow-residual-contradiction",
@@ -564,10 +570,11 @@ DECISION_RULES = tuple(
             _decision_rule(
                 "credible-authority-evidence-missing",
                 RuleEffect.REQUIRE_EVIDENCE,
-                "Require observed or method-backed evidence for candidate authority scope.",
+                "Require eligible observed or method-backed evidence for candidate authority "
+                "scope.",
                 "The automation candidate remains undetermined.",
-                "An assumption or known gap cannot establish which consequential actions an "
-                "architecture controls.",
+                "An assumption, known gap, or unattested assistant claim cannot establish which "
+                "consequential actions an architecture controls.",
                 requirement="FR-007/FR-009",
             ),
             _decision_rule(

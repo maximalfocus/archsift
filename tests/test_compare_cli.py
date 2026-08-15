@@ -117,7 +117,7 @@ def test_compare_identical_records_has_empty_stable_changes(
         "removed": [],
     }
     assert comparison["changed_verdict_fields"] == []
-    assert comparison["comparison_schema_version"] == 2
+    assert comparison["comparison_schema_version"] == 3
     assert comparison["changed_graph"] == {
         "finding_relevant_nodes": {"added": [], "changed": [], "removed": []},
         "finding_relevant_relations": {"added": [], "changed": [], "removed": []},
@@ -134,12 +134,14 @@ def test_compare_identical_records_has_empty_stable_changes(
         "supported_finding_rule_ids": {"added": [], "removed": []},
     }
     assert comparison["causes"] == {
+        "attestation_evidence_ids": [],
         "evidence_ids": [],
         "finding_changes": 0,
         "graph_entries": [],
         "graph_supported_finding_rule_ids": [],
     }
     assert comparison["context"] == {
+        "attestation_evidence_ids": [],
         "evidence_ids": [],
         "finding_changes": 0,
         "graph_entries": [],
@@ -455,6 +457,7 @@ def test_reordered_but_identical_evidence_is_context_not_a_cause(
 
     assert comparison["changed_evidence"]["changed"] == []
     assert comparison["causes"] == {
+        "attestation_evidence_ids": [],
         "evidence_ids": [],
         "finding_changes": 0,
         "graph_entries": [],

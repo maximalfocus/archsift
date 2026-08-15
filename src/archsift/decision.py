@@ -28,10 +28,9 @@ from archsift.validation import (
     DecisionCondition,
     DecisionConditionStatus,
     Dossier,
-    EstimateEvidence,
     Evidence,
     HardVetoStatus,
-    ObservedEvidence,
+    is_credible_support,
 )
 
 MAX_COMPARISON_MATERIALITY_EVALUATIONS = 81
@@ -231,8 +230,7 @@ def _has_credible_evidence(
     evidence_by_id: dict[str, Evidence], evidence_ids: tuple[str, ...]
 ) -> bool:
     return any(
-        (isinstance(entry, ObservedEvidence) and bool(entry.provenance.strip()))
-        or (isinstance(entry, EstimateEvidence) and bool(entry.method.strip()))
+        is_credible_support(entry)
         for identifier in evidence_ids
         if (entry := evidence_by_id.get(identifier)) is not None
     )

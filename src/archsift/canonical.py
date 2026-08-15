@@ -1,4 +1,4 @@
-"""Canonical schema-v1 dossier serialization and content identities."""
+"""Canonical versioned dossier serialization and content identities."""
 
 from __future__ import annotations
 
@@ -41,6 +41,8 @@ from archsift.validation import (
     Evidence,
     EvidenceArtefactReference,
     EvidenceArtefactRoot,
+    EvidenceAuthor,
+    EvidenceAuthorship,
     EvidencedStatement,
     EvidenceKind,
     HardVeto,
@@ -806,8 +808,26 @@ def _evidence_artefact(value: EvidenceArtefactReference) -> JsonObject:
     )
 
 
-def canonical_evidence_dict(entry: Evidence) -> JsonObject:
-    """Return one complete schema-v1 evidence entry as canonical JSON data."""
+def _evidence_authorship(value: EvidenceAuthorship) -> JsonObject:
+    return _checked_object(
+        value,
+        EvidenceAuthorship,
+        ("authored_by", "attested_by_accountable_person"),
+        {
+            "authored_by": _enum_value(
+                value.authored_by,
+                EvidenceAuthor,
+                ("accountable-person", "assistant"),
+            ),
+            "attested_by_accountable_person": value.attested_by_accountable_person,
+        },
+    )
+
+
+def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> JsonObject:
+    """Return one complete versioned evidence entry as canonical JSON data."""
+    if schema_version not in {1, 2}:
+        raise CanonicalizationError("Unsupported evidence schema version for canonicalization.")
     _check_typed_value(entry, Evidence)
     common: JsonObject = {
         "id": entry.id,
@@ -828,6 +848,9 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         ],
         "artefacts": [_evidence_artefact(artefact) for artefact in entry.artefacts],
     }
+    if schema_version == 2:
+        common["authorship"] = _evidence_authorship(entry.authorship)
+    omitted = ("authorship",) if schema_version == 1 else ()
     evidence_kind_values = ("observed", "assumption", "estimate", "missing")
     if type(entry) is ObservedEvidence:
         observed = entry
@@ -842,9 +865,19 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             observed,
             ObservedEvidence,
-            ("id", "claim", "owner", "affects", "provenance", "observed_at", "artefacts"),
+            (
+                "id",
+                "claim",
+                "owner",
+                "affects",
+                "authorship",
+                "provenance",
+                "observed_at",
+                "artefacts",
+            ),
             values,
             extra_keys=("kind",),
+            omitted_keys=omitted,
         )
     if type(entry) is AssumptionEvidence:
         assumption = entry
@@ -856,9 +889,10 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             assumption,
             AssumptionEvidence,
-            ("id", "claim", "owner", "affects", "falsified_by", "artefacts"),
+            ("id", "claim", "owner", "affects", "authorship", "falsified_by", "artefacts"),
             values,
             extra_keys=("kind",),
+            omitted_keys=omitted,
         )
     if type(entry) is EstimateEvidence:
         estimate = entry
@@ -870,9 +904,10 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             estimate,
             EstimateEvidence,
-            ("id", "claim", "owner", "affects", "method", "artefacts"),
+            ("id", "claim", "owner", "affects", "authorship", "method", "artefacts"),
             values,
             extra_keys=("kind",),
+            omitted_keys=omitted,
         )
     if type(entry) is MissingEvidence:
         missing = entry
@@ -884,21 +919,22 @@ def canonical_evidence_dict(entry: Evidence) -> JsonObject:
         return _checked_object(
             missing,
             MissingEvidence,
-            ("id", "claim", "owner", "affects", "resolved_by", "artefacts"),
+            ("id", "claim", "owner", "affects", "authorship", "resolved_by", "artefacts"),
             values,
             extra_keys=("kind",),
+            omitted_keys=omitted,
         )
     raise CanonicalizationError("Unsupported evidence subtype for canonicalization.")
 
 
-def canonical_evidence_bytes(entry: Evidence) -> bytes:
+def canonical_evidence_bytes(entry: Evidence, *, schema_version: int = 1) -> bytes:
     """Return canonical UTF-8 JSON bytes for one evidence-ledger entry."""
-    return canonical_json_bytes(canonical_evidence_dict(entry))
+    return canonical_json_bytes(canonical_evidence_dict(entry, schema_version=schema_version))
 
 
-def evidence_content_identity(entry: Evidence) -> str:
+def evidence_content_identity(entry: Evidence, *, schema_version: int = 1) -> str:
     """Return the SHA-256 identity of one canonical evidence entry."""
-    return _content_identity(canonical_evidence_bytes(entry))
+    return _content_identity(canonical_evidence_bytes(entry, schema_version=schema_version))
 
 
 def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
@@ -909,14 +945,16 @@ def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
     for entry in ordered:
         if entry.id in identities:
             raise CanonicalizationError("Duplicate evidence IDs cannot be canonicalized.")
-        identities[entry.id] = evidence_content_identity(entry)
+        identities[entry.id] = evidence_content_identity(
+            entry, schema_version=dossier.schema_version
+        )
     return identities
 
 
 def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
-    """Return the complete normalized schema-v1 dossier as canonical JSON data."""
+    """Return the complete normalized versioned dossier as canonical JSON data."""
     _check_typed_value(dossier, Dossier)
-    if dossier.schema_version != 1:
+    if dossier.schema_version not in {1, 2}:
         raise CanonicalizationError("Unsupported dossier schema version for canonicalization.")
     expected = (
         "schema_version",
@@ -942,7 +980,10 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
             # NFR-010: the declared language is part of the canonical bytes, so
             # a language change addresses a distinct record.
             "language": dossier.language,
-            "evidence": [canonical_evidence_dict(entry) for entry in dossier.evidence],
+            "evidence": [
+                canonical_evidence_dict(entry, schema_version=dossier.schema_version)
+                for entry in dossier.evidence
+            ],
             "task": _task(dossier.task) if dossier.task is not None else None,
             "problem_value": (
                 _problem_value(dossier.problem_value) if dossier.problem_value is not None else None

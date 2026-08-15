@@ -10,7 +10,7 @@ This guide covers installation, the complete command surface, the case workspace
 and dossier, decision-record outputs (including report rendering and
 sensitive-value masking), comparison and reassessment, and published knowledge-graph
 corpus inspection, snapshot validation, and governed evolution. The
-[versioned method specification](method-v1.3.0.md)
+[versioned method specification](method-v1.4.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -193,7 +193,10 @@ findings and rules, changed verdict fields, and unrelated snapshot context.
 A verdict change names only changed evidence cited by a finding in either record
 and the changed findings as causes.
 
-Comparison schema version 2 always includes `changed_graph`. It states graph-use
+Comparison schema version 3 includes `changed_attestations` and classifies changed attestation
+evidence IDs under `causes` when the change alters evidence eligibility, findings, or verdict
+fields; unrelated attestation edits remain under `context`. It also always includes
+`changed_graph`. The graph delta states graph-use
 presence in both records; exact old/new graph schema, immutable graph version,
 snapshot content identity, and private-view content identity; added or removed
 supported finding rule IDs; and added, removed, or content-changed reusable
@@ -372,6 +375,24 @@ Every material claim is recorded in the evidence ledger as one of four kinds:
 Each evidence entry has a stable ID, an owner, the decision questions it
 affects, and optional artefact references. Duplicate IDs and missing references
 fail validation.
+
+Dossier schema version 2 also permits a complete `authorship` object on every evidence entry:
+
+```yaml
+authorship:
+  authored_by: assistant
+  attested_by_accountable_person: false
+```
+
+`authored_by` is exactly `accountable-person` or `assistant`; the attestation is a boolean and can
+only be established by that structured field. Omitting the whole object is exactly equivalent to
+accountable-person authorship with attestation, including canonical identity. Partial objects and
+unknown values fail closed. An assistant-authored `observed` or `estimate` entry is ineligible
+wherever credible evidence is required until `attested_by_accountable_person` is true; this can
+force `insufficient-evidence` and its findings retain the exact evidence IDs and field or criterion.
+Assistant-authored `assumption` and `missing` entries need no attestation because they name
+uncertainty rather than establish a fact. Attestation records accountability only and does not
+prove identity, claim truth, provenance quality, method quality, or source adequacy.
 
 ### The declared case language
 

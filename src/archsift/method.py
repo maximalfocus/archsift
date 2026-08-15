@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-METHOD_VERSION = "1.3.0"
-METHOD_RULESET_VERSION = "1.9.0"
-METHOD_SPECIFICATION = "docs/method-v1.3.0.md"
+METHOD_VERSION = "1.4.0"
+METHOD_RULESET_VERSION = "1.10.0"
+METHOD_SPECIFICATION = "docs/method-v1.4.0.md"
 
 
 @dataclass(frozen=True, slots=True)
