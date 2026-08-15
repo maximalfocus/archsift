@@ -14,6 +14,13 @@ from typing import Any, cast
 import pytest
 
 from archsift.canonical import canonical_json_bytes
+from archsift.case_view import (
+    CaseViewError,
+    CaseViewFailure,
+    CaseViewRequest,
+    FindingBinding,
+    construct_case_view,
+)
 from archsift.diagnostics import ExitCode
 from archsift.knowledge_graph import (
     GRAPH_SCHEMA_VERSION,
@@ -649,3 +656,130 @@ print(canonical_snapshot_bytes(build_snapshot(nodes, relations)).hex())
             ).stdout
         )
     assert outputs[0] == outputs[1]
+
+
+def test_case_view_traces_reusable_claims_to_private_findings_and_surfaces_conflict() -> None:
+    snapshot = _snapshot()
+    request = CaseViewRequest(
+        root_ids=("runtime-agency",),
+        finding_ids=("finding-agency",),
+        bindings=(FindingBinding("finding-agency", "agency-necessity-rule"),),
+    )
+
+    view = construct_case_view(snapshot, request)
+
+    assert view.content["graph_version"] == snapshot.graph_version
+    traces = cast(list[dict[str, Any]], view.content["reusable_claim_traces"])
+    trace = next(item for item in traces if item["claim_id"] == "agency-needs-unpredictable-steps")
+    assert trace["case_finding_ids"] == ["finding-agency"]
+    assert trace["citations"] == [{"source_id": "source-primary", "stance": "supports"}]
+    assert "counterexample-challenges-theory" in cast(
+        list[str], view.content["conflict_relation_ids"]
+    )
+    assert "fixed-workflow-sufficed" in cast(
+        list[str], view.content["reusable_knowledge_gap_claim_ids"]
+    )
+
+
+def test_case_view_is_order_independent_and_does_not_mutate_the_snapshot() -> None:
+    snapshot = _snapshot()
+    first = CaseViewRequest(
+        root_ids=("agentic-control", "runtime-agency"),
+        finding_ids=("finding-agency",),
+        bindings=(FindingBinding("finding-agency", "agency-necessity-rule"),),
+    )
+    second = replace(first, root_ids=tuple(reversed(first.root_ids)))
+    before = canonical_snapshot_bytes(snapshot)
+
+    assert construct_case_view(snapshot, first) == construct_case_view(snapshot, second)
+    assert canonical_snapshot_bytes(snapshot) == before
+
+
+def test_case_view_refuses_unknown_and_non_rule_bindings() -> None:
+    snapshot = _snapshot()
+    with pytest.raises(CaseViewError, match="not in the published snapshot"):
+        construct_case_view(snapshot, CaseViewRequest(("absent",), (), ()))
+    with pytest.raises(CaseViewError, match="not a decision rule"):
+        construct_case_view(
+            snapshot,
+            CaseViewRequest(
+                ("runtime-agency",),
+                ("finding",),
+                (FindingBinding("finding", "runtime-agency"),),
+            ),
+        )
+
+
+def test_case_view_refuses_unknown_duplicate_and_contradictory_bindings() -> None:
+    snapshot = _snapshot()
+
+    requests = (
+        (
+            CaseViewRequest(
+                ("runtime-agency",),
+                ("finding",),
+                (FindingBinding("absent", "agency-necessity-rule"),),
+            ),
+            CaseViewFailure.UNKNOWN_FINDING,
+        ),
+        (
+            CaseViewRequest(
+                ("runtime-agency",),
+                ("finding",),
+                (FindingBinding("finding", "absent-rule"),),
+            ),
+            CaseViewFailure.UNKNOWN_RULE,
+        ),
+        (
+            CaseViewRequest(
+                ("runtime-agency",),
+                ("finding",),
+                (
+                    FindingBinding("finding", "agency-necessity-rule"),
+                    FindingBinding("finding", "agency-necessity-rule"),
+                ),
+            ),
+            CaseViewFailure.DUPLICATE_BINDING,
+        ),
+    )
+    for request, category in requests:
+        with pytest.raises(CaseViewError) as failure:
+            construct_case_view(snapshot, request)
+        assert failure.value.category is category
+        assert failure.value.field.startswith("$")
+        assert failure.value.remediation
+
+    nodes, relations = _knowledge()
+    original_rule = next(node for node in nodes if node.id == "agency-necessity-rule")
+    snapshot_with_second_rule = build_snapshot(
+        [*nodes, replace(original_rule, id="alternative-rule", label="Alternative rule")],
+        relations,
+    )
+    contradictory = CaseViewRequest(
+        ("runtime-agency",),
+        ("finding",),
+        (
+            FindingBinding("finding", "agency-necessity-rule"),
+            FindingBinding("finding", "alternative-rule"),
+        ),
+    )
+
+    with pytest.raises(CaseViewError) as failure:
+        construct_case_view(snapshot_with_second_rule, contradictory)
+
+    assert failure.value.category is CaseViewFailure.CONTRADICTORY_BINDING
+    assert failure.value.remediation
+
+
+def test_reusable_knowledge_gaps_do_not_change_supplied_case_findings() -> None:
+    view = construct_case_view(
+        _snapshot(),
+        CaseViewRequest(
+            root_ids=("fixed-workflow-sufficed",),
+            finding_ids=("finding-agency",),
+            bindings=(FindingBinding("finding-agency", "agency-necessity-rule"),),
+        ),
+    )
+
+    assert view.content["case_finding_ids"] == ["finding-agency"]
+    assert cast(list[str], view.content["reusable_knowledge_gap_claim_ids"])
