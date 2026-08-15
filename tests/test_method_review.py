@@ -911,6 +911,10 @@ def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
     assert "simulated review cohort has been run" in protocol_words
     assert "criterion-not-met" in protocol_words
     assert "no claim that a human architect passed" in protocol_words
+    assert "no agentic candidate is represented" in protocol_words
+    assert "agentic-agency-fact-non-decisive" in protocol_words
+    assert "autonomy-boundary-non-decisive" in protocol_words
+    assert "explicitly-non-decisive" in protocol_words
     assert "archsift method-review-results method-review-results.json" in protocol
     assert "docs/method-review-v2.md" in readme
     assert "method-review-results.json" in readme

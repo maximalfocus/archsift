@@ -1598,3 +1598,59 @@ def test_assessment_is_immutable_and_independent_of_authored_candidate_order() -
     assert "percentage" not in serialized
     with pytest.raises(FrozenInstanceError):
         first.verdict = ArchitectureVerdict.CONDITIONAL  # type: ignore[misc]
+
+
+def test_dossier_level_non_decisive_agency_findings_when_no_agentic_candidate() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("redesign", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="redesign",
+        strongest_id="human",
+    )
+    result = evaluate_assessment(dossier)
+    findings = result.ordered_elimination_evaluation.findings
+    non_decisive = [f for f in findings if f.rule_id == "agentic-agency-fact-non-decisive"]
+    assert non_decisive
+    assert all(f.candidate_id is None and f.control_class is None for f in non_decisive)
+    assert all(f.criterion_kind is CriterionKind.AGENCY_QUESTION for f in non_decisive)
+    assert all(f.effect is RuleEffect.NON_DECISIVE for f in non_decisive)
+    assert result.verdict in {
+        ArchitectureVerdict.NO_TECHNOLOGY_CHANGE,
+        ArchitectureVerdict.SUPPORTED,
+        ArchitectureVerdict.CONDITIONAL,
+    }
+
+
+def test_dossier_level_non_decisive_autonomy_findings_when_no_automation_candidate() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("redesign", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="redesign",
+        strongest_id="human",
+    )
+    result = evaluate_assessment(dossier)
+    findings = result.ordered_elimination_evaluation.findings
+    non_decisive = [f for f in findings if f.rule_id == "autonomy-boundary-non-decisive"]
+    assert non_decisive
+    assert all(f.candidate_id is None and f.control_class is None for f in non_decisive)
+    assert any(f.criterion_kind is CriterionKind.HARD_VETO for f in non_decisive)
+    assert any(f.criterion_kind is CriterionKind.HUMAN_CONTROL for f in non_decisive)
+
+
+def test_no_dossier_level_findings_when_agentic_candidate_represented() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("agentic", ControlClass.AGENTIC_CONTROL, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="agentic",
+        strongest_id="human",
+    )
+    result = evaluate_assessment(dossier)
+    findings = result.ordered_elimination_evaluation.findings
+    assert not any(
+        f.rule_id in {"agentic-agency-fact-non-decisive", "autonomy-boundary-non-decisive"}
+        and f.candidate_id is None
+        for f in findings
+    )

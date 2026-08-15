@@ -131,6 +131,13 @@ For each decision area:
 or explicitly non-decisive rule, record `display-only`; do not infer an unstated method rule. An
 example passes only when all four areas are `causal` or `explicitly-non-decisive`.
 
+When no agentic candidate is represented, the packaged non-decisive agency rule
+(`agentic-agency-fact-non-decisive`) explains that the agency facts do not alter any disposition;
+the assessment emits it as a dossier-level finding. When no automation candidate is represented,
+the packaged non-decisive boundary rule (`autonomy-boundary-non-decisive`) likewise explains the
+autonomy facts. In those cases the area may be classified `explicitly-non-decisive` citing the
+non-decisive rule alone; a decision-affecting rule may not be cited in the same trace.
+
 This review checks the transparency and completeness of the declared judgement trace. It does not
 re-decide the example, prescribe an expected architecture, establish that authored evidence is
 externally true, or certify operational, regulatory, safety, or security adequacy.
