@@ -10,8 +10,9 @@ from enum import StrEnum
 from pathlib import Path
 from typing import BinaryIO
 
-from archsift.decision_record import DecisionRecord, canonical_decision_record_bytes
+from archsift.decision_record import DecisionRecord
 from archsift.markdown_report import render_markdown_decision_report
+from archsift.masking import masked_canonical_decision_record_bytes
 
 _CHUNK_SIZE = 1024 * 1024
 
@@ -372,12 +373,12 @@ def persist_decision_record(
     content: bytes,
 ) -> PersistedDecisionRecord:
     """Create or byte-identically reuse one derived in-workspace JSON record."""
-    expected = canonical_decision_record_bytes(record)
+    expected = masked_canonical_decision_record_bytes(record)
     if type(content) is not bytes or content != expected:
         raise _error(
             RecordPersistenceFailure.INTEGRITY_CONFLICT,
             requirement="FR-011",
-            message="Persistence content does not match the canonical decision record.",
+            message="Persistence content does not match the masked decision record.",
             remediation="Persist only bytes produced from the same validated record.",
         )
     return _persist_content(_resolve_output_root(workspace), _target_name(record), content)[0]
@@ -390,13 +391,13 @@ def persist_decision_outputs(
     markdown_content: bytes,
 ) -> PersistedDecisionOutputs:
     """Safely create or reuse the JSON record and its Markdown review view as one pair."""
-    expected_json = canonical_decision_record_bytes(record)
+    expected_json = masked_canonical_decision_record_bytes(record)
     expected_markdown = render_markdown_decision_report(record)
     if type(json_content) is not bytes or json_content != expected_json:
         raise _error(
             RecordPersistenceFailure.INTEGRITY_CONFLICT,
             requirement="FR-011",
-            message="Persistence content does not match the canonical decision record.",
+            message="Persistence content does not match the masked decision record.",
             remediation="Persist only bytes produced from the same validated record.",
         )
     if type(markdown_content) is not bytes or markdown_content != expected_markdown:

@@ -6,8 +6,9 @@ from pathlib import Path
 import pytest
 
 import archsift.persistence as persistence
-from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
+from archsift.decision_record import compose_decision_record
 from archsift.markdown_report import render_markdown_decision_report
+from archsift.masking import masked_canonical_decision_record_bytes
 from archsift.persistence import (
     RecordPersistenceError,
     RecordPersistenceFailure,
@@ -37,7 +38,7 @@ def _target(workspace: Path, identity: str, extension: str = "json") -> Path:
 def test_first_write_and_byte_identical_reuse_are_immutable(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
 
     created = persist_decision_record(workspace, record, content)
     target = workspace / created.relative_path
@@ -60,7 +61,7 @@ def test_paired_outputs_first_write_and_byte_identical_reuse_are_immutable(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    json_content = canonical_decision_record_bytes(record)
+    json_content = masked_canonical_decision_record_bytes(record)
     markdown_content = render_markdown_decision_report(record)
 
     created = persist_decision_outputs(workspace, record, json_content, markdown_content)
@@ -84,7 +85,7 @@ def test_paired_outputs_add_missing_markdown_without_rewriting_landed_json(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    json_content = canonical_decision_record_bytes(record)
+    json_content = masked_canonical_decision_record_bytes(record)
     markdown_content = render_markdown_decision_report(record)
     persisted_json = persist_decision_record(workspace, record, json_content)
     json_target = workspace / persisted_json.relative_path
@@ -110,7 +111,7 @@ def test_paired_preflight_conflict_creates_neither_missing_output(tmp_path: Path
         persist_decision_outputs(
             workspace,
             record,
-            canonical_decision_record_bytes(record),
+            masked_canonical_decision_record_bytes(record),
             render_markdown_decision_report(record),
         )
 
@@ -140,7 +141,7 @@ def test_paired_write_failure_removes_outputs_created_by_the_attempt(
         persist_decision_outputs(
             workspace,
             record,
-            canonical_decision_record_bytes(record),
+            masked_canonical_decision_record_bytes(record),
             render_markdown_decision_report(record),
         )
 
@@ -155,7 +156,7 @@ def test_paired_post_write_verification_failure_cleans_pair_and_stays_retryable(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    json_content = canonical_decision_record_bytes(record)
+    json_content = masked_canonical_decision_record_bytes(record)
     markdown_content = render_markdown_decision_report(record)
     json_target = _target(workspace, record.record_content_identity)
     markdown_target = _target(workspace, record.record_content_identity, "md")
@@ -192,7 +193,7 @@ def test_pair_rollback_preserves_a_concurrent_replacement(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    json_content = canonical_decision_record_bytes(record)
+    json_content = masked_canonical_decision_record_bytes(record)
     markdown_content = render_markdown_decision_report(record)
     json_target = _target(workspace, record.record_content_identity)
     markdown_target = _target(workspace, record.record_content_identity, "md")
@@ -221,7 +222,7 @@ def test_pair_rollback_preserves_a_concurrent_replacement(
 def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     target.write_bytes(b"different")
 
@@ -235,7 +236,7 @@ def test_non_identical_content_address_collision_is_never_overwritten(tmp_path: 
 def test_target_with_trailing_bytes_is_an_exact_byte_conflict(tmp_path: Path) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     target.write_bytes(content + b"trailing")
 
@@ -252,7 +253,7 @@ def test_same_byte_replacement_between_stat_and_open_is_never_reused(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     target.write_bytes(content)
     original_open = Path.open
@@ -281,7 +282,7 @@ def test_outside_symlink_swap_between_check_and_open_is_never_reused(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     target.write_bytes(content)
     outside = tmp_path / "outside-record.json"
@@ -312,7 +313,7 @@ def test_replacement_during_reading_is_never_reused(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     replacement = b"concurrent replacement bytes"
     target.write_bytes(content)
@@ -361,7 +362,7 @@ def test_non_regular_derived_target_is_refused_without_opening_it(tmp_path: Path
     target.mkdir()
 
     with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, canonical_decision_record_bytes(record))
+        persist_decision_record(workspace, record, masked_canonical_decision_record_bytes(record))
 
     assert captured.value.category is RecordPersistenceFailure.TARGET_UNSAFE
     assert target.is_dir()
@@ -387,7 +388,7 @@ def test_output_root_must_be_an_existing_directory(tmp_path: Path, shape: str) -
     record = _record()
 
     with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, canonical_decision_record_bytes(record))
+        persist_decision_record(workspace, record, masked_canonical_decision_record_bytes(record))
 
     assert captured.value.category is RecordPersistenceFailure.OUTPUT_ROOT_UNSAFE
 
@@ -400,7 +401,7 @@ def test_output_root_and_existing_target_symlink_escapes_fail_closed(tmp_path: P
     escaped_workspace.mkdir()
     (escaped_workspace / "output").symlink_to(outside, target_is_directory=True)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
 
     with pytest.raises(RecordPersistenceError) as root_error:
         persist_decision_record(escaped_workspace, record, content)
@@ -422,7 +423,7 @@ def test_write_failure_removes_partial_final_target(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     original_open = Path.open
 
@@ -468,7 +469,7 @@ def test_partial_write_cleanup_preserves_a_concurrent_replacement(
 ) -> None:
     workspace = _workspace(tmp_path)
     record = _record()
-    content = canonical_decision_record_bytes(record)
+    content = masked_canonical_decision_record_bytes(record)
     target = _target(workspace, record.record_content_identity)
     replacement = b"concurrent replacement bytes"
     original_open = Path.open
@@ -519,7 +520,7 @@ def test_errors_are_stable_and_do_not_leak_host_paths(tmp_path: Path) -> None:
     record = _record()
 
     with pytest.raises(RecordPersistenceError) as captured:
-        persist_decision_record(workspace, record, canonical_decision_record_bytes(record))
+        persist_decision_record(workspace, record, masked_canonical_decision_record_bytes(record))
 
     payload = captured.value.to_dict()
     assert payload["field"] == "$.output"

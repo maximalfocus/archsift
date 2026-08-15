@@ -10,10 +10,11 @@ from typing import Any, Final, cast
 from archsift import artefacts as a
 from archsift import decision as d
 from archsift import decision_record as dr
+from archsift import masking as mk
 from archsift import rules as r
 from archsift import validation as v
 
-REPORT_FORMAT_VERSION: Final = 1
+REPORT_FORMAT_VERSION: Final = 2
 
 # Fixed code-point ranges avoid Unicode-database drift across supported Python versions.
 _NON_PRINTING_RANGES: Final = (
@@ -403,7 +404,7 @@ def _visible_text(value: str) -> str:
     return "".join(rendered)
 
 
-def _scalar_text(value: object) -> str:
+def _scalar_text(value: object, *, maskable: bool) -> str:
     if value is None:
         return "(not provided)"
     if type(value) is bool:
@@ -411,7 +412,13 @@ def _scalar_text(value: object) -> str:
     if type(value) is int:
         return str(value)
     if type(value) is str:
-        return _visible_text(value)
+        # NFR-009: every authored string selected for output is masked before
+        # the injection-safe escape, so the review view never emits a matched
+        # sensitive value even when the underlying record keeps it. Structural
+        # fields (identifiers, paths, identities, versions, controlled
+        # vocabularies) are never masked.
+        rendered = mk.mask_sensitive_text(value) if maskable else value
+        return _visible_text(rendered)
     if isinstance(value, Enum):
         enum_type = type(value)
         enum_value = value.value
@@ -430,11 +437,17 @@ def _label(name: str) -> str:
     return name
 
 
-def _emit_scalar(lines: list[str], label: str, value: object) -> None:
-    lines.extend((f"**{_label(label)}**", "", f"    {_scalar_text(value)}", ""))
+def _emit_scalar(lines: list[str], label: str, value: object, *, maskable: bool = True) -> None:
+    lines.extend((f"**{_label(label)}**", "", f"    {_scalar_text(value, maskable=maskable)}", ""))
 
 
-def _emit_value(lines: list[str], label: str, value: object) -> None:
+def _emit_value(
+    lines: list[str],
+    label: str,
+    value: object,
+    *,
+    maskable: bool = True,
+) -> None:
     safe_label = _label(label)
     if type(value) is tuple:
         lines.extend((f"**{safe_label}**", ""))
@@ -442,7 +455,7 @@ def _emit_value(lines: list[str], label: str, value: object) -> None:
             lines.extend(("    (none)", ""))
             return
         for index, item in enumerate(value, start=1):
-            _emit_value(lines, f"{safe_label} item {index}", item)
+            _emit_value(lines, f"{safe_label} item {index}", item, maskable=maskable)
         return
     if is_dataclass(value):
         value_type = type(value)
@@ -452,9 +465,15 @@ def _emit_value(lines: list[str], label: str, value: object) -> None:
         _assert_contract(value, value_type)
         lines.extend((f"**{safe_label}**", ""))
         for field_name in expected:
-            _emit_value(lines, field_name.replace("_", " ").title(), getattr(value, field_name))
+            field_maskable = maskable and field_name not in mk.STRUCTURAL_KEYS
+            _emit_value(
+                lines,
+                field_name.replace("_", " ").title(),
+                getattr(value, field_name),
+                maskable=field_maskable,
+            )
         return
-    _emit_scalar(lines, safe_label, value)
+    _emit_scalar(lines, safe_label, value, maskable=maskable)
 
 
 def _section(lines: list[str], title: str, label: str, value: object) -> None:
@@ -470,15 +489,20 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
 
     lines = ["# ArchSift Decision Report", ""]
     lines.extend(("## Record Metadata", ""))
-    _emit_scalar(lines, "Report Format Version", REPORT_FORMAT_VERSION)
-    _emit_scalar(lines, "Record Schema Version", record.record_schema_version)
-    _emit_scalar(lines, "Record Content Identity", record.record_content_identity)
-    _emit_scalar(lines, "Dossier Schema Version", record.dossier_schema_version)
-    _emit_scalar(lines, "Dossier Content Identity", record.dossier_content_identity)
-    _emit_scalar(lines, "Ruleset Version", record.ruleset_version)
-    _emit_scalar(lines, "Tool Version", record.tool_version)
+    _emit_scalar(lines, "Report Format Version", REPORT_FORMAT_VERSION, maskable=False)
+    _emit_scalar(lines, "Record Schema Version", record.record_schema_version, maskable=False)
+    _emit_scalar(lines, "Record Content Identity", record.record_content_identity, maskable=False)
+    _emit_scalar(lines, "Dossier Schema Version", record.dossier_schema_version, maskable=False)
+    _emit_scalar(lines, "Dossier Content Identity", record.dossier_content_identity, maskable=False)
+    _emit_scalar(lines, "Ruleset Version", record.ruleset_version, maskable=False)
+    _emit_scalar(lines, "Tool Version", record.tool_version, maskable=False)
     _emit_value(lines, "Assessment Configuration", record.configuration)
-    _emit_scalar(lines, "Configuration Content Identity", record.configuration_content_identity)
+    _emit_scalar(
+        lines,
+        "Configuration Content Identity",
+        record.configuration_content_identity,
+        maskable=False,
+    )
 
     _section(lines, "Case Identity", "Case", record.dossier.case)
     _section(lines, "Task Boundary", "Task", record.dossier.task)
@@ -498,11 +522,17 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     )
 
     lines.extend(("## Verdict and Recommendation", ""))
-    _emit_scalar(lines, "Assessment Schema Version", record.assessment.schema_version)
-    _emit_scalar(lines, "Assessment Ruleset Version", record.assessment.ruleset_version)
-    _emit_scalar(lines, "Verdict", record.assessment.verdict)
-    _emit_scalar(lines, "Verdict Rule ID", record.assessment.verdict_rule_id)
-    _emit_scalar(lines, "Qualitative Evidence State", record.assessment.evidence_state)
+    _emit_scalar(
+        lines, "Assessment Schema Version", record.assessment.schema_version, maskable=False
+    )
+    _emit_scalar(
+        lines, "Assessment Ruleset Version", record.assessment.ruleset_version, maskable=False
+    )
+    _emit_scalar(lines, "Verdict", record.assessment.verdict, maskable=False)
+    _emit_scalar(lines, "Verdict Rule ID", record.assessment.verdict_rule_id, maskable=False)
+    _emit_scalar(
+        lines, "Qualitative Evidence State", record.assessment.evidence_state, maskable=False
+    )
     recommendation: object = record.assessment.recommended_class
     if recommendation is None:
         if record.assessment.verdict is d.ArchitectureVerdict.INSUFFICIENT_EVIDENCE:
@@ -511,14 +541,22 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
             recommendation = "(no permissible candidate)"
         else:
             raise MarkdownReportError("A recommending verdict has no recommended class.")
-    _emit_scalar(lines, "Recommendation", recommendation)
-    _emit_value(lines, "Surviving Candidate IDs", record.assessment.surviving_candidate_ids)
+    _emit_scalar(lines, "Recommendation", recommendation, maskable=False)
+    _emit_value(
+        lines,
+        "Surviving Candidate IDs",
+        record.assessment.surviving_candidate_ids,
+        maskable=False,
+    )
     _emit_value(lines, "Unmet Conditions", record.assessment.unmet_conditions)
-    _emit_value(lines, "Active Hard Veto IDs", record.assessment.active_hard_veto_ids)
+    _emit_value(
+        lines, "Active Hard Veto IDs", record.assessment.active_hard_veto_ids, maskable=False
+    )
     _emit_value(
         lines,
         "Mandatory Human Control IDs",
         record.assessment.mandatory_human_control_ids,
+        maskable=False,
     )
 
     lines.extend(("## Assessment Trace", ""))
@@ -538,5 +576,9 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
         "Reassessment Triggers",
         record.reassessment_triggers,
     )
+
+    lines.extend(("## Masking Notice", ""))
+    _emit_scalar(lines, "Policy Version", mk.MASKING_POLICY_VERSION)
+    _emit_scalar(lines, "Warning", mk.MASKING_WARNING)
 
     return ("\n".join(lines).rstrip("\n") + "\n").encode("utf-8")
