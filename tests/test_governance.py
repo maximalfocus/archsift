@@ -12,6 +12,7 @@ CONTRIBUTION_ENTRY_POINTS = (
     ROOT / "CONTRIBUTING.md",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml",
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "graph_change.yml",
     ROOT / ".github" / "pull_request_template.md",
 )
 REQUIRED_BOUNDARY_TERMS = (
@@ -41,6 +42,10 @@ APPROVED_BOUNDARY_PASSAGES = {
         "this report uses an independently authored synthetic reproduction and contains no "
         "actual case material or sanitised, paraphrased, transformed, or source-mapped "
         "derivative;",
+    ),
+    ROOT / ".github" / "ISSUE_TEMPLATE" / "graph_change.yml": (
+        "this proposal uses independently authored synthetic material and contains no actual "
+        "case material or sanitised, paraphrased, transformed, or source-mapped derivative.",
     ),
     ROOT / ".github" / "pull_request_template.md": (
         "evidence is independently authored synthetic material; no actual case material or "
@@ -126,6 +131,12 @@ def test_public_contribution_boundary_rejects_positive_solicitation(
             "bug",
             {"version", "reproduction", "expected", "actual", "environment"},
         ),
+        (
+            "graph_change.yml",
+            "Knowledge graph change",
+            "enhancement",
+            {"problem", "stable_id_impact", "behavior_effect", "synthetic_proof", "non_goals"},
+        ),
     ),
 )
 def test_issue_forms_preserve_required_workflow(
@@ -152,7 +163,7 @@ def test_issue_forms_preserve_required_workflow(
     fields = _fields_by_id(form)
     assert set(fields) == expected_fields
     assert all(field["validations"]["required"] is True for field in fields.values())
-    evidence_field = fields["problem"] if name == "feature_request.yml" else fields["reproduction"]
+    evidence_field = fields["reproduction"] if name == "bug_report.yml" else fields["problem"]
     assert (
         "independently authored synthetic" in evidence_field["attributes"]["description"].casefold()
     )
@@ -164,7 +175,7 @@ def test_issue_template_directory_is_exhaustively_covered() -> None:
     form_files = {
         path.name for path in yaml_files if path.name not in {"config.yml", "config.yaml"}
     }
-    assert form_files == {"bug_report.yml", "feature_request.yml"}
+    assert form_files == {"bug_report.yml", "feature_request.yml", "graph_change.yml"}
     assert {path.name for path in yaml_files if path.name in {"config.yml", "config.yaml"}} == {
         "config.yml"
     }

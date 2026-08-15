@@ -11,8 +11,10 @@ case evidence, a candidate, a task, or a verdict, and the schema has no node or
 relation kind that could hold one. A case dossier remains the authority for its
 own case.
 
-There is no CLI command for the graph yet. The command and query surface is
-defined separately; this version defines only the artifact.
+`archsift graph-snapshot` validates a publication, `archsift graph-view`
+constructs an explicit private case view, and `archsift graph-change` enforces
+evidence-backed publication and evolution. See the
+[graph-change proposal contract](graph-change-v1.md).
 
 ## What a snapshot is
 

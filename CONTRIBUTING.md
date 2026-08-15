@@ -37,6 +37,21 @@ python -m build
 
 Do not commit generated build output, virtual environments, credentials, actual case material or a sanitised, paraphrased, transformed, or source-mapped derivative, or proprietary policy text.
 
+## Knowledge graph changes
+
+Use the graph-change issue form before adding or evolving reusable knowledge.
+The issue must state the domain-neutral reusable failure mode, public evidence,
+every affected stable node/relation ID and rationale, expected behavior effect,
+and independently authored synthetic proof. Never derive graph nodes,
+relations, citations, fixtures, or source mappings from case material.
+
+Commit a canonical graph-change proposal beside the proposed immutable
+snapshot. Validate initial publication with `archsift graph-change <proposal>
+<proposed-snapshot>` and evolution with the exact immutable base supplied as
+`--base-snapshot <base>`. Every delta must be accounted for. A challenge,
+supersession, or deprecation must remain visible in typed graph content;
+open-world absence is never evidence that reusable knowledge does not exist.
+
 ## Scope and conduct
 
 ArchSift may reject a proposed feature when it adds complexity without reusable evidence. A reusable

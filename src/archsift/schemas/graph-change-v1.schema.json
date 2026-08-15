@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/maximalfocus/archsift/schemas/graph-change-v1.schema.json",
+  "title": "ArchSift graph change proposal v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attestations",
+    "base_snapshot",
+    "behavior_change",
+    "change_id",
+    "change_kind",
+    "change_schema_version",
+    "changes",
+    "proposed_snapshot",
+    "public_issue",
+    "regression_test_ids",
+    "synthetic_counterexample_ids"
+  ],
+  "properties": {
+    "attestations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "independently_authored_synthetic_material",
+        "no_case_material_or_derivative",
+        "open_world_absence_is_not_evidence"
+      ],
+      "properties": {
+        "independently_authored_synthetic_material": {"const": true},
+        "no_case_material_or_derivative": {"const": true},
+        "open_world_absence_is_not_evidence": {"const": true}
+      }
+    },
+    "base_snapshot": {"oneOf": [{"$ref": "#/$defs/snapshotReference"}, {"type": "null"}]},
+    "behavior_change": {"type": "boolean"},
+    "change_id": {"type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"},
+    "change_kind": {"enum": ["initial-publication", "evolution"]},
+    "change_schema_version": {"const": 1},
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/entryChange"}
+    },
+    "proposed_snapshot": {"$ref": "#/$defs/snapshotReference"},
+    "public_issue": {
+      "type": "string",
+      "pattern": "^https://github\\.com/maximalfocus/archsift/issues/[1-9][0-9]*$"
+    },
+    "regression_test_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "synthetic_counterexample_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "snapshotReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "graph_schema_version",
+        "graph_snapshot_content_identity",
+        "graph_version"
+      ],
+      "properties": {
+        "graph_schema_version": {"const": 1},
+        "graph_snapshot_content_identity": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "graph_version": {"type": "string", "pattern": "^gv1:[0-9a-f]{64}$"}
+      }
+    },
+    "entryChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["delta", "entry_kind", "evidence_source_ids", "id", "rationale"],
+      "properties": {
+        "delta": {"enum": ["added", "changed", "removed"]},
+        "entry_kind": {"enum": ["node", "relation"]},
+        "evidence_source_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "id": {"type": "string", "minLength": 1},
+        "rationale": {
+          "enum": ["addition", "correction", "challenge", "supersession", "deprecation", "removal"]
+        }
+      }
+    }
+  }
+}
