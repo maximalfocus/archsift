@@ -186,7 +186,8 @@ def test_publication_status_is_explicit_and_conservative() -> None:
     assert "private requirements" in readme
     assert "private case dossiers" in readme
     assert "repository visibility does not publish a package" in readme
-    assert "none of those publication events has occurred" in readme
+    assert "first public release" in readme
+    assert "no deployment, hosted service, or documentation site has been published" in readme
     assert "independent cli usability cohort" in readme
     assert "independent architecture-method review" in readme
     assert "criterion-met" in readme

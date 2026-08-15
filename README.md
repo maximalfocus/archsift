@@ -10,17 +10,19 @@ ArchSift is an open-source, local-first decision-support project for comparing h
 ## Publication and validation status
 
 Only this implementation repository is intended for public source publication. Private requirements,
-private case dossiers, case evidence, findings, and operational rationale remain outside it. The first
-public release — the version tag, GitHub release, and PyPI package — was published on 2026-08-15; no
-deployment, hosted service, or documentation site has been published.
+private case dossiers, case evidence, findings, and operational rationale remain outside it. Repository
+visibility does not publish a package, tag, GitHub release, deployment, hosted service, or
+documentation site by itself; those events occur only through an explicit release action. The first
+public release — the version tag, GitHub release, and PyPI package — was published on 2026-08-15, and
+no deployment, hosted service, or documentation site has been published.
 
 The independent CLI usability cohort (simulated protocol 2.0.0) has been completed and its
 committed result validates with `criterion-met` (four of four simulated sessions passed; see
 [`usability-results.json`](usability-results.json)). The independent architecture-method review
 (simulated protocol 2.0.0) has also been completed; see the protocol and results below. No
-method-validation, certification, production-readiness, or first-release success claim is made, and
-the usability and method-review evidence is simulated: no claim that human target users or human
-architects passed is made.
+method-validation, certification, production-readiness, or first-release success claim is made; the
+usability and method-review evidence is simulated: no claim that human target users passed is made,
+and no claim that human architects passed is made.
 
 ## Install
 
