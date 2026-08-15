@@ -1,7 +1,7 @@
 {
-  "archsift_source_commit": "358d16596b71d5451a0cb7d85ad33a84b2202295",
+  "archsift_source_commit": "da5bbb30a02766d2960d353e30abe7fb980702af",
   "material_set_content_identity": "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee",
-  "overall_result": "met",
+  "overall_result": "not-met",
   "protocol_version": "1.0.1",
   "schema_version": 1,
   "sessions": [
@@ -13,17 +13,17 @@
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": "Assessment returned exit 14 and created no outputs.",
+      "failure_reason": "Initialization returned exit 1.",
       "fresh_session": true,
       "harness_version": "0.147.0",
       "maintainer_intervention": false,
       "milestones": {
         "assess": "fail",
-        "author_dossier": "pass",
-        "complete_prerequisites": "pass",
-        "inspect_schema": "pass",
-        "register_material": "pass",
-        "validate": "pass"
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
       },
       "session_id": "session-01",
       "session_result": "fail"
@@ -36,20 +36,20 @@
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": null,
+      "failure_reason": "Harness prompt was unavailable before task receipt.",
       "fresh_session": true,
       "harness_version": "2.1.233",
       "maintainer_intervention": false,
       "milestones": {
-        "assess": "pass",
-        "author_dossier": "pass",
-        "complete_prerequisites": "pass",
-        "inspect_schema": "pass",
-        "register_material": "pass",
-        "validate": "pass"
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
       },
       "session_id": "session-02",
-      "session_result": "pass"
+      "session_result": "fail"
     },
     {
       "agent_model": "deepseek-v4-flash",
@@ -59,20 +59,20 @@
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": null,
+      "failure_reason": "Harness prompt was unavailable before task receipt.",
       "fresh_session": true,
       "harness_version": "1.18.18",
       "maintainer_intervention": false,
       "milestones": {
-        "assess": "pass",
-        "author_dossier": "pass",
-        "complete_prerequisites": "pass",
-        "inspect_schema": "pass",
-        "register_material": "pass",
-        "validate": "pass"
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
       },
       "session_id": "session-03",
-      "session_result": "pass"
+      "session_result": "fail"
     },
     {
       "agent_model": "deepseek-v4-flash",
@@ -82,20 +82,20 @@
         "operating_system": "macos",
         "python_version": "3.14.7"
       },
-      "failure_reason": null,
+      "failure_reason": "Harness prompt was unavailable before task receipt.",
       "fresh_session": true,
       "harness_version": "0.84.2",
       "maintainer_intervention": false,
       "milestones": {
-        "assess": "pass",
-        "author_dossier": "pass",
-        "complete_prerequisites": "pass",
-        "inspect_schema": "pass",
-        "register_material": "pass",
-        "validate": "pass"
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
       },
       "session_id": "session-04",
-      "session_result": "pass"
+      "session_result": "fail"
     }
   ]
 }
