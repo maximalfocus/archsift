@@ -908,6 +908,9 @@ def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
     assert "protocol 2.0.0" in protocol_words
     assert "exactly four independent simulated review sessions" in protocol_words
     assert "at least three of the four sessions" in protocol_words
-    assert "no simulated review sessions have been run" in protocol_words
+    assert "simulated review cohort has been run" in protocol_words
+    assert "criterion-not-met" in protocol_words
+    assert "no claim that a human architect passed" in protocol_words
     assert "archsift method-review-results method-review-results.json" in protocol
     assert "docs/method-review-v2.md" in readme
+    assert "method-review-results.json" in readme
