@@ -63,6 +63,17 @@ jobs:
           assert payload["status"] == "criterion-not-met"
           assert payload["session_count"] == 4
           assert payload["passed_session_count"] == 1
+          historical = subprocess.run(
+              [sys.executable, "-m", "archsift", "authoring-results",
+               "authoring-results-1-criterion-not-met.json", "--json"],
+              capture_output=True,
+              text=True,
+          )
+          assert historical.returncode == 12, historical.stderr
+          historical_payload = json.loads(historical.stdout)
+          assert historical_payload["status"] == "criterion-not-met"
+          assert historical_payload["session_count"] == 4
+          assert historical_payload["passed_session_count"] == 1
 
       - name: Validate committed simulated method-review cohort result
         shell: python

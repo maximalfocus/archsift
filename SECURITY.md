@@ -40,7 +40,6 @@ authorise an agent product's ordinary model transport outside ArchSift, but brow
 retrieval plugins, network source lookup, private repositories, and continued private context are
 not eligible protocol inputs.
 
-For the first cohort, only the strict bounded `authoring-results.json` metadata was retained.
-Temporary prompts, product streams, event logs, workspaces, generated dossiers, reports, and
-decision records were deleted after mechanical milestone derivation and are not recoverable from
-the repository.
+For the first two cohorts, only the strict bounded result metadata was retained. Temporary prompts,
+product streams, event logs, workspaces, generated dossiers, reports, and decision records were
+deleted after each mechanical milestone derivation and are not recoverable from the repository.
