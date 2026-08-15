@@ -8,7 +8,8 @@ offline: no network service, model API, or telemetry is used.
 
 This guide covers installation, the complete command surface, the case workspace
 and dossier, decision-record outputs (including report rendering and
-sensitive-value masking), and comparison and reassessment. The [versioned method specification](method-v1.2.0.md)
+sensitive-value masking), comparison and reassessment, and published knowledge-graph
+snapshot validation. The [versioned method specification](method-v1.2.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -179,6 +180,28 @@ Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
 method specification reference.
+
+### `archsift graph-snapshot <snapshot>`
+
+Validates one published canonical architecture knowledge-graph snapshot file
+beneath the current directory. The command checks the packaged graph schema,
+typed node and relation semantics, assertion provenance, references, and both
+addressing rules. It recomputes the immutable graph version and snapshot content
+identity from the snapshot's own knowledge and refuses bytes that are not the
+exact canonical serialization of that content.
+
+Human output states the schema version, immutable graph version, snapshot
+content identity, and total node and relation counts. `--json` additionally
+reports counts for every declared node and relation kind. The command is
+read-only and offline: it writes nothing, opens no network connection, and
+treats every source locator as provenance data rather than a path or fetch
+instruction.
+
+Malformed or ambiguous JSON exits `10`; an unsupported graph schema version
+exits `11`; a schema, semantic, provenance, reference, addressing, or canonical
+serialization violation exits `12`. A path outside the current directory, an
+unsafe path, or a non-regular-file target exits `13`; a missing or unreadable
+file exits `14`.
 
 ### `archsift usability-results <results>`
 

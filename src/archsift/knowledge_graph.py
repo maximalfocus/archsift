@@ -43,6 +43,8 @@ construction.
 from __future__ import annotations
 
 import json
+import os
+import stat
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -50,6 +52,7 @@ from enum import StrEnum
 from functools import cache
 from hashlib import sha256
 from importlib.resources import files
+from pathlib import Path
 from typing import Any, Final, cast
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -185,6 +188,17 @@ class SnapshotFailure(StrEnum):
     IDENTITY_MISMATCH = "identity-mismatch"
 
 
+class SnapshotFileFailure(StrEnum):
+    """Stable failure categories at the snapshot file boundary."""
+
+    ROOT_UNAVAILABLE = "root-unavailable"
+    TARGET_MISSING = "target-missing"
+    TARGET_UNRESOLVABLE = "target-unresolvable"
+    TARGET_OUTSIDE_ROOT = "target-outside-root"
+    TARGET_NOT_REGULAR = "target-not-regular"
+    TARGET_UNREADABLE = "target-unreadable"
+
+
 class SnapshotError(ValueError):
     """One safely classified knowledge-graph snapshot failure."""
 
@@ -219,6 +233,42 @@ class SnapshotError(ValueError):
 
 def _error(category: SnapshotFailure, field: str, message: str, remediation: str) -> SnapshotError:
     return SnapshotError(category, field, message, remediation)
+
+
+class SnapshotFileError(ValueError):
+    """One safely classified knowledge-graph snapshot file failure."""
+
+    def __init__(
+        self,
+        category: SnapshotFileFailure,
+        field: str,
+        message: str,
+        remediation: str,
+    ) -> None:
+        self.category = category
+        self.field = field
+        self.message = message
+        self.remediation = remediation
+        super().__init__(message)
+
+    @property
+    def exit_code(self) -> ExitCode:
+        """Map the stable file category to the public CLI contract."""
+        if self.category in {
+            SnapshotFileFailure.TARGET_MISSING,
+            SnapshotFileFailure.TARGET_UNREADABLE,
+        }:
+            return ExitCode.ARTEFACT_UNAVAILABLE
+        return ExitCode.UNSAFE_PATH
+
+
+def _file_error(
+    category: SnapshotFileFailure,
+    field: str,
+    message: str,
+    remediation: str,
+) -> SnapshotFileError:
+    return SnapshotFileError(category, field, message, remediation)
 
 
 @dataclass(frozen=True, slots=True)
@@ -552,7 +602,7 @@ def _reject_duplicate_pairs(pairs: list[tuple[str, object]]) -> dict[str, object
     for key, value in pairs:
         if key in result:
             raise _error(
-                SnapshotFailure.MALFORMED_SNAPSHOT,
+                SnapshotFailure.INVALID_JSON,
                 "$",
                 f"The snapshot repeats the JSON field {key!r}.",
                 "Emit each field once; a repeated field has no unambiguous value.",
@@ -620,7 +670,7 @@ def load_snapshot(content: bytes) -> Snapshot:
         )
     except SnapshotError:
         raise
-    except (json.JSONDecodeError, ValueError) as error:
+    except (json.JSONDecodeError, RecursionError, ValueError) as error:
         raise _error(
             SnapshotFailure.INVALID_JSON,
             "$",
@@ -637,7 +687,7 @@ def load_snapshot(content: bytes) -> Snapshot:
     raw = cast(dict[str, Any], loaded)
 
     declared = raw.get("graph_schema_version")
-    if declared != GRAPH_SCHEMA_VERSION:
+    if type(declared) is int and declared != GRAPH_SCHEMA_VERSION:
         raise _error(
             SnapshotFailure.UNSUPPORTED_SCHEMA,
             "$.graph_schema_version",
@@ -705,6 +755,132 @@ def load_snapshot(content: bytes) -> Snapshot:
             "Publish the exact canonical bytes ArchSift emits for this snapshot.",
         )
     return snapshot
+
+
+def _resolve_snapshot_path(path: Path, *, root: Path) -> Path:
+    try:
+        authorised_root = root.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise _file_error(
+            SnapshotFileFailure.ROOT_UNAVAILABLE,
+            "$",
+            "The snapshot root cannot be resolved to an authorised directory.",
+            "Run graph-snapshot from an existing resolvable directory containing the snapshot.",
+        ) from error
+    if not authorised_root.is_dir():
+        raise _file_error(
+            SnapshotFileFailure.ROOT_UNAVAILABLE,
+            "$",
+            "The snapshot root is not an authorised directory.",
+            "Run graph-snapshot from the directory containing the published snapshot.",
+        )
+    candidate = path if path.is_absolute() else authorised_root / path
+    try:
+        resolved = candidate.resolve(strict=True)
+    except (FileNotFoundError, NotADirectoryError) as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_MISSING,
+            "$",
+            "The knowledge-graph snapshot file does not exist.",
+            "Provide an existing canonical JSON snapshot file beneath the current directory.",
+        ) from error
+    except (OSError, RuntimeError) as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_UNRESOLVABLE,
+            "$",
+            "The knowledge-graph snapshot path cannot be resolved safely.",
+            "Remove unsafe or looping links and provide a resolvable snapshot path.",
+        ) from error
+    if not resolved.is_relative_to(authorised_root):
+        raise _file_error(
+            SnapshotFileFailure.TARGET_OUTSIDE_ROOT,
+            "$",
+            "The knowledge-graph snapshot path resolves outside the authorised root.",
+            "Place the snapshot beneath the current directory and use that contained path.",
+        )
+    try:
+        mode = resolved.stat().st_mode
+    except OSError as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_UNRESOLVABLE,
+            "$",
+            "The knowledge-graph snapshot file cannot be inspected safely.",
+            "Provide a resolvable regular file beneath the current directory.",
+        ) from error
+    if not stat.S_ISREG(mode):
+        raise _file_error(
+            SnapshotFileFailure.TARGET_NOT_REGULAR,
+            "$",
+            "The knowledge-graph snapshot path is not a regular file.",
+            "Provide a regular canonical JSON snapshot file.",
+        )
+    return resolved
+
+
+def _read_snapshot_bytes(path: Path) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except FileNotFoundError as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_MISSING,
+            "$",
+            "The knowledge-graph snapshot disappeared before it could be read.",
+            "Provide an existing stable canonical JSON snapshot file.",
+        ) from error
+    except PermissionError as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_UNREADABLE,
+            "$",
+            "The knowledge-graph snapshot file cannot be read.",
+            "Grant read access or provide another readable canonical snapshot.",
+        ) from error
+    except OSError as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_UNRESOLVABLE,
+            "$",
+            "The knowledge-graph snapshot file cannot be opened safely.",
+            "Remove unsafe links and provide a stable regular file.",
+        ) from error
+    try:
+        with os.fdopen(descriptor, "rb") as stream:
+            opened = os.fstat(stream.fileno())
+            try:
+                surface = path.lstat()
+            except OSError as error:
+                raise _file_error(
+                    SnapshotFileFailure.TARGET_UNRESOLVABLE,
+                    "$",
+                    "The knowledge-graph snapshot path changed while it was being opened.",
+                    "Provide a stable regular canonical JSON snapshot file.",
+                ) from error
+            if (
+                not stat.S_ISREG(opened.st_mode)
+                or not stat.S_ISREG(surface.st_mode)
+                or not os.path.samestat(opened, surface)
+            ):
+                raise _file_error(
+                    SnapshotFileFailure.TARGET_NOT_REGULAR,
+                    "$",
+                    "The opened knowledge-graph snapshot input is not a regular file.",
+                    "Provide a regular canonical JSON snapshot file.",
+                )
+            return stream.read()
+    except SnapshotFileError:
+        raise
+    except OSError as error:
+        raise _file_error(
+            SnapshotFileFailure.TARGET_UNREADABLE,
+            "$",
+            "The knowledge-graph snapshot file cannot be read.",
+            "Grant read access or provide another readable canonical snapshot.",
+        ) from error
+
+
+def load_snapshot_file(path: Path, *, root: Path) -> Snapshot:
+    """Safely read and validate one published snapshot beneath an authorised root."""
+    resolved = _resolve_snapshot_path(path, root=root)
+    return load_snapshot(_read_snapshot_bytes(resolved))
 
 
 def snapshot_reference(snapshot: Snapshot) -> JsonObject:
