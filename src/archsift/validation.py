@@ -20,6 +20,11 @@ from yaml.error import MarkedYAMLError
 from yaml.nodes import MappingNode
 
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.language import (
+    DEFAULT_LANGUAGE,
+    is_supported_language,
+    supported_languages_text,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -465,6 +470,7 @@ class Dossier:
 
     schema_version: int
     case: CaseIdentity
+    language: str = DEFAULT_LANGUAGE
     evidence: tuple[Evidence, ...] = ()
     task: TaskBoundary | None = None
     problem_value: ProblemValue | None = None
@@ -2901,11 +2907,32 @@ def validate_workspace(workspace: Path) -> ValidationResult:
             diagnostics=tuple(semantic_diagnostics),
         )
 
+    language = str(loaded.get("language", DEFAULT_LANGUAGE))
+    if not is_supported_language(language):
+        # The schema already accepted the code's shape, so this is a
+        # well-formed code ArchSift cannot generate content in.
+        return ValidationResult(
+            ExitCode.VALIDATION_FAILED,
+            diagnostics=(
+                _diagnostic(
+                    "language-unsupported",
+                    f"Declared case language {language!r} is not supported.",
+                    "$.language",
+                    "NFR-010",
+                    (
+                        f"Declare one of the supported languages ({supported_languages_text()}) "
+                        "or omit language to use the default."
+                    ),
+                ),
+            ),
+        )
+
     case = loaded["case"]
     assert isinstance(case, Mapping)
     dossier = Dossier(
         schema_version=1,
         case=CaseIdentity(id=str(case["id"]), title=str(case["title"])),
+        language=language,
         evidence=_typed_evidence(raw_evidence),
         task=_typed_task(raw_task),
         problem_value=_typed_problem_value(raw_problem_value),

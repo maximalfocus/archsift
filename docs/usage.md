@@ -72,9 +72,10 @@ Prints the installed ArchSift version and exits.
 ### `archsift init <case>`
 
 Creates a versioned case workspace at the given directory. The target must not
-exist or must be empty. `init` writes `case.yaml` (schema version 1), a workspace
-README with human-readable guidance, and empty `evidence/` and `output/`
-directories. It never overwrites existing files.
+exist or must be empty. `init` writes `case.yaml` (schema version 1) declaring
+`language: en`, a workspace README with human-readable guidance rendered in that
+language, and empty `evidence/` and `output/` directories. It never overwrites
+existing files, and identical inputs produce byte-identical output.
 
 ### `archsift validate <case>`
 
@@ -213,10 +214,10 @@ my-case/
 ```
 
 The dossier is human-editable YAML validated into typed domain models. It
-identifies the case, the operational task boundary (operation, start and
-completion conditions, actors, accountable owner, systems and tools, information
-read, actions with approval boundaries, exclusions), and up to four decision
-areas:
+identifies the case, declares its language, states the operational task boundary
+(operation, start and completion conditions, actors, accountable owner, systems
+and tools, information read, actions with approval boundaries, exclusions), and
+covers up to four decision areas:
 
 - **problem value** — desired outcome, current baseline, affected volume,
   material pain, error cost, and why technology may be the limiting factor;
@@ -241,6 +242,28 @@ Every material claim is recorded in the evidence ledger as one of four kinds:
 Each evidence entry has a stable ID, an owner, the decision questions it
 affects, and optional artefact references. Duplicate IDs and missing references
 fail validation.
+
+### The declared case language
+
+`case.yaml` declares a `language` code, defaulting to `en` when the field is
+omitted. English is the only supported language today. The code governs what
+ArchSift itself generates — the `init` workspace guidance and every
+decision-record report — and each report states the language it is written in.
+
+An unknown or unsupported code fails closed rather than being ignored: a
+malformed code is rejected by the schema, and a well-formed code ArchSift cannot
+generate content in is rejected with a `language-unsupported` diagnostic naming
+the supported set. Both exit `12`.
+
+The code is part of the canonical dossier bytes the record is addressed by, so
+changing the declared language produces a distinct record. Omitting the field
+and declaring `en` are the same declaration and address the same record.
+
+Writing a case's own prose and evidence in the declared language is a documented
+convention, not a machine-verifiable fact. ArchSift never inspects authored text
+to judge what language it is written in, so a mismatch between the declared code
+and the prose is never reported as an error. Declaring a language states an
+intent about the case; it never asserts a truth about its content.
 
 ## Decision records and sensitive-value masking
 

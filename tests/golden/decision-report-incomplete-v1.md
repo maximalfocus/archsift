@@ -12,15 +12,19 @@
 
 **Record Content Identity**
 
-    sha256:7a64753e607387590fa9c8812b4f96b1819c864abee41d930f33c487fe73f303
+    sha256:8a6c2c0ce8199846c70d392963483706bdebb527ea5b1082697a15a4f6dfe33b
 
 **Dossier Schema Version**
 
     1
 
+**Case Language**
+
+    en
+
 **Dossier Content Identity**
 
-    sha256:48b34e9deeac44e8519bfb6009ca308baa9f4f1484f6905d078d075a780b6810
+    sha256:a97f558e41e5d0e86a28a59a96f81ca7c1071a6a972eb6d0f878ceface6a5260
 
 **Ruleset Version**
 

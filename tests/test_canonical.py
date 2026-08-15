@@ -68,7 +68,7 @@ from archsift.validation import (
 )
 
 _GOLDEN = Path(__file__).parent / "golden" / "canonical-dossier-v1.json"
-_EXPECTED_DOSSIER_ID = "sha256:5bee7dec6f1be06abe53a70cd79573701052017071e5e7501f035ed01cd2d8e5"
+_EXPECTED_DOSSIER_ID = "sha256:53f1c0161d2886c5e2bd05b243fd44f9df748c89952bbe9d86a764859c6c784b"
 _EXPECTED_EVIDENCE_IDS = {
     "assumption": "sha256:10f6a22ef04cbac6a98c1d08b0966210e309d839fd7940373c7ed7644066c3ae",
     "estimate": "sha256:fff5c0155ee12491114a94548601a551ee293c00c2c7002978628d5a269d1245",
@@ -517,6 +517,7 @@ def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean()
     assert payload == {
         "schema_version": 1,
         "case": {"id": "minimal", "title": "Minimal"},
+        "language": "en",
         "evidence": [],
         "task": None,
         "problem_value": None,

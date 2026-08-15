@@ -21,6 +21,7 @@ def test_init_creates_versioned_workspace(tmp_path: Path) -> None:
     assert yaml.safe_load((target / "case.yaml").read_text()) == {
         "schema_version": 1,
         "case": {"id": "my-first-case", "title": "My First Case"},
+        "language": "en",
         "evidence": [],
         "decision_conditions": [],
     }

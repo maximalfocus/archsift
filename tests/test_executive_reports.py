@@ -311,6 +311,7 @@ def test_an_oversized_section_continues_onto_further_slides_without_truncation()
         ruleset_version="1.8.0",
         tool_version="0.1.0-test",
         case_title="Oversized synthetic section",
+        language="en",
         sections=(SummarySection("Evidence State", points),),
     )
 

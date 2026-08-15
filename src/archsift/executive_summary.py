@@ -97,6 +97,7 @@ class ExecutiveSummary:
     ruleset_version: str
     tool_version: str
     case_title: str
+    language: str
     sections: tuple[SummarySection, ...]
 
 
@@ -136,6 +137,7 @@ def _case_section(dossier: JsonObject) -> SummarySection:
     points = [
         SummaryPoint("Case ID", (_text(case["id"], "$.dossier.case.id"),)),
         SummaryPoint("Case", (_text(case["title"], "$.dossier.case.title"),)),
+        SummaryPoint("Language", (_text(dossier["language"], "$.dossier.language"),)),
     ]
     task = dossier["task"]
     if task is None:
@@ -404,6 +406,7 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
         ruleset_version=_text(masked["ruleset_version"], "$.ruleset_version"),
         tool_version=_text(masked["tool_version"], "$.tool_version"),
         case_title=_text(case["title"], "$.dossier.case.title"),
+        language=view.language,
         sections=(
             _case_section(dossier),
             _verdict_section(assessment),
