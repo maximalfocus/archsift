@@ -496,14 +496,27 @@ def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) ->
         json_output=json_output,
         quiet=quiet,
         success_message=(
-            f"Architecture-method review criterion met: {result.example_count} examples reviewed "
-            f"(protocol {result.protocol_version})"
+            f"Architecture-method review criterion met: {result.passed_session_count} of "
+            f"{result.session_count} sessions passed (protocol {result.protocol_version})"
+            if result.protocol_version == "2.0.0"
+            else (
+                f"Architecture-method review criterion met: {result.example_count} examples "
+                f"reviewed (protocol {result.protocol_version})"
+            )
         ),
         details={
             "criterion_met": result.criterion_met,
             "disagreement_count": result.disagreement_count,
             "example_count": result.example_count,
             "protocol_version": result.protocol_version,
+            **(
+                {
+                    "session_count": result.session_count,
+                    "passed_session_count": result.passed_session_count,
+                }
+                if result.protocol_version == "2.0.0"
+                else {}
+            ),
         },
     )
     return int(result.exit_code)

@@ -82,9 +82,12 @@ run and no human-participant claim is made. A completed cohort is checked offlin
 `archsift usability-results usability-results.json`.
 
 The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
-four-example causal-trace review and privacy-bounded result contract for the public method. No
-independent review has been run and no validation claim is made yet. A completed result is checked
-offline with exactly `archsift method-review-results method-review-results.json`.
+four-example causal-trace review and privacy-bounded result contract for the public method. The
+[simulated architecture-method review protocol](docs/method-review-v2.md) freezes the
+initial-release gate: four independent simulated review sessions by distinct agent products,
+criterion met when at least three pass. No review of either protocol has been run and no
+method-validation claim is made yet. A completed result is checked offline with exactly
+`archsift method-review-results method-review-results.json`.
 
 ## Runnable examples
 
