@@ -327,12 +327,22 @@ def _decision_finding_dict(value: DecisionFinding) -> JsonObject:
     _checked_dataclass(value, DecisionFinding, expected)
     _require_string(value.rule_id, "Decision-finding rule_id")
     _require_string(value.requirement, "Decision-finding requirement")
-    _require_string(value.candidate_id, "Decision-finding candidate_id")
     _require_string(value.criterion_id, "Decision-finding criterion_id")
     _require_string(value.message, "Decision-finding message")
     _require_string(value.consequence, "Decision-finding consequence")
     _rule_effect(value.effect)
-    _control_class(value.control_class)
+    if value.candidate_id is None:
+        if value.control_class is not None:
+            raise DecisionRecordError(
+                "A decision finding without a candidate must also have no control class."
+            )
+    else:
+        _require_string(value.candidate_id, "Decision-finding candidate_id")
+        if value.control_class is None:
+            raise DecisionRecordError(
+                "A decision finding with a candidate must also have a control class."
+            )
+        _control_class(value.control_class)
     _enum_value(
         value.criterion_kind,
         CriterionKind,
@@ -712,6 +722,8 @@ def _unresolved_gaps(assessment: AssessmentEvaluation) -> tuple[UnresolvedGap, .
         )
         for finding in assessment.ordered_elimination_evaluation.findings
         if finding.effect is RuleEffect.REQUIRE_EVIDENCE
+        and finding.candidate_id is not None
+        and finding.control_class is not None
     )
     return (*prerequisite_gaps, *decision_gaps)
 

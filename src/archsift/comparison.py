@@ -474,7 +474,11 @@ def _validate_finding(value: object, *, prerequisite: bool, field: str) -> None:
         _require_text(finding["field"], f"{field}.field")
         _require_text(finding["counterpart"], f"{field}.counterpart", nullable=True)
     else:
-        for name in ("candidate_id", "control_class", "criterion_id", "criterion_kind"):
+        _require_text(finding["candidate_id"], f"{field}.candidate_id", nullable=True)
+        _require_text(finding["control_class"], f"{field}.control_class", nullable=True)
+        if (finding["candidate_id"] is None) != (finding["control_class"] is None):
+            raise ValueError(f"{field} candidate and control class must be both present or absent")
+        for name in ("criterion_id", "criterion_kind"):
             _require_text(finding[name], f"{field}.{name}")
         _require_string_list(finding["action_ids"], f"{field}.action_ids")
 

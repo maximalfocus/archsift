@@ -95,8 +95,8 @@ class DecisionFinding:
     rule_id: str
     requirement: str
     effect: RuleEffect
-    candidate_id: str
-    control_class: ControlClass
+    candidate_id: str | None
+    control_class: ControlClass | None
     criterion_id: str
     criterion_kind: CriterionKind
     evidence_ids: tuple[str, ...]
@@ -110,7 +110,7 @@ class DecisionFinding:
             "action_ids": list(self.action_ids),
             "candidate_id": self.candidate_id,
             "consequence": self.consequence,
-            "control_class": self.control_class.value,
+            "control_class": self.control_class.value if self.control_class is not None else None,
             "criterion_id": self.criterion_id,
             "criterion_kind": self.criterion_kind.value,
             "effect": self.effect.value,
@@ -249,6 +249,85 @@ def _finding(
         consequence=rule.consequence,
         action_ids=action_ids,
     )
+
+
+def _dossier_finding(
+    rule_id: str,
+    criterion_id: str,
+    criterion_kind: CriterionKind,
+    evidence_ids: tuple[str, ...],
+    message: str,
+    action_ids: tuple[str, ...] = (),
+) -> DecisionFinding:
+    """A dossier-level finding with no candidate anchor (candidate_id is None)."""
+    rule = get_rule_definition(rule_id)
+    return DecisionFinding(
+        rule_id=rule.id,
+        requirement=rule.requirement,
+        effect=rule.effect,
+        candidate_id=None,
+        control_class=None,
+        criterion_id=criterion_id,
+        criterion_kind=criterion_kind,
+        evidence_ids=evidence_ids,
+        message=message,
+        consequence=rule.consequence,
+        action_ids=action_ids,
+    )
+
+
+def _dossier_non_decisive_findings(
+    dossier: Dossier,
+    evidence_by_id: dict[str, Evidence],
+    candidates: tuple[Candidate, ...],
+) -> tuple[DecisionFinding, ...]:
+    """Explain non-decisive agency and boundary facts when no relevant candidate exists."""
+    findings: list[DecisionFinding] = []
+    agency = dossier.agency_necessity
+    has_agentic = any(
+        candidate.control_class is ControlClass.AGENTIC_CONTROL for candidate in candidates
+    )
+    if agency is not None and not has_agentic:
+        for name in _AGENCY_QUESTION_FIELDS:
+            question = getattr(agency, name)
+            if not _has_credible_evidence(evidence_by_id, question.evidence_ids):
+                continue
+            findings.append(
+                _dossier_finding(
+                    "agentic-agency-fact-non-decisive",
+                    name,
+                    CriterionKind.AGENCY_QUESTION,
+                    question.evidence_ids,
+                    f"Agency question {name!r} is non-decisive: no agentic candidate is "
+                    "represented.",
+                )
+            )
+    autonomy = dossier.autonomy_permission
+    has_automation = any(candidate.control_class in _AUTOMATION_CLASSES for candidate in candidates)
+    if autonomy is not None and not has_automation:
+        for veto in sorted(autonomy.hard_vetoes, key=lambda item: item.id):
+            findings.append(
+                _dossier_finding(
+                    "autonomy-boundary-non-decisive",
+                    veto.id,
+                    CriterionKind.HARD_VETO,
+                    tuple(sorted(veto.evidence_ids)),
+                    f"Hard veto {veto.id!r} is non-decisive: no automation candidate is "
+                    "represented.",
+                )
+            )
+        for control in sorted(autonomy.mandatory_human_controls, key=lambda item: item.id):
+            findings.append(
+                _dossier_finding(
+                    "autonomy-boundary-non-decisive",
+                    control.id,
+                    CriterionKind.HUMAN_CONTROL,
+                    tuple(sorted(control.evidence_ids)),
+                    f"Mandatory human control {control.id!r} is non-decisive: no automation "
+                    "candidate is represented.",
+                )
+            )
+    return tuple(findings)
 
 
 def _missing_test_finding(
@@ -831,7 +910,7 @@ def evaluate_ordered_elimination(dossier: Dossier) -> OrderedEliminationEvaluati
         finding
         for candidate in ordered_candidates
         for finding in findings_by_candidate[candidate.id]
-    )
+    ) + _dossier_non_decisive_findings(dossier, evidence_by_id, ordered_candidates)
 
     class_results: list[ControlClassElimination] = []
     for control_class in ControlClass:
