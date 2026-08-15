@@ -392,19 +392,29 @@ def test_the_shipped_package_never_imports_the_verification_reader() -> None:
 def test_rendering_a_deck_pulls_no_network_stack_into_the_import_graph() -> None:
     """NFR-001: writing a presentation must not import a networking module.
 
-    `xml.sax.saxutils` reaches `urllib.request` and `ssl`; a local escape keeps
-    them out of a tool that never opens a connection.
+    `xml.sax.saxutils` reaches `urllib.request` and `ssl`; escaping the three
+    markup characters locally keeps them out of a tool that never opens a
+    connection.
+
+    The check is differential rather than absolute. Some supported Python
+    versions already import `socket` for the package's own version lookup
+    (`importlib.metadata` reaches `email.utils`), so what matters is that the
+    report modules add nothing to that baseline.
     """
     probe = (
         "import sys\n"
-        "from archsift.pptx_report import render_executive_pptx_report\n"
+        "import archsift\n"
+        "baseline = set(sys.modules)\n"
         "import archsift.cli\n"
-        "roots = {module.split('.')[0] for module in sys.modules}\n"
-        "print(sorted(roots & {'ssl', 'socket', 'http', 'asyncio', 'ftplib', 'smtplib'}))\n"
+        "from archsift.pptx_report import render_executive_pptx_report\n"
+        "from archsift.html_report import render_executive_html_report\n"
+        "network = {'ssl', 'socket', 'http.client', 'urllib.request', 'asyncio',\n"
+        "           'ftplib', 'smtplib', 'telnetlib', 'webbrowser', 'xmlrpc.client'}\n"
+        "print(sorted((set(sys.modules) - baseline) & network))\n"
     )
 
     imported = subprocess.run(
         [sys.executable, "-c", probe], check=True, capture_output=True, text=True
     )
 
-    assert imported.stdout.strip() == "[]"
+    assert imported.stdout.strip() == "[]", imported.stdout
