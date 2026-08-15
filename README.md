@@ -22,9 +22,10 @@ committed result validates with `criterion-met` (four of four simulated sessions
 (simulated protocol 2.0.0) has also been completed; see the protocol and results below. No
 method-validation, certification, production-readiness, or first-release success claim is made; the
 usability and method-review evidence is simulated: no claim that human target users passed is made,
-and no claim that human architects passed is made. The first simulated assisted-authoring cohort
-has been completed and its committed result is `criterion-not-met` (one of four sessions passed;
-see [`authoring-results.json`](authoring-results.json)). No assisted-authoring success or human
+and no claim that human architects passed is made. Two simulated assisted-authoring cohorts have
+been completed and both committed results are `criterion-not-met` (one of four sessions passed in
+each; see [`authoring-results.json`](authoring-results.json) and the preserved
+[first result](authoring-results-1-criterion-not-met.json)). No assisted-authoring success or human
 authoring claim is made.
 
 ## Install
@@ -122,12 +123,13 @@ three-of-four success threshold. The protocol publishes no answer dossier or exp
 retains only privacy-bounded outcome metadata. ArchSift and every CLI milestone remain offline with
 outbound sockets blocked; only the separately controlled external agent product's ordinary model
 transport is permitted, with browsing, search, retrieval plugins, and private context prohibited.
-The first cohort has run and its committed [result](authoring-results.json) validates honestly with
-`criterion-not-met`: one of four sessions passed. Temporary prompts, streams, workspaces, dossiers,
-records, and command logs were deleted after the bounded metadata was derived. The cohort is
-simulated, makes no human-author claim, and is checked offline with exactly
-`archsift authoring-results authoring-results.json`, which exits `12`. No assisted-authoring success
-claim is made.
+Two cohorts have run and both validate honestly with `criterion-not-met`: one of four sessions
+passed in the current [result](authoring-results.json), and one of four passed in the byte-preserved
+[first result](authoring-results-1-criterion-not-met.json). Temporary prompts, streams, workspaces,
+dossiers, records, and command logs were deleted after each bounded result was derived. The
+evidence is simulated, makes no human-author claim, and is checked offline with
+`archsift authoring-results <result>`, which exits `12` for both records. No assisted-authoring
+success claim is made.
 
 The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
 four-example causal-trace review and privacy-bounded result contract for the public method. The
