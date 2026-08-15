@@ -17,6 +17,7 @@ from archsift.canonical import (
     dossier_content_identity,
     evidence_content_identities,
 )
+from archsift.case_view import CaseKnowledgeView
 from archsift.decision import (
     ArchitectureVerdict,
     AssessmentEvaluation,
@@ -30,6 +31,7 @@ from archsift.decision import (
     OrderedEliminationEvaluation,
     evaluate_assessment,
 )
+from archsift.knowledge_graph import GRAPH_SCHEMA_VERSION
 from archsift.rules import (
     RULESET_VERSION,
     AssessmentPrerequisiteEvaluation,
@@ -91,6 +93,27 @@ class EvidenceLink:
     evidence_id: str
     kind: EvidenceKind
     content_identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class GraphEntryReference:
+    """One finding-relevant reusable entry bound by semantic ID and content."""
+
+    id: str
+    content_identity: str
+
+
+@dataclass(frozen=True, slots=True)
+class GraphUse:
+    """Exact reusable graph input that supported already-emitted findings."""
+
+    graph_schema_version: int
+    graph_version: str
+    graph_snapshot_content_identity: str
+    case_view_content_identity: str
+    supported_finding_rule_ids: tuple[str, ...]
+    finding_relevant_nodes: tuple[GraphEntryReference, ...]
+    finding_relevant_relations: tuple[GraphEntryReference, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +180,7 @@ class DecisionRecord:
     artefact_links: tuple[EvidenceArtefactIdentity, ...]
     unresolved_gaps: tuple[UnresolvedGap, ...]
     reassessment_triggers: tuple[ReassessmentTrigger, ...]
+    graph_use: GraphUse | None = None
 
 
 def _checked_dataclass(
@@ -539,6 +563,174 @@ def _evidence_link_dict(value: EvidenceLink) -> JsonObject:
     }
 
 
+def _assessment_finding_rule_ids(value: AssessmentEvaluation) -> set[str]:
+    return {
+        finding.rule_id
+        for finding in value.prerequisite_evaluation.findings
+        if finding.evidence_ids
+    } | {
+        finding.rule_id
+        for finding in value.ordered_elimination_evaluation.findings
+        if finding.evidence_ids
+    }
+
+
+def _graph_entry_reference_dict(value: GraphEntryReference, label: str) -> JsonObject:
+    _checked_dataclass(value, GraphEntryReference, ("id", "content_identity"))
+    _require_non_empty_string(value.id, f"{label} id")
+    _require_content_identity(value.content_identity, f"{label} content identity")
+    return {"content_identity": value.content_identity, "id": value.id}
+
+
+def _graph_references(
+    values: object,
+    *,
+    label: str,
+) -> tuple[GraphEntryReference, ...]:
+    references = cast(tuple[GraphEntryReference, ...], _require_tuple(values, label))
+    identifiers: list[str] = []
+    for reference in references:
+        _graph_entry_reference_dict(reference, label)
+        identifiers.append(reference.id)
+    if identifiers != sorted(set(identifiers)):
+        raise DecisionRecordError(f"{label} require unique canonical semantic-ID order.")
+    return references
+
+
+def _graph_use_dict(value: GraphUse, assessment: AssessmentEvaluation) -> JsonObject:
+    expected = (
+        "graph_schema_version",
+        "graph_version",
+        "graph_snapshot_content_identity",
+        "case_view_content_identity",
+        "supported_finding_rule_ids",
+        "finding_relevant_nodes",
+        "finding_relevant_relations",
+    )
+    _checked_dataclass(value, GraphUse, expected)
+    if value.graph_schema_version != GRAPH_SCHEMA_VERSION:
+        raise DecisionRecordError("Unsupported graph-use schema version.")
+    version = _require_non_empty_string(value.graph_version, "Graph-use graph version")
+    if (
+        len(version) != 68
+        or not version.startswith("gv1:")
+        or any(character not in "0123456789abcdef" for character in version[4:])
+    ):
+        raise DecisionRecordError("Graph-use graph version is not an immutable v1 version.")
+    _require_content_identity(
+        value.graph_snapshot_content_identity,
+        "Graph-use snapshot content identity",
+    )
+    _require_content_identity(value.case_view_content_identity, "Graph-use case-view identity")
+    supported = _require_string_tuple(
+        value.supported_finding_rule_ids,
+        "Graph-use supported finding rule IDs",
+    )
+    if not supported or list(supported) != sorted(set(supported)):
+        raise DecisionRecordError(
+            "Graph-use supported finding rule IDs require non-empty canonical unique order."
+        )
+    if not set(supported).issubset(_assessment_finding_rule_ids(assessment)):
+        raise DecisionRecordError(
+            "Graph use names a finding rule ID not emitted with case evidence by the assessment."
+        )
+    nodes = _graph_references(value.finding_relevant_nodes, label="Graph-use node references")
+    relations = _graph_references(
+        value.finding_relevant_relations,
+        label="Graph-use relation references",
+    )
+    if not nodes or not relations:
+        raise DecisionRecordError(
+            "Graph use requires a complete finding-relevant node and relation trace."
+        )
+    return {
+        "case_view_content_identity": value.case_view_content_identity,
+        "finding_relevant_nodes": [
+            _graph_entry_reference_dict(item, "Graph-use node reference") for item in nodes
+        ],
+        "finding_relevant_relations": [
+            _graph_entry_reference_dict(item, "Graph-use relation reference") for item in relations
+        ],
+        "graph_schema_version": value.graph_schema_version,
+        "graph_snapshot_content_identity": value.graph_snapshot_content_identity,
+        "graph_version": value.graph_version,
+        "supported_finding_rule_ids": list(supported),
+    }
+
+
+def _view_references(value: object, *, label: str) -> tuple[GraphEntryReference, ...]:
+    if type(value) is not list:
+        raise DecisionRecordError(f"Case view {label} must be an array.")
+    references: list[GraphEntryReference] = []
+    for raw in value:
+        if type(raw) is not dict or set(raw) != {"content_identity", "id"}:
+            raise DecisionRecordError(f"Case view {label} has an unsupported entry contract.")
+        item = cast(dict[str, object], raw)
+        identifier = _require_non_empty_string(item["id"], f"Case-view {label} id")
+        identity = _require_content_identity(
+            item["content_identity"], f"Case-view {label} content identity"
+        )
+        references.append(GraphEntryReference(identifier, identity))
+    return tuple(references)
+
+
+def _graph_use_from_case_view(
+    view: CaseKnowledgeView,
+    assessment: AssessmentEvaluation,
+) -> GraphUse:
+    if type(view) is not CaseKnowledgeView or type(view.content) is not dict:
+        raise DecisionRecordError("Graph-supported decision records require a typed case view.")
+    expected_identity = _content_identity(canonical_json_bytes(view.content))
+    if view.content_identity != expected_identity:
+        raise DecisionRecordError("Case-view content identity is inconsistent.")
+    content = view.content
+    requested = content.get("case_finding_ids")
+    traces = content.get("reusable_claim_traces")
+    if type(requested) is not list or not all(type(item) is str for item in requested):
+        raise DecisionRecordError("Case-view finding IDs must be an array of strings.")
+    emitted = _assessment_finding_rule_ids(assessment)
+    if not set(cast(list[str], requested)).issubset(emitted):
+        raise DecisionRecordError(
+            "Case view names a finding rule ID not emitted with case evidence by the assessment."
+        )
+    if type(traces) is not list:
+        raise DecisionRecordError("Case-view reusable claim traces must be an array.")
+    supported: set[str] = set()
+    for raw in traces:
+        if type(raw) is not dict:
+            raise DecisionRecordError("Case-view reusable claim trace must be an object.")
+        finding_ids = raw.get("case_finding_ids")
+        paths = raw.get("rule_paths")
+        if type(finding_ids) is not list or not all(type(item) is str for item in finding_ids):
+            raise DecisionRecordError("Case-view trace finding IDs must be strings.")
+        if finding_ids and type(paths) is list and paths:
+            supported.update(cast(list[str], finding_ids))
+    if not supported:
+        raise DecisionRecordError(
+            "Case view has no complete reusable-claim to emitted-finding trace."
+        )
+    schema = content.get("graph_schema_version")
+    version = content.get("graph_version")
+    snapshot_identity = content.get("graph_snapshot_content_identity")
+    if type(schema) is not int or type(version) is not str or type(snapshot_identity) is not str:
+        raise DecisionRecordError("Case view has incomplete graph identity fields.")
+    graph_use = GraphUse(
+        graph_schema_version=schema,
+        graph_version=version,
+        graph_snapshot_content_identity=snapshot_identity,
+        case_view_content_identity=view.content_identity,
+        supported_finding_rule_ids=tuple(sorted(supported)),
+        finding_relevant_nodes=_view_references(
+            content.get("finding_relevant_nodes"), label="finding-relevant nodes"
+        ),
+        finding_relevant_relations=_view_references(
+            content.get("finding_relevant_relations"), label="finding-relevant relations"
+        ),
+    )
+    _graph_use_dict(graph_use, assessment)
+    return graph_use
+
+
 def _artefact_link_dict(value: EvidenceArtefactIdentity) -> JsonObject:
     expected = (
         "evidence_id",
@@ -846,7 +1038,7 @@ def _identity_payload(
     }
     if len(links) != len(record.evidence_links):
         raise DecisionRecordError("Duplicate evidence links cannot be canonicalized.")
-    return {
+    payload: JsonObject = {
         "artefact_links": [_artefact_link_dict(link) for link in record.artefact_links],
         "assessment": assessment_payload,
         "configuration": _configuration_dict(record.configuration),
@@ -863,6 +1055,9 @@ def _identity_payload(
         "tool_version": record.tool_version,
         "unresolved_gaps": [_gap_dict(gap) for gap in record.unresolved_gaps],
     }
+    if record.graph_use is not None:
+        payload["graph_use"] = _graph_use_dict(record.graph_use, record.assessment)
+    return payload
 
 
 def _validate_record(
@@ -885,6 +1080,7 @@ def _validate_record(
         "artefact_links",
         "unresolved_gaps",
         "reassessment_triggers",
+        "graph_use",
     )
     _checked_dataclass(record, DecisionRecord, expected_fields)
     if (
@@ -901,6 +1097,8 @@ def _validate_record(
     _validated_artefact_links(record.dossier, record.artefact_links)
     _require_tuple(record.unresolved_gaps, "Decision-record unresolved gaps")
     _require_tuple(record.reassessment_triggers, "Decision-record reassessment triggers")
+    if record.graph_use is not None:
+        _graph_use_dict(record.graph_use, record.assessment)
 
     configuration_payload = _configuration_dict(record.configuration)
     expected_configuration_identity = _content_identity(canonical_json_bytes(configuration_payload))
@@ -966,6 +1164,7 @@ def compose_decision_record(
     tool_version: str,
     artefact_identities: tuple[EvidenceArtefactIdentity, ...] = (),
     configuration: AssessmentConfiguration = DEFAULT_ASSESSMENT_CONFIGURATION,
+    case_view: CaseKnowledgeView | None = None,
 ) -> DecisionRecord:
     """Compose a pure content-addressed record from already-resolved typed inputs."""
     if type(tool_version) is not str or not tool_version.strip():
@@ -981,6 +1180,7 @@ def compose_decision_record(
     )
     _validated_artefact_links(dossier, artefact_identities)
     configuration_identity = assessment_configuration_content_identity(configuration)
+    graph_use = _graph_use_from_case_view(case_view, assessment) if case_view is not None else None
     draft = DecisionRecord(
         record_schema_version=RECORD_SCHEMA_VERSION,
         record_content_identity="",
@@ -996,6 +1196,7 @@ def compose_decision_record(
         artefact_links=artefact_identities,
         unresolved_gaps=_unresolved_gaps(assessment),
         reassessment_triggers=_reassessment_triggers(dossier),
+        graph_use=graph_use,
     )
     payload = _validate_record(draft, verify_record_identity=False)
     record = replace(

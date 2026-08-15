@@ -610,11 +610,73 @@ def _validate_masking_declaration(value: object) -> None:
     _require_text(declaration["warning"], "$.masking.warning")
 
 
+def _validate_graph_use(value: object, assessment: dict[str, object]) -> None:
+    graph_use = _require_object(value, "$.graph_use")
+    _require_keys(
+        graph_use,
+        {
+            "case_view_content_identity",
+            "finding_relevant_nodes",
+            "finding_relevant_relations",
+            "graph_schema_version",
+            "graph_snapshot_content_identity",
+            "graph_version",
+            "supported_finding_rule_ids",
+        },
+        "$.graph_use",
+    )
+    if graph_use["graph_schema_version"] != 1:
+        raise ValueError("graph-use schema version is unsupported")
+    version = cast(str, _require_text(graph_use["graph_version"], "graph-use version"))
+    if (
+        len(version) != 68
+        or not version.startswith("gv1:")
+        or any(character not in "0123456789abcdef" for character in version[4:])
+    ):
+        raise ValueError("graph-use immutable graph version is invalid")
+    _require_identity(
+        graph_use["graph_snapshot_content_identity"], "graph snapshot content identity"
+    )
+    _require_identity(graph_use["case_view_content_identity"], "case-view content identity")
+    supported = _require_string_list(
+        graph_use["supported_finding_rule_ids"], "supported finding rule IDs"
+    )
+    if not supported or supported != sorted(set(supported)):
+        raise ValueError("supported finding rule IDs require canonical unique order")
+    prerequisite = cast(dict[str, object], assessment["prerequisite_evaluation"])
+    ordered = cast(dict[str, object], assessment["ordered_elimination_evaluation"])
+    emitted = {
+        cast(str, finding["rule_id"])
+        for finding in (
+            *cast(list[dict[str, object]], prerequisite["findings"]),
+            *cast(list[dict[str, object]], ordered["findings"]),
+        )
+        if cast(list[object], finding["evidence_ids"])
+    }
+    if not set(supported).issubset(emitted):
+        raise ValueError("graph use names a rule ID not emitted with case evidence")
+    for name in ("finding_relevant_nodes", "finding_relevant_relations"):
+        references = _require_list(graph_use[name], f"$.graph_use.{name}")
+        identifiers: list[str] = []
+        if not references:
+            raise ValueError(f"graph use {name} cannot be empty")
+        for index, raw in enumerate(references):
+            reference = _require_object(raw, f"$.graph_use.{name}[{index}]")
+            _require_keys(reference, {"content_identity", "id"}, "graph entry reference")
+            identifiers.append(cast(str, _require_text(reference["id"], "graph entry semantic ID")))
+            _require_identity(reference["content_identity"], "graph entry content identity")
+        if identifiers != sorted(set(identifiers)):
+            raise ValueError(f"graph use {name} require canonical unique order")
+
+
 def _validate_record(record: dict[str, object]) -> None:
     masked = record.get("masking") is not None
     if masked:
         _validate_masking_declaration(record["masking"])
-    _require_keys(record, _RECORD_KEYS | ({"masking"} if masked else set()), "$")
+    optional = ({"masking"} if masked else set()) | (
+        {"graph_use"} if "graph_use" in record else set()
+    )
+    _require_keys(record, _RECORD_KEYS | optional, "$")
     if record["record_schema_version"] != RECORD_SCHEMA_VERSION:
         raise ValueError("record schema version is missing or unsupported")
     record_identity = _require_identity(record["record_content_identity"], "record identity")
@@ -751,6 +813,8 @@ def _validate_record(record: dict[str, object]) -> None:
     )
 
     assessment = cast(dict[str, object], record["assessment"])
+    if "graph_use" in record:
+        _validate_graph_use(record["graph_use"], assessment)
     prerequisite = cast(dict[str, object], assessment["prerequisite_evaluation"])
     ordered = cast(dict[str, object], assessment["ordered_elimination_evaluation"])
     prerequisite_findings = cast(list[dict[str, object]], prerequisite["findings"])
