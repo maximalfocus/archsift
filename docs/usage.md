@@ -95,6 +95,32 @@ field, governing requirement, and remediation.
 A valid but incomplete dossier validates successfully; the assessment may then
 abstain with `insufficient-evidence`.
 
+### `archsift register-document <case> <registration-id> <declared-type> <source>` [`--external-material-root` <dir>]
+
+Copies exactly one caller-selected regular file into the case's private,
+content-addressed material store. `<source>` is a relative POSIX path beneath
+the case workspace, or beneath the directory explicitly granted with
+`--external-material-root`. The command records the declared type, exact byte
+length, SHA-256 content identity, and stored path in a canonical versioned
+manifest. It does not decode, decompress, render, parse, import, execute, or
+otherwise interpret the bytes.
+
+### `archsift register-repository <case> <registration-id> <declared-type>` `--commit` <identity> `--file` <path>...
+
+Registers only the repository-relative regular files explicitly named by one
+or more `--file` options. `--commit` is caller-supplied structured provenance
+and must be a full lowercase 40- or 64-hex object identity. ArchSift runs no Git
+command, hook, repository discovery, parser, or network request and does not
+claim to prove the relationship between the supplied commit and file bytes.
+Use `--external-material-root` to grant an external repository directory.
+
+Both registration commands reject traversal, absolute or platform-dependent
+paths, links, special files, duplicate logical paths, changing files, unsafe
+roots, and registration-ID collisions. An identical retry reuses the existing
+immutable registration; different material never overwrites it. Dossier schema
+version 3 binds an artefact to a registration ID and, for repository files, its
+explicit logical path. Assessment re-verifies the manifest and stored bytes.
+
 ### `archsift assess <case>` [`--external-evidence-root` <dir>] [`--graph-snapshot` <snapshot> `--graph-request` <request>]
 
 Validates the workspace first, then composes an immutable content-addressed
@@ -193,10 +219,12 @@ findings and rules, changed verdict fields, and unrelated snapshot context.
 A verdict change names only changed evidence cited by a finding in either record
 and the changed findings as causes.
 
-Comparison schema version 3 includes `changed_attestations` and classifies changed attestation
+Comparison schema version 4 includes `changed_attestations` and classifies changed attestation
 evidence IDs under `causes` when the change alters evidence eligibility, findings, or verdict
 fields; unrelated attestation edits remain under `context`. It also always includes
-`changed_graph`. The graph delta states graph-use
+`changed_registrations` and `changed_graph`. Registration deltas state added, removed, or
+content-changed immutable registration IDs and classify them under `causes` only when a changed
+verdict cites evidence backed by that registration; otherwise they remain explicit context. The graph delta states graph-use
 presence in both records; exact old/new graph schema, immutable graph version,
 snapshot content identity, and private-view content identity; added or removed
 supported finding rule IDs; and added, removed, or content-changed reusable

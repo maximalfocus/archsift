@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from archsift.canonical import canonical_dossier_dict
+from archsift.registration import MaterialRegistration, RegistrationError, load_registration
 from archsift.validation import Dossier, EvidenceArtefactReference, EvidenceArtefactRoot
 
 _CHUNK_SIZE = 1024 * 1024
@@ -30,6 +31,7 @@ class EvidenceArtefactFailure(StrEnum):
     TARGET_OUTSIDE_ROOT = "target-outside-root"
     TARGET_NOT_REGULAR = "target-not-regular"
     TARGET_UNREADABLE = "target-unreadable"
+    REGISTRATION_INVALID = "registration-invalid"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +44,15 @@ class EvidenceArtefactIdentity:
     path: str
     byte_length: int
     content_identity: str
+    registration_id: str | None = None
+    registration_content_identity: str | None = None
+    declared_material_type: str | None = None
+    repository_commit: str | None = None
+    repository_logical_path: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         """Return a deterministic JSON-compatible representation without host paths."""
-        return {
+        rendered: dict[str, object] = {
             "artefact_id": self.artefact_id,
             "byte_length": self.byte_length,
             "content_identity": self.content_identity,
@@ -53,6 +60,17 @@ class EvidenceArtefactIdentity:
             "path": self.path,
             "root": self.root.value,
         }
+        if self.registration_id is not None:
+            rendered.update(
+                {
+                    "declared_material_type": self.declared_material_type,
+                    "registration_content_identity": self.registration_content_identity,
+                    "registration_id": self.registration_id,
+                    "repository_commit": self.repository_commit,
+                    "repository_logical_path": self.repository_logical_path,
+                }
+            )
+        return rendered
 
 
 class EvidenceArtefactError(ValueError):
@@ -276,7 +294,11 @@ def _hash_stream(stream: BinaryIO) -> tuple[int, str]:
     return byte_length, f"sha256:{digest.hexdigest()}"
 
 
-def _identify(root: Path, pending: _PendingArtefact) -> EvidenceArtefactIdentity:
+def _identify(
+    root: Path,
+    pending: _PendingArtefact,
+    registration: MaterialRegistration | None = None,
+) -> EvidenceArtefactIdentity:
     resolved = _resolve_target(root, pending)
     try:
         with resolved.open("rb") as stream:
@@ -299,6 +321,43 @@ def _identify(root: Path, pending: _PendingArtefact) -> EvidenceArtefactIdentity
             message="The referenced evidence artefact cannot be read.",
             remediation="Make the regular file readable or correct the authored reference.",
         ) from error
+    registered_file = None
+    if registration is not None:
+        stored_path = pending.reference.path.removeprefix(
+            f"registered/{registration.registration_id}/"
+        )
+        matches = tuple(
+            item
+            for item in registration.files
+            if item.stored_path == stored_path
+            and item.logical_path == pending.reference.registration_logical_path
+        )
+        if len(matches) != 1:
+            raise _error(
+                EvidenceArtefactFailure.REGISTRATION_INVALID,
+                field=pending.path_field,
+                requirement="FR-018",
+                message=(
+                    "The dossier artefact does not exactly identify one file in its material "
+                    "registration."
+                ),
+                remediation=(
+                    "Use the registered stored path and repository logical path from the "
+                    "canonical registration manifest."
+                ),
+            )
+        registered_file = matches[0]
+        if (
+            registered_file.byte_length != byte_length
+            or registered_file.content_identity != content_identity
+        ):
+            raise _error(
+                EvidenceArtefactFailure.REGISTRATION_INVALID,
+                field=pending.path_field,
+                requirement="FR-018",
+                message="The registered evidence bytes no longer match their manifest identity.",
+                remediation="Restore the immutable registered bytes before reassessing.",
+            )
     return EvidenceArtefactIdentity(
         evidence_id=pending.evidence_id,
         artefact_id=pending.reference.id,
@@ -306,6 +365,15 @@ def _identify(root: Path, pending: _PendingArtefact) -> EvidenceArtefactIdentity
         path=pending.reference.path,
         byte_length=byte_length,
         content_identity=content_identity,
+        registration_id=registration.registration_id if registration is not None else None,
+        registration_content_identity=(
+            registration.registration_content_identity if registration is not None else None
+        ),
+        declared_material_type=(registration.declared_type if registration is not None else None),
+        repository_commit=(registration.repository_commit if registration is not None else None),
+        repository_logical_path=(
+            registered_file.logical_path if registered_file is not None else None
+        ),
     )
 
 
@@ -349,6 +417,7 @@ def evidence_artefact_identities(
     workspace_root: Path | None = None
     authorised_external_root: Path | None = None
     identities: list[EvidenceArtefactIdentity] = []
+    registrations: dict[str, MaterialRegistration] = {}
     for item in ordered:
         if item.reference.root is EvidenceArtefactRoot.WORKSPACE:
             if workspace_root is None:
@@ -358,5 +427,48 @@ def evidence_artefact_identities(
             if authorised_external_root is None:
                 authorised_external_root = _resolve_external_root(external_root, item.root_field)
             root = authorised_external_root
-        identities.append(_identify(root, item))
+        registration = None
+        if item.reference.registration_id is not None:
+            if item.reference.root is not EvidenceArtefactRoot.WORKSPACE:
+                raise _error(
+                    EvidenceArtefactFailure.REGISTRATION_INVALID,
+                    field=item.root_field,
+                    requirement="FR-018",
+                    message="Registered material must use the private workspace evidence root.",
+                    remediation="Set the registered artefact root to workspace.",
+                )
+            registration_id = item.reference.registration_id
+            expected_prefix = f"registered/{registration_id}/blobs/sha256-"
+            if not item.reference.path.startswith(expected_prefix):
+                raise _error(
+                    EvidenceArtefactFailure.REGISTRATION_INVALID,
+                    field=item.path_field,
+                    requirement="FR-018",
+                    message="The registered artefact path does not match its registration ID.",
+                    remediation="Use the exact stored path from the registration manifest.",
+                )
+            if registration_id not in registrations:
+                try:
+                    registrations[registration_id] = load_registration(
+                        root.parent,
+                        registration_id,
+                    )
+                except RegistrationError as error:
+                    raise _error(
+                        EvidenceArtefactFailure.REGISTRATION_INVALID,
+                        field=item.path_field,
+                        requirement="FR-018",
+                        message="The bound material registration is unavailable or invalid.",
+                        remediation="Restore the canonical registration manifest and stored bytes.",
+                    ) from error
+            registration = registrations[registration_id]
+        elif item.reference.registration_logical_path is not None:
+            raise _error(
+                EvidenceArtefactFailure.REGISTRATION_INVALID,
+                field=item.path_field,
+                requirement="FR-018",
+                message="A repository logical path requires a material registration ID.",
+                remediation="Add the registration ID or remove the registration logical path.",
+            )
+        identities.append(_identify(root, item, registration))
     return tuple(identities)

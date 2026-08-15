@@ -95,6 +95,11 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "path",
         "byte_length",
         "content_identity",
+        "registration_id",
+        "registration_content_identity",
+        "declared_material_type",
+        "repository_commit",
+        "repository_logical_path",
     ),
     d.AssessmentEvaluation: (
         "schema_version",
@@ -301,7 +306,13 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "artefacts",
     ),
     v.EvidenceAuthorship: ("authored_by", "attested_by_accountable_person"),
-    v.EvidenceArtefactReference: ("id", "root", "path"),
+    v.EvidenceArtefactReference: (
+        "id",
+        "root",
+        "path",
+        "registration_id",
+        "registration_logical_path",
+    ),
     v.EvidencedStatement: ("statement", "evidence_ids"),
     v.HardVeto: (
         "id",

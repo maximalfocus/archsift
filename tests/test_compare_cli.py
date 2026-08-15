@@ -117,7 +117,7 @@ def test_compare_identical_records_has_empty_stable_changes(
         "removed": [],
     }
     assert comparison["changed_verdict_fields"] == []
-    assert comparison["comparison_schema_version"] == 3
+    assert comparison["comparison_schema_version"] == 4
     assert comparison["changed_graph"] == {
         "finding_relevant_nodes": {"added": [], "changed": [], "removed": []},
         "finding_relevant_relations": {"added": [], "changed": [], "removed": []},
@@ -139,6 +139,7 @@ def test_compare_identical_records_has_empty_stable_changes(
         "finding_changes": 0,
         "graph_entries": [],
         "graph_supported_finding_rule_ids": [],
+        "registration_ids": [],
     }
     assert comparison["context"] == {
         "attestation_evidence_ids": [],
@@ -148,6 +149,7 @@ def test_compare_identical_records_has_empty_stable_changes(
         "graph_identity_fields": [],
         "graph_presence_changed": False,
         "graph_supported_finding_rule_ids": [],
+        "registration_ids": [],
         "snapshot_fields": [],
     }
 
@@ -462,6 +464,7 @@ def test_reordered_but_identical_evidence_is_context_not_a_cause(
         "finding_changes": 0,
         "graph_entries": [],
         "graph_supported_finding_rule_ids": [],
+        "registration_ids": [],
     }
     assert comparison["context"]["snapshot_fields"] == ["dossier_content_identity"]
 
@@ -535,7 +538,7 @@ def test_compare_classifies_unsupported_record_schema(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     old = _record()
-    old["record_schema_version"] = 2
+    old["record_schema_version"] = 3
     _write(tmp_path / "old.json", old)
     _write(tmp_path / "new.json", _record())
     monkeypatch.chdir(tmp_path)

@@ -909,7 +909,7 @@ def test_missing_schema_version_is_structural_failure(tmp_path: Path) -> None:
     assert result.diagnostics[0].field == "$.schema_version"
 
 
-@pytest.mark.parametrize("version", [0, 3, "1", True, None])
+@pytest.mark.parametrize("version", [0, 4, "1", True, None])
 def test_unsupported_schema_version_has_distinct_exit(tmp_path: Path, version: object) -> None:
     workspace = _workspace(tmp_path)
     _write_case(workspace, {"schema_version": version, "case": {"id": "x", "title": "X"}})

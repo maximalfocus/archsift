@@ -790,7 +790,7 @@ def test_evolved_or_unsupported_typed_shapes_fail_exhaustiveness_guards() -> Non
 def test_unsupported_schema_and_wrong_enum_type_fail_closed() -> None:
     dossier = full_dossier()
     with pytest.raises(CanonicalizationError, match="schema version"):
-        canonical_dossier_dict(replace(dossier, schema_version=3))
+        canonical_dossier_dict(replace(dossier, schema_version=4))
     assert dossier.agency_necessity is not None
     wrong_question = AgencyQuestion(
         AutonomyAnswer.YES,  # type: ignore[arg-type]
