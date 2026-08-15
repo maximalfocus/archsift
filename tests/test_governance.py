@@ -189,10 +189,12 @@ def test_publication_status_is_explicit_and_conservative() -> None:
     assert "none of those publication events has occurred" in readme
     assert "independent cli usability cohort" in readme
     assert "independent architecture-method review" in readme
-    assert "have not been completed" in readme
-    assert "no usability, method-validation" in readme
+    assert "architecture-method review has not been completed" in readme
+    assert "no method-validation" in readme
     assert "production-readiness" in readme
     assert "first-release success claim is made" in readme
+    assert "evidence is simulated" in readme
+    assert "no claim that human target users passed" in readme
 
 
 def test_usage_reference_covers_every_command_and_option() -> None:

@@ -14,9 +14,12 @@ private case dossiers, case evidence, findings, and operational rationale remain
 visibility does not publish a package, tag, GitHub release, deployment, hosted service, or documentation
 site; none of those publication events has occurred.
 
-The independent CLI usability cohort and independent architecture-method review have not been
-completed. Their public protocols are available below, but no usability, method-validation,
-certification, production-readiness, or first-release success claim is made.
+The independent CLI usability cohort (simulated protocol 2.0.0) has been completed and its
+committed result validates with `criterion-met` (four of four simulated sessions passed; see
+[`usability-results.json`](usability-results.json)). The independent architecture-method review has
+not been completed. No method-validation, certification, production-readiness, or first-release
+success claim is made, and the usability evidence is simulated: no claim that human target users
+passed is made.
 
 ## Install
 
@@ -73,8 +76,10 @@ The [independent CLI usability-check protocol](docs/usability-check-v1.md) freez
 domain-neutral five-session human check and its privacy-bounded result contract. The
 [simulated usability-check protocol](docs/usability-check-v2.md) freezes the initial-release
 gate: four independent simulated sessions by distinct agent products, criterion met when at least
-three pass. No sessions of either protocol have been run and no success claim is made yet. A
-completed cohort is checked offline with exactly `archsift usability-results usability-results.json`.
+three pass. The initial simulated cohort has run and its committed
+[result](usability-results.json) validates with `criterion-met`; the human protocol has not been
+run and no human-participant claim is made. A completed cohort is checked offline with exactly
+`archsift usability-results usability-results.json`.
 
 The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
 four-example causal-trace review and privacy-bounded result contract for the public method. No

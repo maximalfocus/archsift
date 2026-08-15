@@ -343,10 +343,14 @@ def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
     assert "exactly four independent simulated sessions" in protocol_words
     assert "at least three of the four sessions" in protocol_words
     assert "initialize, complete, validate, and assess" in protocol_words
-    assert "no simulated sessions have been run" in protocol_words
+    assert "simulated cohort has been run" in protocol_words
+    assert "usability-results.json" in protocol
+    assert "criterion-met" in protocol
+    assert "no claim that human target users passed" in protocol_words
     assert "full 40-character lowercase commit ID" in protocol_words
     assert "archsift usability-results usability-results.json" in protocol
     assert "docs/usability-check-v2.md" in readme
+    assert "usability-results.json" in readme
 
 
 # --- Protocol 2.0.0 simulated cohort ---

@@ -43,6 +43,9 @@ jobs:
       - name: Enforce NFR-005 large-dossier performance budget
         run: python -m benchmarks.large_dossier --max-seconds 2.0
 
+      - name: Validate committed simulated usability cohort result
+        run: python -m archsift usability-results usability-results.json
+
       - name: Lint
         run: python -m ruff check .
 
