@@ -70,9 +70,11 @@ Reassessment means running `assess` again after the dossier, evidence artefacts,
 No network service, model API, or telemetry is used by the current CLI.
 
 The [independent CLI usability-check protocol](docs/usability-check-v1.md) freezes a fictional,
-domain-neutral five-session check and its privacy-bounded result contract. No sessions have been
-run and no success claim is made yet. A completed cohort is checked offline with exactly
-`archsift usability-results usability-results.json`.
+domain-neutral five-session human check and its privacy-bounded result contract. The
+[simulated usability-check protocol](docs/usability-check-v2.md) freezes the initial-release
+gate: four independent simulated sessions by distinct agent products, criterion met when at least
+three pass. No sessions of either protocol have been run and no success claim is made yet. A
+completed cohort is checked offline with exactly `archsift usability-results usability-results.json`.
 
 The [independent architecture-method review protocol](docs/method-review-v1.md) freezes a
 four-example causal-trace review and privacy-bounded result contract for the public method. No

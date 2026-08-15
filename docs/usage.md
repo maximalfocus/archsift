@@ -132,12 +132,15 @@ method specification reference.
 
 ### `archsift usability-results <results>`
 
-Validates one completed independent usability cohort result against the frozen
-[usability protocol](usability-check-v1.md) and its privacy-bounded result
-contract. A cohort of four or five passing sessions exits `0` with status
-`criterion-met`; three or fewer pass with exit `12` and status
-`criterion-not-met`. Schema, binding, privacy, or contract errors are not
-accepted cohort evidence.
+Validates one completed usability cohort result against the frozen
+[human protocol](usability-check-v1.md) or the
+[simulated protocol](usability-check-v2.md) and its privacy-bounded result
+contract. Under protocol 1.0.0, a cohort of four or five passing sessions exits
+`0` with status `criterion-met`; three or fewer pass with exit `12` and status
+`criterion-not-met`. Under protocol 2.0.0, three or four passing simulated
+sessions exit `0`; two or fewer pass with exit `12`; a duplicate agent product
+across sessions is a contract error. Schema, binding, privacy, or contract
+errors are not accepted cohort evidence.
 
 ### `archsift method-review-results <results>`
 
