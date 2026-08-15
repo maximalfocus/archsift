@@ -6,6 +6,7 @@ import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import date
 from enum import StrEnum
 from importlib.resources import files
@@ -369,6 +370,27 @@ class EvidenceKind(StrEnum):
     MISSING = "missing"
 
 
+class EvidenceAuthor(StrEnum):
+    """Supported evidence authorship classes."""
+
+    ACCOUNTABLE_PERSON = "accountable-person"
+    ASSISTANT = "assistant"
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceAuthorship:
+    """Effective author and accountable-person attestation state."""
+
+    authored_by: EvidenceAuthor
+    attested_by_accountable_person: bool
+
+
+DEFAULT_EVIDENCE_AUTHORSHIP = EvidenceAuthorship(
+    authored_by=EvidenceAuthor.ACCOUNTABLE_PERSON,
+    attested_by_accountable_person=True,
+)
+
+
 class EvidenceArtefactRoot(StrEnum):
     """Authorised root selected by an evidence-artefact reference."""
 
@@ -422,6 +444,10 @@ class EvidenceEntry:
     claim: str
     owner: str
     affects: tuple[DecisionArea, ...]
+    authorship: EvidenceAuthorship = dataclass_field(
+        default=DEFAULT_EVIDENCE_AUTHORSHIP,
+        kw_only=True,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -466,7 +492,7 @@ Evidence: TypeAlias = ObservedEvidence | AssumptionEvidence | EstimateEvidence |
 
 @dataclass(frozen=True, slots=True)
 class Dossier:
-    """Typed version-1 dossier envelope."""
+    """Typed versioned dossier envelope."""
 
     schema_version: int
     case: CaseIdentity
@@ -542,7 +568,10 @@ class ValidationResult:
     diagnostics: tuple[Diagnostic, ...] = ()
 
 
-_SCHEMA_RESOURCE = "schemas/dossier-v1.schema.json"
+_SCHEMA_RESOURCES = {
+    1: "schemas/dossier-v1.schema.json",
+    2: "schemas/dossier-v2.schema.json",
+}
 _AGENCY_QUESTION_FIELDS = (
     "execution_steps_predefinable",
     "step_count_or_order_predictable",
@@ -651,15 +680,17 @@ def _field_path(parts: Sequence[object]) -> str:
     return "$" + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in parts)
 
 
-def _schema() -> Mapping[str, Any]:
-    content = files("archsift").joinpath(_SCHEMA_RESOURCE).read_text(encoding="utf-8")
+def _schema(schema_version: int) -> Mapping[str, Any]:
+    content = (
+        files("archsift").joinpath(_SCHEMA_RESOURCES[schema_version]).read_text(encoding="utf-8")
+    )
     parsed: Any = json.loads(content)
     if not isinstance(parsed, Mapping):
         raise TypeError("packaged dossier schema must be an object")
     return parsed
 
 
-def _remediation(error: ValidationError, field: str) -> str:
+def _remediation(error: ValidationError, field: str, schema_version: int) -> str:
     if error.validator == "required":
         required = cast(Sequence[str], error.validator_value)
         instance = cast(Mapping[str, object], error.instance)
@@ -690,12 +721,14 @@ def _remediation(error: ValidationError, field: str) -> str:
     if error.validator == "not" and isinstance(error.instance, Mapping):
         kind = error.instance.get("kind", "this evidence kind")
         return f"Remove metadata fields that do not apply to evidence kind {kind!r}."
-    return "Update the field to satisfy the packaged version-1 schema."
+    return f"Update the field to satisfy the packaged version-{schema_version} schema."
 
 
-def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
+def _schema_diagnostics(error: ValidationError, schema_version: int) -> tuple[Diagnostic, ...]:
     base_field = _field_path(list(error.absolute_path))
-    if base_field.startswith("$.evidence") and ".artefacts" in base_field:
+    if base_field.startswith("$.evidence") and ".authorship" in base_field:
+        requirement = "FR-018"
+    elif base_field.startswith("$.evidence") and ".artefacts" in base_field:
         requirement = "FR-011"
     elif base_field.startswith("$.evidence"):
         requirement = "FR-004"
@@ -728,7 +761,7 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
         return tuple(
             _diagnostic(
                 "unknown-field",
-                f"Unknown field {name!r} is not permitted by schema version 1.",
+                f"Unknown field {name!r} is not permitted by schema version {schema_version}.",
                 f"{base_field}.{name}",
                 requirement,
                 "Remove the unknown field or use a supported schema version that defines it.",
@@ -741,7 +774,7 @@ def _schema_diagnostics(error: ValidationError) -> tuple[Diagnostic, ...]:
             error.message,
             base_field,
             requirement,
-            _remediation(error, base_field),
+            _remediation(error, base_field, schema_version),
         ),
     )
 
@@ -1885,6 +1918,17 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
         claim = cast(str, entry["claim"])
         owner = cast(str, entry["owner"])
         affects = tuple(DecisionArea(value) for value in cast(Sequence[str], entry["affects"]))
+        raw_authorship = cast(Mapping[str, Any] | None, entry.get("authorship"))
+        authorship = (
+            EvidenceAuthorship(
+                authored_by=EvidenceAuthor(cast(str, raw_authorship["authored_by"])),
+                attested_by_accountable_person=cast(
+                    bool, raw_authorship["attested_by_accountable_person"]
+                ),
+            )
+            if raw_authorship is not None
+            else DEFAULT_EVIDENCE_AUTHORSHIP
+        )
         kind = EvidenceKind(cast(str, entry["kind"]))
         if kind is EvidenceKind.OBSERVED:
             typed.append(
@@ -1896,6 +1940,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     provenance=cast(str, entry["provenance"]),
                     observed_at=date.fromisoformat(cast(str, entry["observed_at"])),
                     artefacts=artefacts(entry),
+                    authorship=authorship,
                 )
             )
         elif kind is EvidenceKind.ASSUMPTION:
@@ -1907,6 +1952,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     affects,
                     falsified_by=cast(str, entry["falsified_by"]),
                     artefacts=artefacts(entry),
+                    authorship=authorship,
                 )
             )
         elif kind is EvidenceKind.ESTIMATE:
@@ -1918,6 +1964,7 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     affects,
                     method=cast(str, entry["method"]),
                     artefacts=artefacts(entry),
+                    authorship=authorship,
                 )
             )
         else:
@@ -1929,15 +1976,44 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     affects,
                     resolved_by=cast(str, entry["resolved_by"]),
                     artefacts=artefacts(entry),
+                    authorship=authorship,
                 )
             )
     return tuple(typed)
 
 
-def _is_credible_support(entry: Evidence | None) -> bool:
-    return (isinstance(entry, ObservedEvidence) and bool(entry.provenance.strip())) or (
+def is_credible_support(entry: Evidence | None) -> bool:
+    """Return whether an entry may establish a fact at the evidence boundary."""
+    quality_eligible = (isinstance(entry, ObservedEvidence) and bool(entry.provenance.strip())) or (
         isinstance(entry, EstimateEvidence) and bool(entry.method.strip())
     )
+    return bool(
+        quality_eligible
+        and entry is not None
+        and (
+            entry.authorship.authored_by is EvidenceAuthor.ACCOUNTABLE_PERSON
+            or entry.authorship.attested_by_accountable_person
+        )
+    )
+
+
+def _credible_support_remediation(
+    evidence_by_id: Mapping[str, Evidence],
+    evidence_ids: tuple[str, ...],
+    fallback: str = "Cite at least one observed entry or method-backed estimate.",
+) -> str:
+    unattested_assistant_support = any(
+        isinstance(entry := evidence_by_id.get(identifier), (ObservedEvidence, EstimateEvidence))
+        and entry.authorship.authored_by is EvidenceAuthor.ASSISTANT
+        and not entry.authorship.attested_by_accountable_person
+        for identifier in evidence_ids
+    )
+    if unattested_assistant_support:
+        return (
+            "Have an accountable person attest the cited assistant-authored observation or "
+            "estimate, or cite other eligible observed or method-backed estimate evidence."
+        )
+    return fallback
 
 
 def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
@@ -1989,7 +2065,7 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
             )
             continue
         credible = any(
-            _is_credible_support(evidence.get(identifier)) for identifier in baseline.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in baseline.evidence_ids
         )
         if not credible:
             findings.append(
@@ -1999,8 +2075,12 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
                     "FR-005",
                     f"Binding outcome {outcome.id!r} uses baseline {baseline.id!r} without "
                     "observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate from that "
-                    "baseline.",
+                    _credible_support_remediation(
+                        evidence,
+                        baseline.evidence_ids,
+                        "Cite at least one observed entry or method-backed estimate from that "
+                        "baseline.",
+                    ),
                     baseline.evidence_ids,
                 )
             )
@@ -2040,7 +2120,7 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                 )
             )
         if not any(
-            _is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
         ):
             findings.append(
                 PrerequisiteFinding(
@@ -2048,14 +2128,14 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                     f"$.agency_necessity.{name}.evidence_ids",
                     "FR-006",
                     f"Agency question {name!r} lacks observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate.",
+                    _credible_support_remediation(evidence, question.evidence_ids),
                     question.evidence_ids,
                 )
             )
 
     for index, residual in enumerate(agency.residual_cases):
         if not any(
-            _is_credible_support(evidence.get(identifier)) for identifier in residual.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in residual.evidence_ids
         ):
             findings.append(
                 PrerequisiteFinding(
@@ -2063,7 +2143,7 @@ def evaluate_agency_necessity_readiness(dossier: Dossier) -> AgencyNecessityRead
                     f"$.agency_necessity.residual_cases[{index}].evidence_ids",
                     "FR-006",
                     f"Residual case {residual.id!r} lacks observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate.",
+                    _credible_support_remediation(evidence, residual.evidence_ids),
                     residual.evidence_ids,
                 )
             )
@@ -2104,7 +2184,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                 )
             )
         if not any(
-            _is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in question.evidence_ids
         ):
             findings.append(
                 PrerequisiteFinding(
@@ -2112,7 +2192,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     f"$.autonomy_permission.{name}.evidence_ids",
                     "FR-007",
                     f"Autonomy question {name!r} lacks observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate.",
+                    _credible_support_remediation(evidence, question.evidence_ids),
                     question.evidence_ids,
                 )
             )
@@ -2130,7 +2210,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                 )
             )
         if not any(
-            _is_credible_support(evidence.get(identifier)) for identifier in veto.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in veto.evidence_ids
         ):
             findings.append(
                 PrerequisiteFinding(
@@ -2138,14 +2218,14 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     f"$.autonomy_permission.hard_vetoes[{index}].evidence_ids",
                     "FR-007",
                     f"Hard veto {veto.id!r} lacks observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate.",
+                    _credible_support_remediation(evidence, veto.evidence_ids),
                     veto.evidence_ids,
                 )
             )
 
     for index, control in enumerate(autonomy.mandatory_human_controls):
         if not any(
-            _is_credible_support(evidence.get(identifier)) for identifier in control.evidence_ids
+            is_credible_support(evidence.get(identifier)) for identifier in control.evidence_ids
         ):
             findings.append(
                 PrerequisiteFinding(
@@ -2153,7 +2233,7 @@ def evaluate_autonomy_permission_readiness(dossier: Dossier) -> AutonomyPermissi
                     f"$.autonomy_permission.mandatory_human_controls[{index}].evidence_ids",
                     "FR-007",
                     f"Mandatory human control {control.id!r} lacks observed or estimated support.",
-                    "Cite at least one observed entry or method-backed estimate.",
+                    _credible_support_remediation(evidence, control.evidence_ids),
                     control.evidence_ids,
                 )
             )
@@ -2334,7 +2414,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                             )
                         )
                 if not any(
-                    _is_credible_support(evidence.get(identifier))
+                    is_credible_support(evidence.get(identifier))
                     for identifier in boundary.evidence_ids
                 ):
                     findings.append(
@@ -2343,7 +2423,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                             f"{boundary_path}.evidence_ids",
                             "FR-008",
                             "The strongest-simpler boundary lacks observed or estimated support.",
-                            "Cite at least one observed entry or method-backed estimate.",
+                            _credible_support_remediation(evidence, boundary.evidence_ids),
                             boundary.evidence_ids,
                         )
                     )
@@ -2449,7 +2529,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                         )
                     )
                 if not any(
-                    _is_credible_support(evidence.get(identifier))
+                    is_credible_support(evidence.get(identifier))
                     for identifier in test.evidence_ids
                 ):
                     findings.append(
@@ -2460,7 +2540,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                             "FR-008",
                             f"Candidate {candidate.id!r} has a test without observed or "
                             "estimated support.",
-                            "Cite at least one observed entry or method-backed estimate.",
+                            _credible_support_remediation(evidence, test.evidence_ids),
                             test.evidence_ids,
                         )
                     )
@@ -2523,7 +2603,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                     )
                 )
             if not any(
-                _is_credible_support(evidence.get(identifier))
+                is_credible_support(evidence.get(identifier))
                 for identifier in dimension.evidence_ids
             ):
                 findings.append(
@@ -2534,7 +2614,7 @@ def evaluate_candidate_comparison_readiness(dossier: Dossier) -> CandidateCompar
                         "FR-008",
                         f"Comparison dimension {dimension_name!r} lacks observed or estimated "
                         "support.",
-                        "Cite at least one observed entry or method-backed estimate.",
+                        _credible_support_remediation(evidence, dimension.evidence_ids),
                         dimension.evidence_ids,
                     )
                 )
@@ -2559,7 +2639,7 @@ def evaluate_consistency_readiness(dossier: Dossier) -> ConsistencyReadiness:
     evidence = {entry.id: entry for entry in dossier.evidence}
 
     def credible(evidence_ids: tuple[str, ...]) -> bool:
-        return any(_is_credible_support(evidence.get(identifier)) for identifier in evidence_ids)
+        return any(is_credible_support(evidence.get(identifier)) for identifier in evidence_ids)
 
     agency = dossier.agency_necessity
     if agency is not None:
@@ -2842,32 +2922,37 @@ def validate_workspace(workspace: Path) -> ValidationResult:
                     "The required schema_version field is missing.",
                     "$.schema_version",
                     "FR-002",
-                    "Add `schema_version: 1` at the dossier root.",
+                    "Add a supported `schema_version` at the dossier root.",
                 ),
             ),
         )
-    if type(loaded["schema_version"]) is not int or loaded["schema_version"] != 1:
+    declared_version = loaded["schema_version"]
+    if type(declared_version) is not int or declared_version not in _SCHEMA_RESOURCES:
         return ValidationResult(
             ExitCode.UNSUPPORTED_SCHEMA,
             diagnostics=(
                 _diagnostic(
                     "schema-version-unsupported",
-                    f"Schema version {loaded['schema_version']!r} is not supported.",
+                    f"Schema version {declared_version!r} is not supported.",
                     "$.schema_version",
                     "FR-002",
-                    "Use schema_version 1 or upgrade ArchSift when a newer version is supported.",
+                    "Use schema_version 1 or 2, or upgrade ArchSift when a newer version is "
+                    "supported.",
                 ),
             ),
         )
 
-    validator = Draft202012Validator(_schema(), format_checker=FormatChecker())
+    schema_version = declared_version
+    validator = Draft202012Validator(_schema(schema_version), format_checker=FormatChecker())
     errors = sorted(
         validator.iter_errors(loaded),
         key=lambda item: (_field_path(list(item.absolute_path)), item.validator, item.message),
     )
     if errors:
         diagnostics = tuple(
-            diagnostic for error in errors for diagnostic in _schema_diagnostics(error)
+            diagnostic
+            for error in errors
+            for diagnostic in _schema_diagnostics(error, schema_version)
         )
         return ValidationResult(ExitCode.VALIDATION_FAILED, diagnostics=diagnostics)
 
@@ -2930,7 +3015,7 @@ def validate_workspace(workspace: Path) -> ValidationResult:
     case = loaded["case"]
     assert isinstance(case, Mapping)
     dossier = Dossier(
-        schema_version=1,
+        schema_version=schema_version,
         case=CaseIdentity(id=str(case["id"]), title=str(case["title"])),
         language=language,
         evidence=_typed_evidence(raw_evidence),

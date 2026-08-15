@@ -26,9 +26,9 @@ def test_public_method_mapping_is_complete_canonical_and_version_matched() -> No
 
     validate_method_catalog(RULESET_VERSION, rule_ids)
 
-    assert RULESET_VERSION == METHOD_RULESET_VERSION == "1.9.0"
-    assert METHOD_VERSION == "1.3.0"
-    assert METHOD_SPECIFICATION == "docs/method-v1.3.0.md"
+    assert RULESET_VERSION == METHOD_RULESET_VERSION == "1.10.0"
+    assert METHOD_VERSION == "1.4.0"
+    assert METHOD_SPECIFICATION == "docs/method-v1.4.0.md"
     assert tuple(RULE_METHOD_REFERENCES) == rule_ids
     assert len(rule_ids) == len(RULE_METHOD_REFERENCES) == 66
     assert all(rule.rationale_id == RULE_METHOD_REFERENCES[rule.id].rationale_id for rule in rules)

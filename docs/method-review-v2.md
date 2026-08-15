@@ -29,6 +29,10 @@ binding is superseded, a valid result remains loadable and reports the covered v
 emits no text but preserves that distinct exit code. An unregistered binding fails closed with exit
 `11` and `method-review-binding-unsupported`.
 
+The registry also preserves method `1.3.0`, ruleset `1.9.0`, corpus `1.0.0` as an explicit
+superseded binding after the evidence-authorship boundary advanced the current method to `1.4.0`
+and ruleset to `1.10.0`. Registration preserves compatibility; it does not invent a cohort result.
+
 ## Success criterion
 
 Run exactly four independent simulated review sessions, each executed by a distinct agent product,

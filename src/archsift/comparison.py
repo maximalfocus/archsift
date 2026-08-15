@@ -20,7 +20,7 @@ from archsift.decision_record import RECORD_SCHEMA_VERSION
 from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
-COMPARISON_SCHEMA_VERSION = 2
+COMPARISON_SCHEMA_VERSION = 3
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -181,9 +181,11 @@ def _identity(content: bytes) -> str:
 
 
 @cache
-def _dossier_validator() -> Draft202012Validator:
+def _dossier_validator(schema_version: int) -> Draft202012Validator:
     raw = json.loads(
-        files("archsift").joinpath("schemas/dossier-v1.schema.json").read_text(encoding="utf-8")
+        files("archsift")
+        .joinpath(f"schemas/dossier-v{schema_version}.schema.json")
+        .read_text(encoding="utf-8")
     )
     if type(raw) is not dict:
         raise TypeError("packaged dossier schema must be an object")
@@ -681,7 +683,7 @@ def _validate_record(record: dict[str, object]) -> None:
         raise ValueError("record schema version is missing or unsupported")
     record_identity = _require_identity(record["record_content_identity"], "record identity")
     dossier_schema = record["dossier_schema_version"]
-    if type(dossier_schema) is not int or dossier_schema != 1:
+    if type(dossier_schema) is not int or dossier_schema not in {1, 2}:
         raise ValueError("dossier schema version is unsupported")
     ruleset_version = cast(str, _require_text(record["ruleset_version"], "ruleset version"))
     _require_text(record["tool_version"], "tool version")
@@ -690,9 +692,13 @@ def _validate_record(record: dict[str, object]) -> None:
     if dossier.get("schema_version") != dossier_schema:
         raise ValueError("dossier schema version is inconsistent")
     schema_view = _authored_schema_view(cast(JsonObject, dossier))
-    if next(_dossier_validator().iter_errors(schema_view), None) is not None:
-        raise ValueError("embedded dossier does not satisfy schema version 1")
+    if next(_dossier_validator(dossier_schema).iter_errors(schema_view), None) is not None:
+        raise ValueError(f"embedded dossier does not satisfy schema version {dossier_schema}")
     evidence = _require_list(dossier.get("evidence"), "$.dossier.evidence")
+    if dossier_schema == 2 and any(
+        type(entry) is not dict or "authorship" not in entry for entry in evidence
+    ):
+        raise ValueError("canonical schema-version-2 record evidence lacks effective authorship")
     dossier_identity = _require_identity(record["dossier_content_identity"], "dossier identity")
     if not masked and dossier_identity != _identity(
         canonical_json_bytes(cast(JsonObject, dossier))
@@ -1067,6 +1073,63 @@ def _graph_changed_entry_keys(changed_graph: Mapping[str, object]) -> list[JsonO
     return result
 
 
+def _evidence_entries(record: Mapping[str, object]) -> dict[str, dict[str, object]]:
+    dossier = cast(dict[str, object], record["dossier"])
+    entries = cast(list[dict[str, object]], dossier["evidence"])
+    return {cast(str, entry["id"]): entry for entry in entries}
+
+
+def _effective_authorship(entry: Mapping[str, object]) -> tuple[str, bool]:
+    raw = entry.get("authorship")
+    if type(raw) is not dict:
+        return ("accountable-person", True)
+    authorship = cast(dict[str, object], raw)
+    return (
+        cast(str, authorship["authored_by"]),
+        cast(bool, authorship["attested_by_accountable_person"]),
+    )
+
+
+def _attestation_delta(old: Mapping[str, object], new: Mapping[str, object]) -> list[JsonObject]:
+    old_entries = _evidence_entries(old)
+    new_entries = _evidence_entries(new)
+    result: list[JsonObject] = []
+    for identifier in sorted(set(old_entries) & set(new_entries)):
+        _, old_attested = _effective_authorship(old_entries[identifier])
+        _, new_attested = _effective_authorship(new_entries[identifier])
+        if old_attested != new_attested:
+            result.append(
+                {
+                    "evidence_id": identifier,
+                    "new": new_attested,
+                    "old": old_attested,
+                }
+            )
+    return result
+
+
+def _attestation_eligibility_changes(
+    old: Mapping[str, object], new: Mapping[str, object]
+) -> set[str]:
+    old_entries = _evidence_entries(old)
+    new_entries = _evidence_entries(new)
+    changed: set[str] = set()
+    for identifier in set(old_entries) & set(new_entries):
+        old_entry = old_entries[identifier]
+        new_entry = new_entries[identifier]
+        old_author, old_attested = _effective_authorship(old_entry)
+        new_author, new_attested = _effective_authorship(new_entry)
+        old_eligible = old_entry.get("kind") in {"observed", "estimate"} and (
+            old_author == "accountable-person" or old_attested
+        )
+        new_eligible = new_entry.get("kind") in {"observed", "estimate"} and (
+            new_author == "accountable-person" or new_attested
+        )
+        if old_attested != new_attested and old_eligible != new_eligible:
+            changed.add(identifier)
+    return changed
+
+
 def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     """Return the stable canonical comparison payload for two validated records."""
     old_assessment = _assessment(old)
@@ -1121,6 +1184,16 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     finding_change_count = sum(
         len(cast(list[object], finding_delta[name])) for name in ("added", "changed", "removed")
     )
+    attestation_changes = _attestation_delta(old, new)
+    eligibility_changes = _attestation_eligibility_changes(old, new)
+    causal_attestations = (
+        sorted(eligibility_changes) if finding_change_count or verdict_changed else []
+    )
+    contextual_attestations = sorted(
+        cast(str, item["evidence_id"])
+        for item in attestation_changes
+        if item["evidence_id"] not in set(causal_attestations)
+    )
     changed_graph = _changed_graph(old, new)
     graph_entries = _graph_changed_entry_keys(changed_graph)
     graph_findings = cast(dict[str, list[str]], changed_graph["supported_finding_rule_ids"])
@@ -1128,6 +1201,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
         set(graph_findings["added"]) | set(graph_findings["removed"])
     )
     causes: JsonObject = {
+        "attestation_evidence_ids": cast(list[JsonValue], causal_attestations),
         "evidence_ids": cast(list[JsonValue], causal_evidence),
         "finding_changes": finding_change_count if verdict_changed else 0,
         "graph_entries": cast(list[JsonValue], graph_entries if verdict_changed else []),
@@ -1144,6 +1218,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     if ruleset_delta["changed"]:
         snapshot_fields.append("ruleset_version")
     context: JsonObject = {
+        "attestation_evidence_ids": cast(list[JsonValue], contextual_attestations),
         "evidence_ids": cast(list[JsonValue], contextual_evidence),
         "finding_changes": 0 if verdict_changed else finding_change_count,
         "graph_entries": cast(list[JsonValue], [] if verdict_changed else graph_entries),
@@ -1168,6 +1243,7 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
 
     return {
         "causes": causes,
+        "changed_attestations": cast(list[JsonValue], attestation_changes),
         "changed_evidence": evidence_delta,
         "changed_graph": changed_graph,
         "changed_rules": changed_rules,
@@ -1216,6 +1292,9 @@ def render_human_comparison(comparison: Mapping[str, object]) -> str:
         f"Evidence: +{len(cast(Sequence[object], evidence['added']))} "
         f"-{len(cast(Sequence[object], evidence['removed']))} "
         f"~{len(cast(Sequence[object], evidence['changed']))}",
+        f"Attestations: ~{len(cast(Sequence[object], comparison['changed_attestations']))}; "
+        f"{len(cast(Sequence[object], causes['attestation_evidence_ids']))} causal; "
+        f"{len(cast(Sequence[object], context['attestation_evidence_ids']))} contextual",
         f"Findings: +{len(findings['added'])} -{len(findings['removed'])} "
         f"~{len(findings['changed'])}",
         "Graph use: "

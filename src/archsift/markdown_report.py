@@ -75,6 +75,7 @@ _EXPECTED_ENUM_VALUES: Final[dict[type[Enum], tuple[str, ...]]] = {
         "comparative-fit",
     ),
     v.DecisionConditionStatus: ("met", "unmet"),
+    v.EvidenceAuthor: ("accountable-person", "assistant"),
     v.EvidenceArtefactRoot: ("workspace", "external"),
     v.EvidenceKind: ("observed", "assumption", "estimate", "missing"),
     v.HardVetoStatus: ("active", "inactive", "unknown"),
@@ -212,7 +213,15 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "residual_cases",
     ),
     v.AgencyQuestion: ("answer", "rationale", "evidence_ids"),
-    v.AssumptionEvidence: ("id", "claim", "owner", "affects", "falsified_by", "artefacts"),
+    v.AssumptionEvidence: (
+        "id",
+        "claim",
+        "owner",
+        "affects",
+        "authorship",
+        "falsified_by",
+        "artefacts",
+    ),
     v.AutonomyPermission: (
         "actions_reversible",
         "failure_blast_radius_bounded",
@@ -282,7 +291,16 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "candidate_comparison",
         "decision_conditions",
     ),
-    v.EstimateEvidence: ("id", "claim", "owner", "affects", "method", "artefacts"),
+    v.EstimateEvidence: (
+        "id",
+        "claim",
+        "owner",
+        "affects",
+        "authorship",
+        "method",
+        "artefacts",
+    ),
+    v.EvidenceAuthorship: ("authored_by", "attested_by_accountable_person"),
     v.EvidenceArtefactReference: ("id", "root", "path"),
     v.EvidencedStatement: ("statement", "evidence_ids"),
     v.HardVeto: (
@@ -302,12 +320,21 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "action_ids",
         "evidence_ids",
     ),
-    v.MissingEvidence: ("id", "claim", "owner", "affects", "resolved_by", "artefacts"),
+    v.MissingEvidence: (
+        "id",
+        "claim",
+        "owner",
+        "affects",
+        "authorship",
+        "resolved_by",
+        "artefacts",
+    ),
     v.ObservedEvidence: (
         "id",
         "claim",
         "owner",
         "affects",
+        "authorship",
         "provenance",
         "observed_at",
         "artefacts",
@@ -419,6 +446,7 @@ def _emit_value(
     value: object,
     *,
     maskable: bool = True,
+    omit_evidence_authorship: bool = False,
 ) -> None:
     safe_label = _label(label)
     if type(value) is tuple:
@@ -427,7 +455,13 @@ def _emit_value(
             lines.extend(("    (none)", ""))
             return
         for index, item in enumerate(value, start=1):
-            _emit_value(lines, f"{safe_label} item {index}", item, maskable=maskable)
+            _emit_value(
+                lines,
+                f"{safe_label} item {index}",
+                item,
+                maskable=maskable,
+                omit_evidence_authorship=omit_evidence_authorship,
+            )
         return
     if is_dataclass(value):
         value_type = type(value)
@@ -437,20 +471,34 @@ def _emit_value(
         _assert_contract(value, value_type)
         lines.extend((f"**{safe_label}**", ""))
         for field_name in expected:
+            if (
+                omit_evidence_authorship
+                and field_name == "authorship"
+                and isinstance(value, v.EvidenceEntry)
+            ):
+                continue
             field_maskable = maskable and field_name not in mk.STRUCTURAL_KEYS
             _emit_value(
                 lines,
                 field_name.replace("_", " ").title(),
                 getattr(value, field_name),
                 maskable=field_maskable,
+                omit_evidence_authorship=omit_evidence_authorship,
             )
         return
     _emit_scalar(lines, safe_label, value, maskable=maskable)
 
 
-def _section(lines: list[str], title: str, label: str, value: object) -> None:
+def _section(
+    lines: list[str],
+    title: str,
+    label: str,
+    value: object,
+    *,
+    omit_evidence_authorship: bool = False,
+) -> None:
     lines.extend((f"## {_label(title)}", ""))
-    _emit_value(lines, label, value)
+    _emit_value(lines, label, value, omit_evidence_authorship=omit_evidence_authorship)
 
 
 def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
@@ -482,7 +530,13 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
 
     _section(lines, "Case Identity", "Case", record.dossier.case)
     _section(lines, "Task Boundary", "Task", record.dossier.task)
-    _section(lines, "Evidence Ledger", "Evidence", record.dossier.evidence)
+    _section(
+        lines,
+        "Evidence Ledger",
+        "Evidence",
+        record.dossier.evidence,
+        omit_evidence_authorship=record.dossier_schema_version == 1,
+    )
 
     lines.extend(("## Decision Areas", "", "### Problem Value", ""))
     _emit_value(lines, "Problem Value", record.dossier.problem_value)
