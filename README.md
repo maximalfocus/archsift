@@ -70,6 +70,8 @@ archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json --json
+archsift graph-change proposal.json proposed-snapshot.json --json
+archsift graph-change proposal.json proposed-snapshot.json --base-snapshot base-snapshot.json --json
 archsift graph-view snapshot.json private-case-view-request.json --json
 archsift usability-results usability-results.json
 archsift method-review-results method-review-results.json
@@ -86,6 +88,8 @@ Optional paired `--graph-snapshot` and `--graph-request` inputs bind a determini
 Reassessment means running `assess` again after the dossier, evidence artefacts, ruleset, configuration, tool version, or bound graph input changes; the result is a new immutable content-addressed record. `compare` reads two generated records beneath the current directory and reports evidence-identity, finding/ruleset, verdict-field, and graph-use changes. Graph presence and exact identifiers are explicit; only addressed reusable nodes and relations that reached findings are diffed, while identity-only snapshot evolution remains context. Finding-relevant graph changes are cause candidates only alongside changed verdict fields and can never independently determine a verdict. The command is offline and read-only, and `--json` emits comparison schema version 2 as canonical JSON.
 
 The [architecture knowledge graph snapshot contract](docs/graph-snapshot-v1.md) defines the reusable public knowledge layer: typed nodes and relations with declared semantics, provenance and an epistemic state on every assertion, competing theories kept visibly in conflict rather than merged, and canonical bytes addressed by an immutable graph version and a snapshot content identity. A snapshot never contains case material, a source locator is provenance that is never dereferenced, and no graph-derived measure or inferred edge may determine a verdict. `graph-snapshot` safely validates one canonical published snapshot beneath the current directory, re-verifies both addressing values, and reports its typed node and relation inventory without writing, fetching, or querying anything.
+
+The [graph-change proposal contract](docs/graph-change-v1.md) makes publication and evolution reviewable. `graph-change` checks one public issue, mandatory privacy and open-world attestations, exact immutable base/proposed identities, every stable-ID semantic delta, evidence-source bindings, visible lifecycle or typed-relation rationales, and synthetic proof for behavior changes. It is deterministic, offline, read-only, and never renders authored graph text.
 
 `graph-view` combines a validated published snapshot with one explicit, canonical private request naming relevance roots and private finding-to-rule bindings. It returns a deterministic private view with reusable claim traces, visible conflicts, and reusable-knowledge gaps; it never infers applicability, changes a verdict, persists the view, or merges case material into the public snapshot.
 

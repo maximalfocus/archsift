@@ -238,6 +238,28 @@ serialization violation exits `12`. A path outside the current directory, an
 unsafe path, or a non-regular-file target exits `13`; a missing or unreadable
 file exits `14`.
 
+### `archsift graph-change <proposal> <proposed-snapshot>` [`--base-snapshot` <base>]
+
+Validates one canonical [graph-change proposal](graph-change-v1.md) against the
+exact semantic delta between immutable snapshots. Initial publication omits a
+base and permits additions only. Evolution requires `--base-snapshot` and exact
+base/proposed schema, immutable graph-version, and content-identity references.
+
+The validator reconstructs every node and relation delta by stable ID and
+canonical entry content identity. It rejects omitted or invented changes,
+unresolved or mismatched evidence sources, rationales that are not visible in
+the proposed typed entry, false privacy/open-world attestations, and a behavior
+change without both synthetic counterexample and regression-test IDs.
+
+Human output reports only the change ID, exact base/proposed identities, and
+added/changed/removed node/relation counts. `--json` emits the same deterministic
+summary and `--quiet` emits nothing. The command safely reads regular contained
+files, writes nothing, is fully offline, and never dereferences source locators.
+Malformed or ambiguous input exits `10`; unsupported proposal or graph schema
+exits `11`; contract, delta, evidence, or semantic failure exits `12`; unsafe
+paths exit `13`; missing or unreadable files exit `14`. Diagnostics name
+FR-014/FR-015.
+
 ### `archsift graph-view <snapshot> <request>`
 
 Constructs one deterministic private task-relevant view from a canonical

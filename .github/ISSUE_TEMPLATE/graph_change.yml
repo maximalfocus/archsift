@@ -1,0 +1,47 @@
+name: Knowledge graph change
+description: Propose one evidence-backed reusable graph publication or evolution
+title: "[Graph change]: "
+labels: [enhancement]
+body:
+  - type: checkboxes
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and found no duplicate graph change.
+          required: true
+        - label: This proposal uses independently authored synthetic material and contains no actual case material or sanitised, paraphrased, transformed, or source-mapped derivative.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Reusable failure mode and public evidence
+      description: Describe the domain-neutral reusable failure mode, public evidence-source IDs and locators, and independently authored synthetic counterexample.
+    validations:
+      required: true
+  - type: textarea
+    id: stable_id_impact
+    attributes:
+      label: Stable-ID impact
+      description: List every expected added, changed, or removed node/relation ID and its rationale.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior_effect
+    attributes:
+      label: Expected behavior effect
+      description: State whether rules, findings, assessment, or verdict behavior changes and why.
+    validations:
+      required: true
+  - type: textarea
+    id: synthetic_proof
+    attributes:
+      label: Independently authored synthetic proof
+      description: Name the synthetic counterexample and regression test IDs required for any behavior change; never include case-derived nodes, relations, citations, fixtures, or source mappings.
+    validations:
+      required: true
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-goals
+    validations:
+      required: true

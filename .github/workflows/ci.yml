@@ -96,6 +96,7 @@ jobs:
           assert "archsift/canonical.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
+          assert "archsift/graph_change.py" in names
           assert "archsift/markdown_report.py" in names
           assert "archsift/masking.py" in names
           assert "archsift/method.py" in names
@@ -104,6 +105,8 @@ jobs:
           assert "archsift/rules.py" in names
           assert "archsift/usability.py" in names
           assert "archsift/docs/exit-codes.md" in names
+          assert "archsift/docs/graph-change-v1.md" in names
+          assert "archsift/docs/graph-snapshot-v1.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
           assert "archsift/docs/method-v1.1.0.md" in names
           assert "archsift/docs/method-v1.2.0.md" in names
@@ -111,6 +114,8 @@ jobs:
           assert "archsift/docs/usability-check-v1.md" in names
           assert "archsift/docs/usage.md" in names
           assert "archsift/schemas/dossier-v1.schema.json" in names
+          assert "archsift/schemas/graph-change-v1.schema.json" in names
+          assert "archsift/schemas/graph-snapshot-v1.schema.json" in names
           assert "archsift/schemas/method-review-results-v1.schema.json" in names
           assert "archsift/schemas/usability-results-v1.schema.json" in names
           assert "archsift/templates/workspace-README.md" in names

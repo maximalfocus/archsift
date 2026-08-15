@@ -28,6 +28,11 @@ from archsift.comparison import (
 )
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.graph_change import (
+    GraphChangeError,
+    load_graph_change_proposal,
+    validate_graph_change,
+)
 from archsift.html_report import render_detailed_html_report, render_executive_html_report
 from archsift.knowledge_graph import (
     NodeKind,
@@ -174,6 +179,20 @@ def build_parser() -> argparse.ArgumentParser:
     graph_view_parser.add_argument("snapshot", type=Path, help="canonical graph snapshot JSON")
     graph_view_parser.add_argument("request", type=Path, help="canonical private case-view request")
     _output_options(graph_view_parser)
+
+    graph_change_parser = subparsers.add_parser(
+        "graph-change", help="validate evidence-backed knowledge-graph evolution"
+    )
+    graph_change_parser.add_argument(
+        "proposal", type=Path, help="canonical graph-change proposal JSON"
+    )
+    graph_change_parser.add_argument(
+        "proposed_snapshot", type=Path, help="canonical proposed graph snapshot JSON"
+    )
+    graph_change_parser.add_argument(
+        "--base-snapshot", type=Path, help="exact immutable base graph snapshot"
+    )
+    _output_options(graph_change_parser)
     return parser
 
 
@@ -796,7 +815,7 @@ def _run_graph_snapshot(path: Path, *, json_output: bool, quiet: bool) -> int:
 
 
 def _emit_graph_input_failure(
-    error: SnapshotError | SnapshotFileError | CaseViewError,
+    error: SnapshotError | SnapshotFileError | CaseViewError | GraphChangeError,
     *,
     path: Path,
     json_output: bool,
@@ -882,6 +901,91 @@ def _run_graph_view(
             f"{len(finding_items)} private findings; graph {snapshot.graph_version}"
         ),
         details={"case_view": view.content, "case_view_content_identity": view.content_identity},
+    )
+    return int(ExitCode.SUCCESS)
+
+
+def _run_graph_change(
+    proposal_path: Path,
+    proposed_path: Path,
+    base_path: Path | None,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    root = Path(".")
+    try:
+        proposal = load_graph_change_proposal(read_contained_graph_file(proposal_path, root=root))
+    except (GraphChangeError, SnapshotFileError) as error:
+        return _emit_graph_input_failure(
+            error,
+            path=proposal_path,
+            json_output=json_output,
+            quiet=quiet,
+            command="graph-change",
+            requirement="FR-014/FR-015",
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    try:
+        proposed = load_snapshot_file(proposed_path, root=root)
+    except (SnapshotError, SnapshotFileError) as error:
+        return _emit_graph_input_failure(
+            error,
+            path=proposed_path,
+            json_output=json_output,
+            quiet=quiet,
+            command="graph-change",
+            requirement="FR-014/FR-015",
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    try:
+        base = None if base_path is None else load_snapshot_file(base_path, root=root)
+    except (SnapshotError, SnapshotFileError) as error:
+        return _emit_graph_input_failure(
+            error,
+            path=cast(Path, base_path),
+            json_output=json_output,
+            quiet=quiet,
+            command="graph-change",
+            requirement="FR-014/FR-015",
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    try:
+        summary = validate_graph_change(proposal, proposed, base)
+    except GraphChangeError as error:
+        return _emit_graph_input_failure(
+            error,
+            path=proposal_path,
+            json_output=json_output,
+            quiet=quiet,
+            command="graph-change",
+            requirement="FR-014/FR-015",
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    node_counts = cast(dict[str, int], summary["node_changes"])
+    relation_counts = cast(dict[str, int], summary["relation_changes"])
+    base_identity = "none"
+    if base is not None:
+        base_identity = base.snapshot_content_identity
+    _emit(
+        status="valid",
+        exit_code=ExitCode.SUCCESS,
+        diagnostics=(),
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Valid graph change {summary['change_id']}: base {base_identity}; "
+            f"proposed {proposed.snapshot_content_identity}; "
+            f"nodes +{node_counts['added']} ~{node_counts['changed']} "
+            f"-{node_counts['removed']}; relations +{relation_counts['added']} "
+            f"~{relation_counts['changed']} -{relation_counts['removed']}"
+        ),
+        details={"graph_change": summary},
     )
     return int(ExitCode.SUCCESS)
 
@@ -990,6 +1094,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_graph_view(
             args.snapshot,
             args.request,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "graph-change":
+        return _run_graph_change(
+            args.proposal,
+            args.proposed_snapshot,
+            args.base_snapshot,
             json_output=args.json_output,
             quiet=args.quiet,
         )
