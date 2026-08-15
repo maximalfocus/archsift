@@ -189,8 +189,8 @@ def test_publication_status_is_explicit_and_conservative() -> None:
     assert "none of those publication events has occurred" in readme
     assert "independent cli usability cohort" in readme
     assert "independent architecture-method review" in readme
-    assert "no method-validation claim is made" in readme
-    assert "criterion-not-met" in readme
+    assert "criterion-met" in readme
+    assert "method-review-results-1-criterion-not-met.json" in readme
     assert "production-readiness" in readme
     assert "first-release success claim is made" in readme
     assert "evidence is simulated" in readme

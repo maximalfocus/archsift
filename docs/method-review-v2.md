@@ -6,15 +6,17 @@ area to candidate disposition and verdict resolution, executed by independent si
 sessions. Protocol 1.0.0 remains frozen for human architect reviews and stays supported by the
 validator.
 
-One simulated review cohort has been run. The committed result is
+Two simulated review cohorts have been run. The current committed result is
 [`method-review-results.json`](../method-review-results.json) (cohort date 2026-08-15, source
-commit `75fb242e2207486dd52cd356f07966dc86790f6c`). `archsift method-review-results
-method-review-results.json` exits `12` with `criterion-not-met`: one of four sessions met the
-session criterion. The evidence is simulated: sessions were executed by four distinct agent
-products, and no claim that a human architect passed is made. The finding that drove the outcome —
-decision areas whose facts are visible without a completing causal or explicitly non-decisive
-trace in three of the four corpus examples — is a recorded product gap for follow-up work. Any
-later cohort is a new result record bound to its own source commit.
+commit `38dc9a9388c1b7e778dbc07c580d6420bab4302e`). `archsift method-review-results
+method-review-results.json` exits `0` with `criterion-met`: three of four sessions met the
+session criterion, applying the clarified classification rule for examples with no agentic or
+automation candidate. The first cohort, bound to commit `75fb242e2207486dd52cd356f07966dc86790f6c`
+under the prior protocol text, is preserved as an honest historical record at
+[`method-review-results-1-criterion-not-met.json`](../method-review-results-1-criterion-not-met.json)
+(exit `12`, `criterion-not-met`). The evidence of both cohorts is simulated: sessions were
+executed by distinct agent products, and no claim that a human architect passed is made. Any later
+cohort is a new result record bound to its own source commit.
 
 ## Success criterion
 
