@@ -437,3 +437,23 @@ def masked_canonical_decision_record_dict(record: DecisionRecord) -> JsonObject:
 def masked_canonical_decision_record_bytes(record: DecisionRecord) -> bytes:
     """Return strict canonical JSON bytes for one masked decision record."""
     return canonical_json_bytes(masked_canonical_decision_record_dict(record))
+
+
+def masked_decision_record_view(record: JsonObject) -> JsonObject:
+    """Return the masked presentation of one already-loaded canonical record.
+
+    A record read back from disk was normally masked when it was persisted.
+    Masking is idempotent — a fixed category placeholder matches no policy
+    pattern — so re-applying it neither double-masks a persisted record nor
+    lets an unmasked record reach a rendered report unmasked. The disclosure
+    is restated identically, so a masked record round-trips unchanged.
+    """
+    masked = _mask_json_value(record, key=None)
+    if type(masked) is not dict:
+        raise MaskingError("Decision record masking produced no JSON object.")
+    masked["masking"] = {
+        "applied": True,
+        "policy_version": MASKING_POLICY_VERSION,
+        "warning": MASKING_WARNING,
+    }
+    return masked

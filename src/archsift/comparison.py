@@ -805,6 +805,16 @@ def _validate_record(record: dict[str, object]) -> None:
         raise ValueError("record content identity is inconsistent")
 
 
+def resolve_record_path(path: Path, *, root: Path, role: str) -> Path:
+    """Return one canonical record's fully resolved path beneath an authorised root.
+
+    Every reader of a generated record shares this boundary, so a record that
+    escapes the authorised root, is not a regular file, or cannot be resolved
+    safely is refused identically wherever it is read.
+    """
+    return _resolve_record(path, root=root, role=role)
+
+
 def load_decision_record(path: Path, *, root: Path, role: str) -> JsonObject:
     """Safely load and validate one canonical record beneath an authorised root."""
     resolved = _resolve_record(path, root=root, role=role)
