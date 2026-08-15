@@ -7,14 +7,17 @@ from typing import Any
 import pytest
 from jsonschema import Draft202012Validator
 
+import archsift.method_review as method_review
 from archsift.cli import main
 from archsift.diagnostics import ExitCode
 from archsift.method import METHOD_VERSION
 from archsift.method_review import (
     CORPUS_VERSION,
+    CURRENT_BINDING,
     FAILURE_REASONS,
     PROTOCOL_VERSION,
     PROTOCOL_VERSION_2,
+    PUBLISHED_BINDINGS,
     REQUIRED_DECISION_AREAS,
     REQUIRED_EXAMPLES,
     REQUIRED_PASS_COUNT_2,
@@ -22,6 +25,7 @@ from archsift.method_review import (
     RESULT_SCHEMA_VERSION,
     RESULT_SCHEMA_VERSION_2,
     SUPPORTED_ARCHSIFT_VERSION,
+    MethodReviewBinding,
     validate_method_review_results,
 )
 from archsift.rules import RULESET_VERSION
@@ -132,9 +136,17 @@ def test_packaged_schema_and_corpus_bindings_are_valid() -> None:
         schema["properties"]["archsift_version_or_commit"]["oneOf"][1]["pattern"]
         == "^[0-9a-f]{40}$"
     )
-    assert schema["properties"]["method_version"]["const"] == METHOD_VERSION
-    assert schema["properties"]["ruleset_version"]["const"] == RULESET_VERSION
-    assert schema["properties"]["corpus_version"]["const"] == CORPUS_VERSION
+    for field in ("method_version", "ruleset_version", "corpus_version"):
+        assert schema["properties"][field]["$ref"] == "#/$defs/publishedVersion"
+    validator = Draft202012Validator(schema)
+    for binding in PUBLISHED_BINDINGS:
+        payload = _review()
+        payload.update(
+            method_version=binding.method_version,
+            ruleset_version=binding.ruleset_version,
+            corpus_version=binding.corpus_version,
+        )
+        validator.validate(payload)
     assert manifest["corpus_version"] == CORPUS_VERSION
     assert tuple(item["path"] for item in manifest["examples"]) == REQUIRED_EXAMPLES
     example_ids = schema["$defs"]["exampleId"]["enum"]
@@ -157,6 +169,8 @@ def test_complete_review_meets_criterion(tmp_path: Path) -> None:
     assert result.disagreement_count == 0
     assert result.criterion_met is True
     assert result.diagnostics == ()
+    assert result.binding == CURRENT_BINDING
+    assert result.binding_superseded is False
 
 
 def test_public_source_commit_binding_is_supported(tmp_path: Path) -> None:
@@ -697,6 +711,11 @@ def test_public_docs_freeze_protocol_and_exact_offline_command() -> None:
 # --- Protocol 2.0.0 simulated cohort ---
 
 _SIMULATED_PRODUCTS = ("claude-code", "codex", "opencode", "pi")
+_SYNTHETIC_SUPERSEDED_BINDING = MethodReviewBinding(
+    method_version="1.1.0",
+    ruleset_version="1.7.0",
+    corpus_version="1.0.0",
+)
 
 
 def _simulated_session(index: int, product: str) -> dict[str, Any]:
@@ -746,6 +765,14 @@ def _simulated_cohort(pass_count: int) -> dict[str, Any]:
     }
 
 
+def _publish_synthetic_superseded_binding(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        method_review,
+        "PUBLISHED_BINDINGS",
+        (CURRENT_BINDING, _SYNTHETIC_SUPERSEDED_BINDING),
+    )
+
+
 def test_packaged_simulated_method_review_schema_is_valid() -> None:
     path = Path(__file__).parents[1] / "src/archsift/schemas/method-review-results-v2.schema.json"
     schema = json.loads(path.read_text(encoding="utf-8"))
@@ -758,6 +785,125 @@ def test_packaged_simulated_method_review_schema_is_valid() -> None:
     assert session["properties"]["fresh_session"]["const"] is True
     assert session["properties"]["examples"]["items"]["$ref"].endswith("/exampleReview")
     assert REQUIRED_PASS_COUNT_2 == 3
+    for field in ("method_version", "ruleset_version", "corpus_version"):
+        assert schema["properties"][field]["$ref"] == "#/$defs/publishedVersion"
+    validator = Draft202012Validator(schema)
+    for binding in PUBLISHED_BINDINGS:
+        payload = _simulated_cohort(3)
+        payload.update(
+            method_version=binding.method_version,
+            ruleset_version=binding.ruleset_version,
+            corpus_version=binding.corpus_version,
+        )
+        validator.validate(payload)
+
+
+def test_superseded_binding_preserves_met_cohort_as_historical_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _publish_synthetic_superseded_binding(monkeypatch)
+    payload = _simulated_cohort(3)
+    payload.update(
+        method_version=_SYNTHETIC_SUPERSEDED_BINDING.method_version,
+        ruleset_version=_SYNTHETIC_SUPERSEDED_BINDING.ruleset_version,
+        corpus_version=_SYNTHETIC_SUPERSEDED_BINDING.corpus_version,
+    )
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUPERSEDED_BINDING
+    assert result.criterion_met is True
+    assert result.diagnostics == ()
+    assert result.binding == _SYNTHETIC_SUPERSEDED_BINDING
+    assert result.binding_superseded is True
+
+
+def test_superseded_binding_preserves_not_met_cohort_as_historical_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _publish_synthetic_superseded_binding(monkeypatch)
+    payload = _simulated_cohort(2)
+    payload.update(
+        method_version=_SYNTHETIC_SUPERSEDED_BINDING.method_version,
+        ruleset_version=_SYNTHETIC_SUPERSEDED_BINDING.ruleset_version,
+        corpus_version=_SYNTHETIC_SUPERSEDED_BINDING.corpus_version,
+    )
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.SUPERSEDED_BINDING
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["method-review-criterion-not-met"]
+    assert result.binding == _SYNTHETIC_SUPERSEDED_BINDING
+    assert result.binding_superseded is True
+
+    assert main(["method-review-results", str(path), "--json"]) == ExitCode.SUPERSEDED_BINDING
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "criterion-not-met-superseded"
+    assert output["binding_state"] == "superseded"
+    assert output["method_version"] == "1.1.0"
+    assert output["ruleset_version"] == "1.7.0"
+    assert output["corpus_version"] == "1.0.0"
+
+
+def test_unpublished_binding_is_schema_valid_but_fails_packaged_registry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _publish_synthetic_superseded_binding(monkeypatch)
+    payload = _simulated_cohort(3)
+    payload.update(
+        method_version=CURRENT_BINDING.method_version,
+        ruleset_version=_SYNTHETIC_SUPERSEDED_BINDING.ruleset_version,
+        corpus_version=CURRENT_BINDING.corpus_version,
+    )
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_method_review_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "method-review-binding-unsupported"
+
+
+def test_superseded_binding_is_visible_in_human_json_and_quiet_modes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _publish_synthetic_superseded_binding(monkeypatch)
+    payload = _simulated_cohort(3)
+    payload.update(
+        method_version=_SYNTHETIC_SUPERSEDED_BINDING.method_version,
+        ruleset_version=_SYNTHETIC_SUPERSEDED_BINDING.ruleset_version,
+        corpus_version=_SYNTHETIC_SUPERSEDED_BINDING.corpus_version,
+    )
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    assert main(["method-review-results", str(path)]) == ExitCode.SUPERSEDED_BINDING
+    assert capsys.readouterr().out == (
+        "Architecture-method review criterion met for superseded binding "
+        "(method 1.1.0, ruleset 1.7.0, corpus 1.0.0): "
+        "3 of 4 sessions passed (protocol 2.0.0)\n"
+    )
+
+    assert main(["method-review-results", str(path), "--json"]) == ExitCode.SUPERSEDED_BINDING
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "criterion-met-superseded"
+    assert output["exit_code"] == ExitCode.SUPERSEDED_BINDING
+    assert output["binding_state"] == "superseded"
+    assert output["method_version"] == "1.1.0"
+    assert output["ruleset_version"] == "1.7.0"
+    assert output["corpus_version"] == "1.0.0"
+
+    assert main(["method-review-results", str(path), "--quiet"]) == ExitCode.SUPERSEDED_BINDING
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert output.err == ""
 
 
 def test_three_of_four_simulated_sessions_meets_criterion(tmp_path: Path) -> None:

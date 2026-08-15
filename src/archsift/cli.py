@@ -721,9 +721,44 @@ def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) ->
         result = validate_method_review_results(path)
     except Exception as error:  # defensive CLI boundary
         return _internal_error(error, json_output=json_output, quiet=quiet)
-    status = "criterion-met" if result.exit_code is ExitCode.SUCCESS else "invalid"
+    status = "criterion-met" if result.criterion_met else "invalid"
     if any(item.id == "method-review-criterion-not-met" for item in result.diagnostics):
         status = "criterion-not-met"
+    if result.binding_superseded and status != "invalid":
+        status = f"{status}-superseded"
+    covered = result.binding.render() if result.binding is not None else "an unknown binding"
+    scope = (
+        f"criterion met for superseded binding ({covered})"
+        if result.binding_superseded
+        else "criterion met"
+    )
+    if result.binding_superseded and result.diagnostics and not quiet and not json_output:
+        # _emit renders diagnostics instead of the summary line, so the covered
+        # binding would otherwise be invisible in human mode.
+        _print(f"Result covers superseded binding: {covered}", stream=sys.stdout)
+    details: dict[str, object] = {
+        "criterion_met": result.criterion_met,
+        "disagreement_count": result.disagreement_count,
+        "example_count": result.example_count,
+        "protocol_version": result.protocol_version,
+        **(
+            {
+                "session_count": result.session_count,
+                "passed_session_count": result.passed_session_count,
+            }
+            if result.protocol_version == "2.0.0"
+            else {}
+        ),
+    }
+    if result.binding_superseded:
+        details.update(
+            {
+                "binding_state": "superseded",
+                "corpus_version": result.binding.corpus_version if result.binding else None,
+                "method_version": result.binding.method_version if result.binding else None,
+                "ruleset_version": result.binding.ruleset_version if result.binding else None,
+            }
+        )
     _emit(
         status=status,
         exit_code=result.exit_code,
@@ -731,28 +766,15 @@ def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) ->
         json_output=json_output,
         quiet=quiet,
         success_message=(
-            f"Architecture-method review criterion met: {result.passed_session_count} of "
+            f"Architecture-method review {scope}: {result.passed_session_count} of "
             f"{result.session_count} sessions passed (protocol {result.protocol_version})"
             if result.protocol_version == "2.0.0"
             else (
-                f"Architecture-method review criterion met: {result.example_count} examples "
+                f"Architecture-method review {scope}: {result.example_count} examples "
                 f"reviewed (protocol {result.protocol_version})"
             )
         ),
-        details={
-            "criterion_met": result.criterion_met,
-            "disagreement_count": result.disagreement_count,
-            "example_count": result.example_count,
-            "protocol_version": result.protocol_version,
-            **(
-                {
-                    "session_count": result.session_count,
-                    "passed_session_count": result.passed_session_count,
-                }
-                if result.protocol_version == "2.0.0"
-                else {}
-            ),
-        },
+        details=details,
     )
     return int(result.exit_code)
 

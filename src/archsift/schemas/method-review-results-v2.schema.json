@@ -28,16 +28,13 @@
       "pattern": "^(?:[0-9]+\\.[0-9]+\\.[0-9]+(?:[A-Za-z0-9.+-]*)?|[0-9a-f]{40})(?![\\s\\S])$"
     },
     "method_version": {
-      "type": "string",
-      "const": "1.2.0"
+      "$ref": "#/$defs/publishedVersion"
     },
     "ruleset_version": {
-      "type": "string",
-      "const": "1.8.0"
+      "$ref": "#/$defs/publishedVersion"
     },
     "corpus_version": {
-      "type": "string",
-      "const": "1.0.0"
+      "$ref": "#/$defs/publishedVersion"
     },
     "overall_result": {
       "enum": ["met", "not-met"]
@@ -52,6 +49,10 @@
     }
   },
   "$defs": {
+    "publishedVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?![\\s\\S])$"
+    },
     "stableId": {
       "type": "string",
       "minLength": 1,
