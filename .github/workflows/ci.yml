@@ -94,6 +94,7 @@ jobs:
               names = set(archive.namelist())
           assert "archsift/artefacts.py" in names
           assert "archsift/authoring.py" in names
+          assert "archsift/authoring_results.py" in names
           assert "archsift/canonical.py" in names
           assert "archsift/corpus.py" in names
           assert "archsift/decision.py" in names
@@ -110,6 +111,7 @@ jobs:
           assert "archsift/docs/exit-codes.md" in names
           assert "archsift/docs/architecture-knowledge-v1.md" in names
           assert "archsift/docs/architecture-knowledge-v2.md" in names
+          assert "archsift/docs/authoring-check-v1.md" in names
           assert "archsift/docs/graph-change-v1.md" in names
           assert "archsift/docs/graph-snapshot-v1.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
@@ -123,6 +125,7 @@ jobs:
           assert "archsift/schemas/dossier-v1.schema.json" in names
           assert "archsift/schemas/dossier-v2.schema.json" in names
           assert "archsift/schemas/dossier-v3.schema.json" in names
+          assert "archsift/schemas/authoring-results-v1.schema.json" in names
           assert "archsift/schemas/graph-change-v1.schema.json" in names
           assert "archsift/schemas/graph-snapshot-v1.schema.json" in names
           assert "archsift/schemas/method-review-results-v1.schema.json" in names
@@ -132,6 +135,10 @@ jobs:
           assert "archsift/knowledge/architecture-v2.json" in names
           assert "archsift/knowledge/architecture-v2.change.json" in names
           assert "archsift/templates/workspace-README.md" in names
+          assert "archsift/authoring-material/brief.md" in names
+          assert "archsift/authoring-material/manifest-v1.json" in names
+          assert "archsift/authoring-material/repository/required_fields.py" in names
+          assert "archsift/authoring-material/repository/routing_rules.py" in names
           print(wheel)
 
       - name: Smoke-test installed wheel
@@ -824,6 +831,68 @@ jobs:
           )
           offline_environment = os.environ.copy()
           offline_environment["PYTHONPATH"] = str(network_blocker)
+          authoring_sessions = []
+          for index in range(1, 5):
+              passed = index <= 3
+              authoring_sessions.append({
+                  "session_id": f"session-{index:02d}",
+                  "agent_product": f"installed-agent-product-{index}",
+                  "agent_model": f"installed-model-{index}",
+                  "harness_version": "1.0.0",
+                  "fresh_session": True,
+                  "environment": {
+                      "operating_system": "windows" if os.name == "nt" else "linux",
+                      "python_version": f"{sys.version_info.major}.{sys.version_info.minor}",
+                      "install_mode": "built-wheel",
+                  },
+                  "milestones": {
+                      "register_material": "pass",
+                      "inspect_schema": "pass",
+                      "author_dossier": "pass",
+                      "complete_prerequisites": "pass",
+                      "validate": "pass",
+                      "assess": "pass" if passed else "fail",
+                  },
+                  "maintainer_intervention": False,
+                  "session_result": "pass" if passed else "fail",
+                  "failure_reason": None if passed else "Assessment did not complete.",
+              })
+          authoring_path = root / "authoring-results.json"
+          authoring_payload = {
+              "schema_version": 1,
+              "protocol_version": "1.0.0",
+              "archsift_source_commit": "a" * 40,
+              "material_set_content_identity": (
+                  "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee"
+              ),
+              "overall_result": "met",
+              "sessions": authoring_sessions,
+          }
+          authoring_path.write_text(json.dumps(authoring_payload), encoding="utf-8")
+          authoring_run = subprocess.run(
+              [archsift, "authoring-results", "authoring-results.json", "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+              cwd=root,
+              env=offline_environment,
+          )
+          assert json.loads(authoring_run.stdout)["status"] == "criterion-met"
+          authoring_payload["sessions"][2]["milestones"]["assess"] = "fail"
+          authoring_payload["sessions"][2]["session_result"] = "fail"
+          authoring_payload["sessions"][2]["failure_reason"] = "Assessment did not complete."
+          authoring_payload["overall_result"] = "not-met"
+          authoring_path.write_text(json.dumps(authoring_payload), encoding="utf-8")
+          failing_authoring_run = subprocess.run(
+              [archsift, "authoring-results", "authoring-results.json", "--json"],
+              check=False,
+              capture_output=True,
+              text=True,
+              cwd=root,
+              env=offline_environment,
+          )
+          assert failing_authoring_run.returncode == 12
+          assert json.loads(failing_authoring_run.stdout)["status"] == "criterion-not-met"
           schema_output = subprocess.run(
               [archsift, "dossier-schema", "--json"],
               check=True,

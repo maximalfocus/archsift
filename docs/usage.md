@@ -373,6 +373,22 @@ sessions exit `0`; two or fewer pass with exit `12`; a duplicate agent product
 across sessions is a contract error. Schema, binding, privacy, or contract
 errors are not accepted cohort evidence.
 
+### `archsift authoring-results <results>`
+
+Validates one completed simulated assisted-authoring cohort against
+[protocol 1.0.0](authoring-check-v1.md) and the packaged privacy-bounded result schema. Exactly four
+fresh sessions from four distinct agent products are required. A session passes only when material
+registration, schema inspection, dossier authoring, prerequisite completion, validation, and
+assessment all pass without maintainer intervention. Three or four passing sessions exit `0` with
+status `criterion-met`; two or fewer exit `12` with status `criterion-not-met`. Duplicate session
+IDs or products, a different frozen-material identity, inconsistent derived results, extra fields,
+or privacy-contract failures are invalid evidence.
+
+The result must be a readable regular JSON file beneath the current directory. The command rejects
+links and escaping paths, performs no network access, writes nothing, and never opens a cohort
+workspace. `--json` returns protocol, session, pass-count, criterion, diagnostic, and exit-code
+fields; `--quiet` returns only the exit status.
+
 ### `archsift method-review-results <results>`
 
 Validates one completed architecture-method review result against the frozen
