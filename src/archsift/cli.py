@@ -26,7 +26,7 @@ from archsift.comparison import (
     render_human_comparison,
     resolve_record_path,
 )
-from archsift.decision_record import compose_decision_record
+from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.html_report import render_detailed_html_report, render_executive_html_report
 from archsift.knowledge_graph import (
@@ -107,6 +107,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--external-evidence-root",
         type=Path,
         help="explicitly authorise one external evidence directory",
+    )
+    assess_parser.add_argument(
+        "--graph-snapshot",
+        type=Path,
+        help="canonical published graph snapshot supporting emitted findings",
+    )
+    assess_parser.add_argument(
+        "--graph-request",
+        type=Path,
+        help="canonical private case-view request paired with --graph-snapshot",
     )
     _output_options(assess_parser)
 
@@ -397,6 +407,8 @@ def _run_assess(
     path: Path,
     *,
     external_evidence_root: Path | None,
+    graph_snapshot_path: Path | None,
+    graph_request_path: Path | None,
     json_output: bool,
     quiet: bool,
 ) -> int:
@@ -418,11 +430,64 @@ def _run_assess(
             workspace=path,
             external_root=external_evidence_root,
         )
-        record = compose_decision_record(
-            result.dossier,
-            tool_version=package_version(),
-            artefact_identities=artefacts,
-        )
+        case_view = None
+        if graph_snapshot_path is not None and graph_request_path is not None:
+            try:
+                snapshot = load_snapshot_file(graph_snapshot_path, root=Path("."))
+            except (SnapshotError, SnapshotFileError) as error:
+                return _emit_graph_input_failure(
+                    error,
+                    path=graph_snapshot_path,
+                    json_output=json_output,
+                    quiet=quiet,
+                    command="assess-graph",
+                    requirement="FR-011/FR-015",
+                )
+            try:
+                request = load_case_view_request(
+                    read_contained_graph_file(graph_request_path, root=Path("."))
+                )
+                case_view = construct_case_view(snapshot, request)
+            except (CaseViewError, SnapshotFileError) as error:
+                return _emit_graph_input_failure(
+                    error,
+                    path=graph_request_path,
+                    json_output=json_output,
+                    quiet=quiet,
+                    command="assess-graph",
+                    requirement="FR-011/FR-015",
+                )
+        try:
+            record = compose_decision_record(
+                result.dossier,
+                tool_version=package_version(),
+                artefact_identities=artefacts,
+                case_view=case_view,
+            )
+        except DecisionRecordError as error:
+            if case_view is None:
+                raise
+            diagnostic = Diagnostic(
+                id="assess-graph-invalid-binding",
+                message=str(error),
+                file=str(graph_request_path),
+                field="$.finding_ids",
+                requirement="FR-011/FR-015",
+                remediation=(
+                    "Bind only finding IDs that exactly match rule IDs emitted by this assessment "
+                    "and include at least one complete reusable claim-to-rule trace."
+                ),
+            )
+            _emit(
+                status="invalid",
+                exit_code=ExitCode.VALIDATION_FAILED,
+                diagnostics=(diagnostic,),
+                json_output=json_output,
+                quiet=quiet,
+                success_message="",
+                details={},
+            )
+            return int(ExitCode.VALIDATION_FAILED)
         content = masked_canonical_decision_record_bytes(record)
         report = render_markdown_decision_report(record)
         persisted = persist_decision_outputs(path, record, content, report)
@@ -736,6 +801,8 @@ def _emit_graph_input_failure(
     path: Path,
     json_output: bool,
     quiet: bool,
+    command: str = "graph-view",
+    requirement: str = "FR-015",
 ) -> int:
     exit_code = error.exit_code
     status = {
@@ -746,11 +813,11 @@ def _emit_graph_input_failure(
         ExitCode.ARTEFACT_UNAVAILABLE: "artefact-unavailable",
     }[exit_code]
     diagnostic = Diagnostic(
-        id=f"graph-view-{error.category.value}",
+        id=f"{command}-{error.category.value}",
         message=error.message,
         file=str(path),
         field=error.field,
-        requirement="FR-015",
+        requirement=requirement,
         remediation=error.remediation,
     )
     _emit(
@@ -871,9 +938,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "rules":
         return _run_rules(json_output=args.json_output, quiet=args.quiet)
     if args.command == "assess":
+        if (args.graph_snapshot is None) != (args.graph_request is None):
+            parser.error("--graph-snapshot and --graph-request must be supplied together")
         return _run_assess(
             args.case,
             external_evidence_root=args.external_evidence_root,
+            graph_snapshot_path=args.graph_snapshot,
+            graph_request_path=args.graph_request,
             json_output=args.json_output,
             quiet=args.quiet,
         )

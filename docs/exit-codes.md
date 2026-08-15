@@ -8,8 +8,8 @@ ArchSift commands use stable exit codes so scripts can distinguish invalid case 
 | `2` | `USAGE` | Command-line arguments are invalid. |
 | `10` | `MALFORMED_INPUT` | Input is not valid UTF-8 YAML/JSON or does not match the supported input contract. |
 | `11` | `UNSUPPORTED_SCHEMA` | A dossier, decision record, graph snapshot, graph-view request, usability result, or method-review result declares a version this ArchSift version does not support. |
-| `12` | `VALIDATION_FAILED` | A workspace, dossier, declared case language, graph snapshot, graph-view request, usability cohort, or method-review result violates its supported contract or success criterion. |
-| `13` | `UNSAFE_PATH` | A workspace, evidence, output, report, comparison, or graph-snapshot path cannot be resolved safely, stays outside its authorised root, or is not the required file/directory kind. |
+| `12` | `VALIDATION_FAILED` | A workspace, dossier, declared case language, graph snapshot, graph-view request or assessment binding, usability cohort, or method-review result violates its supported contract or success criterion. |
+| `13` | `UNSAFE_PATH` | A workspace, evidence, output, report, comparison, graph-snapshot, or graph-assessment input path cannot be resolved safely, stays outside its authorised root, or is not the required file/directory kind. |
 | `14` | `ARTEFACT_UNAVAILABLE` | Assessment cannot read an explicitly referenced artefact, the caller did not grant its external evidence root, or a requested report, comparison, graph snapshot/view input, usability, or method-review record is unavailable. |
 | `15` | `PERSISTENCE_FAILED` | A canonical JSON record, its Markdown review view, or a rendered report cannot be safely created or byte-identically reused, including an integrity conflict at any identity-derived path. |
 | `70` | `INTERNAL_ERROR` | ArchSift failed internally rather than rejecting user input. |

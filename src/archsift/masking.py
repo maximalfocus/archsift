@@ -204,12 +204,17 @@ STRUCTURAL_KEYS: Final[frozenset[str]] = frozenset(
         "record_content_identity",
         "dossier_content_identity",
         "configuration_content_identity",
+        "graph_snapshot_content_identity",
+        "case_view_content_identity",
         # versions and tool metadata
         "schema_version",
         "record_schema_version",
         "dossier_schema_version",
         "ruleset_version",
         "tool_version",
+        "graph_schema_version",
+        "graph_version",
+        "supported_finding_rule_ids",
         # controlled vocabularies
         "kind",
         "status",

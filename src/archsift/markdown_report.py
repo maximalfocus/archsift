@@ -162,8 +162,19 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "artefact_links",
         "unresolved_gaps",
         "reassessment_triggers",
+        "graph_use",
     ),
     dr.EvidenceLink: ("evidence_id", "kind", "content_identity"),
+    dr.GraphEntryReference: ("id", "content_identity"),
+    dr.GraphUse: (
+        "graph_schema_version",
+        "graph_version",
+        "graph_snapshot_content_identity",
+        "case_view_content_identity",
+        "supported_finding_rule_ids",
+        "finding_relevant_nodes",
+        "finding_relevant_relations",
+    ),
     dr.PrerequisiteGap: (
         "source",
         "rule_id",
@@ -466,6 +477,8 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
         record.configuration_content_identity,
         maskable=False,
     )
+    if record.graph_use is not None:
+        _section(lines, "Graph Use", "Graph Use", record.graph_use)
 
     _section(lines, "Case Identity", "Case", record.dossier.case)
     _section(lines, "Task Boundary", "Task", record.dossier.task)

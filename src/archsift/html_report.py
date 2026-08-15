@@ -183,6 +183,8 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Tool Version", masked["tool_version"])
     _emit_field(lines, "Assessment Configuration", masked["configuration"])
     _emit_field(lines, "Configuration Content Identity", masked["configuration_content_identity"])
+    if "graph_use" in masked:
+        _section(lines, "Graph Use", "Graph Use", masked["graph_use"])
 
     _section(lines, "Case Identity", "Case", dossier["case"])
     _section(lines, "Task Boundary", "Task", dossier["task"])

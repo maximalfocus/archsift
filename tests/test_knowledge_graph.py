@@ -679,6 +679,17 @@ def test_case_view_traces_reusable_claims_to_private_findings_and_surfaces_confl
     assert "fixed-workflow-sufficed" in cast(
         list[str], view.content["reusable_knowledge_gap_claim_ids"]
     )
+    node_references = cast(list[dict[str, str]], view.content["finding_relevant_nodes"])
+    relation_references = cast(list[dict[str, str]], view.content["finding_relevant_relations"])
+    assert {item["id"] for item in node_references} >= {
+        "agency-needs-unpredictable-steps",
+        "agency-necessity-rule",
+    }
+    assert {item["id"] for item in relation_references} >= {"theory-informs-rule"}
+    assert all(
+        item["content_identity"].startswith("sha256:")
+        for item in (*node_references, *relation_references)
+    )
 
 
 def test_case_view_is_order_independent_and_does_not_mutate_the_snapshot() -> None:
@@ -693,6 +704,37 @@ def test_case_view_is_order_independent_and_does_not_mutate_the_snapshot() -> No
 
     assert construct_case_view(snapshot, first) == construct_case_view(snapshot, second)
     assert canonical_snapshot_bytes(snapshot) == before
+
+
+def test_case_view_addresses_only_entries_that_reach_findings() -> None:
+    nodes, relations = _knowledge()
+    original = build_snapshot(nodes, relations)
+    source = next(node for node in nodes if node.id == "source-primary")
+    changed = build_snapshot(
+        [
+            replace(node, label="Revised synthetic source label") if node is source else node
+            for node in nodes
+        ],
+        relations,
+    )
+    request = CaseViewRequest(
+        root_ids=("runtime-agency",),
+        finding_ids=("finding-agency",),
+        bindings=(FindingBinding("finding-agency", "agency-necessity-rule"),),
+    )
+
+    first = construct_case_view(original, request)
+    second = construct_case_view(changed, request)
+
+    assert first.content["graph_version"] != second.content["graph_version"]
+    assert (
+        first.content["graph_snapshot_content_identity"]
+        != second.content["graph_snapshot_content_identity"]
+    )
+    assert first.content["finding_relevant_nodes"] == second.content["finding_relevant_nodes"]
+    assert (
+        first.content["finding_relevant_relations"] == second.content["finding_relevant_relations"]
+    )
 
 
 def test_case_view_refuses_unknown_and_non_rule_bindings() -> None:

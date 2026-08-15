@@ -94,7 +94,7 @@ field, governing requirement, and remediation.
 A valid but incomplete dossier validates successfully; the assessment may then
 abstain with `insufficient-evidence`.
 
-### `archsift assess <case>` [`--external-evidence-root` <dir>]
+### `archsift assess <case>` [`--external-evidence-root` <dir>] [`--graph-snapshot` <snapshot> `--graph-request` <request>]
 
 Validates the workspace first, then composes an immutable content-addressed
 decision record and writes two outputs to `<case>/output/`:
@@ -112,6 +112,25 @@ Identical reruns reuse byte-identical outputs without rewriting them, and a
 non-identical file at either identity-derived path is never overwritten.
 Reassessing after any input change (dossier, evidence bytes, ruleset,
 configuration, or tool version) produces a new distinct record.
+
+`--graph-snapshot` and `--graph-request` are optional but must be supplied
+together. Both canonical JSON files must be regular files beneath the current
+directory. ArchSift constructs the same private view as `graph-view` only after
+ordinary assessment and requires every request `finding_id` to exactly match a
+`rule_id` already emitted by that assessment. At least one reusable claim must
+have a complete declared relation path through a reusable decision rule to one
+of those findings.
+
+When that boundary is satisfied, the canonical record and Markdown review view
+gain a `graph_use` section containing the graph schema version, immutable graph
+version, snapshot content identity, private-view content identity, supported
+finding rule IDs, and content-addressed reusable node and relation references
+that reached those findings. The detailed HTML report renders the same section.
+These values participate in the record identity. Graph conflicts and reusable-
+knowledge gaps remain review context: they cannot become case-evidence gaps,
+satisfy a prerequisite, change confidence, eliminate a class, or alter the
+verdict. Omitting both graph options emits the exact legacy no-graph bytes and
+identity.
 
 `--json` emits exactly the canonical JSON record bytes. Human and quiet modes
 never render dossier-authored text.
@@ -221,7 +240,9 @@ infers roots or bindings from topology or prose.
 Human output reports the graph and case-view identities and the trace,
 conflict, reusable-knowledge-gap, and private-finding counts without rendering
 authored graph text. `--json` returns the canonical private view plus its
-`case_view_content_identity`; `--quiet` returns only the exit status. The
+`case_view_content_identity`, including canonical content identities for the
+reusable nodes and relations on complete finding-reaching paths; `--quiet`
+returns only the exit status. The
 command writes nothing and never changes assessment, verdicts, records, or
 either input. The request and returned view remain private case material and
 must never be merged into a public reusable snapshot.
@@ -321,8 +342,10 @@ intent about the case; it never asserts a truth about its content.
 
 A decision record is immutable and content-addressed by the canonical dossier
 bytes, the content identities of every cited evidence artefact, the ruleset,
-configuration, and tool version. Reassessing any changed input creates a
-distinct record; rerunning identical inputs produces byte-identical outputs.
+configuration, and tool version, plus the exact graph and finding-relevant
+entry identities when `graph_use` is present. Reassessing any changed input
+creates a distinct record; rerunning identical inputs produces byte-identical
+outputs.
 
 Before serialising or persisting either representation, ArchSift applies a
 deterministic, offline sensitive-value masking policy (policy v1) to every

@@ -11,7 +11,14 @@ from typing import Any, Final, cast
 
 from archsift.canonical import JsonObject, canonical_json_bytes
 from archsift.diagnostics import ExitCode
-from archsift.knowledge_graph import NodeKind, Relation, RelationKind, Snapshot
+from archsift.knowledge_graph import (
+    NodeKind,
+    Relation,
+    RelationKind,
+    Snapshot,
+    node_content_identity,
+    relation_content_identity,
+)
 
 _TRAVERSABLE = frozenset(
     {
@@ -302,6 +309,8 @@ def construct_case_view(snapshot: Snapshot, request: CaseViewRequest) -> CaseKno
     )
     traces: list[JsonObject] = []
     gaps: list[str] = []
+    reached_node_ids: set[str] = set()
+    reached_relation_ids: set[str] = set()
     for node in snapshot.nodes:
         if node.id not in relevant or node.kind in {
             NodeKind.EVIDENCE_SOURCE,
@@ -313,6 +322,11 @@ def construct_case_view(snapshot: Snapshot, request: CaseViewRequest) -> CaseKno
         case_findings = sorted({item for rule in reached for item in findings_by_rule[rule]})
         if not case_findings:
             gaps.append(node.id)
+        else:
+            for path in paths:
+                if path[-1] in findings_by_rule:
+                    reached_node_ids.update(path[::2])
+                    reached_relation_ids.update(path[1::2])
         traces.append(
             cast(
                 JsonObject,
@@ -333,11 +347,27 @@ def construct_case_view(snapshot: Snapshot, request: CaseViewRequest) -> CaseKno
         for relation in relations
         if relation.kind in {RelationKind.CHALLENGES, RelationKind.SUPERSEDES}
     ]
+    node_by_id = {node.id: node for node in snapshot.nodes}
+    relation_by_id = {relation.id: relation for relation in snapshot.relations}
     content = cast(
         JsonObject,
         {
             "case_finding_ids": sorted(request.finding_ids),
             "conflict_relation_ids": sorted(conflicts),
+            "finding_relevant_nodes": [
+                {
+                    "content_identity": node_content_identity(node_by_id[identifier]),
+                    "id": identifier,
+                }
+                for identifier in sorted(reached_node_ids)
+            ],
+            "finding_relevant_relations": [
+                {
+                    "content_identity": relation_content_identity(relation_by_id[identifier]),
+                    "id": identifier,
+                }
+                for identifier in sorted(reached_relation_ids)
+            ],
             "graph_schema_version": snapshot.graph_schema_version,
             "graph_snapshot_content_identity": snapshot.snapshot_content_identity,
             "graph_version": snapshot.graph_version,

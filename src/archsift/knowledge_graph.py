@@ -380,6 +380,16 @@ def _relation_dict(relation: Relation) -> JsonObject:
     }
 
 
+def node_content_identity(node: Node) -> str:
+    """Address one reusable node by all of its canonical published content."""
+    return _identity(canonical_json_bytes(_node_dict(node)))
+
+
+def relation_content_identity(relation: Relation) -> str:
+    """Address one reusable relation by all of its canonical published content."""
+    return _identity(canonical_json_bytes(_relation_dict(relation)))
+
+
 def _semantic_payload(nodes: Sequence[Node], relations: Sequence[Relation]) -> JsonObject:
     """Return the knowledge itself, without either version or the identity.
 
