@@ -10,6 +10,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 CONTRIBUTION_ENTRY_POINTS = (
     ROOT / "CONTRIBUTING.md",
+    ROOT / "CLAUDE.md",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml",
     ROOT / ".github" / "ISSUE_TEMPLATE" / "graph_change.yml",
@@ -33,6 +34,10 @@ APPROVED_BOUNDARY_PASSAGES = {
         "proprietary policy text.",
         "never publish actual case material or a sanitised, paraphrased, transformed, or "
         "source-mapped derivative.",
+    ),
+    ROOT / "CLAUDE.md": (
+        "do not create a fixture, rule, test, or document from actual case material or a "
+        "sanitised, paraphrased, transformed, or source-mapped derivative.",
     ),
     ROOT / ".github" / "ISSUE_TEMPLATE" / "feature_request.yml": (
         "this request contains no actual case material or sanitised, paraphrased, transformed, "
