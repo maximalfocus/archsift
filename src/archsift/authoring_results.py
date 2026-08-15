@@ -16,7 +16,9 @@ from jsonschema import Draft202012Validator
 
 from archsift.diagnostics import Diagnostic, ExitCode
 
-PROTOCOL_VERSION = "1.0.0"
+PROTOCOL_VERSION_1_0_0 = "1.0.0"
+PROTOCOL_VERSION = "1.0.1"
+SUPPORTED_PROTOCOL_VERSIONS = (PROTOCOL_VERSION_1_0_0, PROTOCOL_VERSION)
 RESULT_SCHEMA_VERSION = 1
 REQUIRED_SESSION_COUNT = 4
 REQUIRED_PASS_COUNT = 3
@@ -32,7 +34,7 @@ MATERIAL_SET_CONTENT_IDENTITY = (
     "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee"
 )
 MAX_RESULT_BYTES = 64 * 1024
-_REQUIREMENT = "AUTHORING-1.0.0"
+_REQUIREMENT = "AUTHORING-RESULTS-v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,7 +298,10 @@ def _unsupported(payload: dict[str, object]) -> AuthoringValidationResult:
                 "authoring-results-version-unsupported",
                 "The declared authoring-result schema and protocol versions are unsupported.",
                 field,
-                f"Use schema version {RESULT_SCHEMA_VERSION} with protocol {PROTOCOL_VERSION}.",
+                (
+                    f"Use schema version {RESULT_SCHEMA_VERSION} with protocol "
+                    f"{PROTOCOL_VERSION_1_0_0} or {PROTOCOL_VERSION}."
+                ),
             ),
         ),
         protocol_version=protocol if type(protocol) is str else None,
@@ -304,6 +309,11 @@ def _unsupported(payload: dict[str, object]) -> AuthoringValidationResult:
 
 
 def _validate_payload(payload: object) -> AuthoringValidationResult:
+    declared_protocol = (
+        payload.get("protocol_version")
+        if type(payload) is dict and type(payload.get("protocol_version")) is str
+        else None
+    )
     errors = sorted(
         _schema_validator().iter_errors(payload),
         key=lambda error: tuple((type(part).__name__, repr(part)) for part in error.absolute_path),
@@ -316,10 +326,10 @@ def _validate_payload(payload: object) -> AuthoringValidationResult:
                     "authoring-results-contract",
                     "The result data does not match the authoring-results-v1 contract.",
                     _json_path(errors[0].absolute_path),
-                    "Correct the named field using protocol 1.0.0 and the packaged JSON schema.",
+                    "Correct the named field using a supported protocol and the packaged schema.",
                 ),
             ),
-            protocol_version=PROTOCOL_VERSION,
+            protocol_version=cast(str | None, declared_protocol),
         )
     result_payload = cast(dict[str, object], payload)
     sessions = cast(list[dict[str, object]], result_payload["sessions"])
@@ -341,7 +351,7 @@ def _validate_payload(payload: object) -> AuthoringValidationResult:
                 "authoring-agent-product-duplicate",
                 "Agent product names must be unique within the four-session cohort.",
                 "$.sessions",
-                "Use four distinct agent products as required by protocol 1.0.0.",
+                "Use four distinct agent products as required by the supported protocol.",
             )
         )
     if result_payload["material_set_content_identity"] != MATERIAL_SET_CONTENT_IDENTITY:
@@ -393,7 +403,7 @@ def _validate_payload(payload: object) -> AuthoringValidationResult:
     return _result(
         ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
         diagnostics,
-        protocol_version=PROTOCOL_VERSION,
+        protocol_version=cast(str, result_payload["protocol_version"]),
         session_count=len(sessions),
         passed_session_count=passed,
     )
@@ -419,7 +429,7 @@ def validate_authoring_results(path: Path) -> AuthoringValidationResult:
         return _malformed("The authoring-result file is not strict JSON.")
     if type(payload) is dict and (
         payload.get("schema_version") != RESULT_SCHEMA_VERSION
-        or payload.get("protocol_version") != PROTOCOL_VERSION
+        or payload.get("protocol_version") not in SUPPORTED_PROTOCOL_VERSIONS
     ):
         return _unsupported(payload)
     return _validate_payload(payload)
@@ -428,10 +438,12 @@ def validate_authoring_results(path: Path) -> AuthoringValidationResult:
 __all__ = [
     "MATERIAL_SET_CONTENT_IDENTITY",
     "PROTOCOL_VERSION",
+    "PROTOCOL_VERSION_1_0_0",
     "REQUIRED_MILESTONES",
     "REQUIRED_PASS_COUNT",
     "REQUIRED_SESSION_COUNT",
     "RESULT_SCHEMA_VERSION",
+    "SUPPORTED_PROTOCOL_VERSIONS",
     "AuthoringValidationResult",
     "validate_authoring_results",
 ]

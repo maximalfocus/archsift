@@ -112,6 +112,7 @@ jobs:
           assert "archsift/docs/architecture-knowledge-v1.md" in names
           assert "archsift/docs/architecture-knowledge-v2.md" in names
           assert "archsift/docs/authoring-check-v1.md" in names
+          assert "archsift/docs/authoring-check-v1.0.1.md" in names
           assert "archsift/docs/graph-change-v1.md" in names
           assert "archsift/docs/graph-snapshot-v1.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
@@ -273,7 +274,7 @@ jobs:
           usability_path = root / "usability-results.json"
           usability_payload = {
               "schema_version": 1,
-              "protocol_version": "1.0.0",
+              "protocol_version": "1.0.1",
               "archsift_version_or_commit": package_version(),
               "overall_result": "met",
               "sessions": sessions,
@@ -860,7 +861,7 @@ jobs:
           authoring_path = root / "authoring-results.json"
           authoring_payload = {
               "schema_version": 1,
-              "protocol_version": "1.0.0",
+              "protocol_version": "1.0.1",
               "archsift_source_commit": "a" * 40,
               "material_set_content_identity": (
                   "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee"
