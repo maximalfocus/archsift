@@ -78,7 +78,13 @@ CURRENT_BINDING = MethodReviewBinding(
 # frozen evidence for the versions its sessions actually reviewed, so it stays loadable
 # after those versions are superseded. Membership is this explicit enumeration: an
 # unrecognised version is never inferred to be merely older.
-SUPERSEDED_BINDINGS: tuple[MethodReviewBinding, ...] = ()
+SUPERSEDED_BINDINGS = (
+    MethodReviewBinding(
+        method_version="1.2.0",
+        ruleset_version="1.8.0",
+        corpus_version="1.0.0",
+    ),
+)
 PUBLISHED_BINDINGS = (CURRENT_BINDING, *SUPERSEDED_BINDINGS)
 _BINDING_FIELDS = ("method_version", "ruleset_version", "corpus_version")
 

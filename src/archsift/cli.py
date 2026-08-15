@@ -27,6 +27,7 @@ from archsift.comparison import (
     resolve_record_path,
 )
 from archsift.corpus import packaged_corpus_bytes, packaged_corpus_snapshot
+from archsift.decision import evaluate_assessment
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.graph_change import (
@@ -57,7 +58,6 @@ from archsift.persistence import (
 from archsift.pptx_report import render_executive_pptx_report
 from archsift.rules import (
     RULESET_VERSION,
-    evaluate_assessment_prerequisites,
     list_rules,
 )
 from archsift.usability import validate_usability_results
@@ -343,7 +343,7 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         )
         consistency_readiness = evaluate_consistency_readiness(result.dossier)
         details["consistency_ready"] = consistency_readiness.ready
-        prerequisites = evaluate_assessment_prerequisites(result.dossier)
+        prerequisites = evaluate_assessment(result.dossier).prerequisite_evaluation
         details["assessment_prerequisites_ready"] = prerequisites.ready
         details["prerequisite_finding_count"] = len(prerequisites.findings)
         details["ruleset_version"] = prerequisites.ruleset_version

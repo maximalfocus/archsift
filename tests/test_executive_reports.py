@@ -283,6 +283,41 @@ def test_both_formats_restate_the_record_identity_and_derive_no_other() -> None:
     assert set(re.findall(r"sha256:[0-9a-f]{64}", deck_text)) == {identity}
 
 
+def test_non_decisive_gap_is_visible_without_counting_as_material() -> None:
+    record = _record(_POSITIVE_RECORD)
+    baseline = build_executive_summary(record)
+    baseline_evidence = next(
+        section for section in baseline.sections if section.title == "Evidence State"
+    )
+    record["unresolved_gaps"] = [
+        {
+            "consequence": "The unknown comparison does not alter the verdict.",
+            "counterpart": "counterfactual verdict: conditional",
+            "effect": "non-decisive",
+            "evidence_ids": ["decision-observed"],
+            "field": "$.candidate_comparison.comparisons[0].dimensions.cost.result",
+            "message": "Every admissible value preserves the verdict under the packaged rules.",
+            "remediation": "Resolve the comparison when useful.",
+            "requirement": "FR-008/FR-009",
+            "rule_id": "comparison-result-unknown-non-decisive",
+            "source": "prerequisite",
+        }
+    ]
+
+    summary = build_executive_summary(record)
+    evidence = next(section for section in summary.sections if section.title == "Evidence State")
+
+    assert any(
+        point.label == "Non-Decisive Gap"
+        and point.values[0] == "comparison-result-unknown-non-decisive"
+        for point in evidence.points
+    )
+    assert [point for point in evidence.points if point.label == "Material Gap"] == [
+        point for point in baseline_evidence.points if point.label == "Material Gap"
+    ]
+    assert not any(point.label == "Unresolved Gap" for point in evidence.points)
+
+
 def test_deck_frames_every_section_with_a_title_and_a_masking_notice() -> None:
     record = _record()
     slides = _slide_text(render_executive_pptx_report(record))

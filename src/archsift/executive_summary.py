@@ -308,10 +308,13 @@ def _evidence_section(record: JsonObject, dossier: JsonObject) -> SummarySection
             )
         )
     for gap in _list_of_objects(record["unresolved_gaps"], "$.unresolved_gaps"):
-        gaps += 1
+        effect = _text(gap["effect"], "$.unresolved_gaps[].effect")
+        non_decisive = effect == "non-decisive"
+        if not non_decisive:
+            gaps += 1
         points.append(
             SummaryPoint(
-                "Unresolved Gap",
+                "Non-Decisive Gap" if non_decisive else "Unresolved Gap",
                 (
                     _text(gap["rule_id"], "$.unresolved_gaps[].rule_id"),
                     _text(gap["message"], "$.unresolved_gaps[].message"),

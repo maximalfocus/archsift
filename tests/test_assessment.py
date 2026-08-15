@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from archsift.decision import (
+    MAX_COMPARISON_MATERIALITY_EVALUATIONS,
     ArchitectureVerdict,
     AssessmentEvaluation,
     CandidateDisposition,
@@ -402,6 +403,34 @@ def _ready_dossier(
     )
 
 
+def _replace_comparison_results(
+    dossier: Dossier,
+    pair_index: int,
+    **results: ComparisonResult,
+) -> Dossier:
+    assert dossier.candidate_comparison is not None
+    comparisons = dossier.candidate_comparison.comparisons
+    pair = comparisons[pair_index]
+    dimensions = replace(
+        pair.dimensions,
+        **{
+            name: replace(getattr(pair.dimensions, name), result=result)
+            for name, result in results.items()
+        },
+    )
+    return replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            comparisons=(
+                *comparisons[:pair_index],
+                replace(pair, dimensions=dimensions),
+                *comparisons[pair_index + 1 :],
+            ),
+        ),
+    )
+
+
 def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> None:
     assert {verdict.value for verdict in ArchitectureVerdict} == {
         "supported",
@@ -410,7 +439,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.8.0"
+    assert RULESET_VERSION == "1.9.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -452,6 +481,111 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         ("agentic-runtime-adaptation-supports-agency", RuleEffect.SUPPORT_CANDIDATE),
     ]
     assert all(rule.source_rationale for rule in agency_rules)
+
+
+def test_verdict_invariant_unknown_comparison_is_non_decisive() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    dossier = _replace_comparison_results(dossier, 0, cost=ComparisonResult.UNKNOWN)
+
+    first = evaluate_assessment(dossier)
+    second = evaluate_assessment(dossier)
+
+    assert first == second
+    assert first.verdict is ArchitectureVerdict.SUPPORTED
+    assert first.prerequisite_evaluation.ready is True
+    finding = next(
+        finding
+        for finding in first.prerequisite_evaluation.findings
+        if finding.field.endswith(".dimensions.cost.result")
+    )
+    assert finding.rule_id == "comparison-result-unknown-non-decisive"
+    assert finding.requirement == "FR-008/FR-009"
+    assert finding.effect is RuleEffect.NON_DECISIVE
+    assert finding.counterpart == "counterfactual verdict: supported"
+    assert "Every admissible value preserves the verdict" in finding.message
+
+
+def test_verdict_changing_unknown_comparison_remains_material() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    dossier = _replace_comparison_results(dossier, 0, cost=ComparisonResult.UNKNOWN)
+    assert dossier.candidate_comparison is not None
+    reverse_dimensions = replace(
+        _dimensions(),
+        cost=replace(_dimensions().cost, result=ComparisonResult.BETTER),
+    )
+    dossier = replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            comparisons=(
+                *dossier.candidate_comparison.comparisons,
+                CandidatePairComparison("human", "fixed", reverse_dimensions),
+            ),
+        ),
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert evaluation.prerequisite_evaluation.ready is False
+    finding = next(
+        finding
+        for finding in evaluation.prerequisite_evaluation.findings
+        if finding.field.endswith("[0].dimensions.cost.result")
+    )
+    assert finding.rule_id == "comparison-result-unknown"
+    assert finding.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert finding.counterpart == ("counterfactual verdicts: supported, insufficient-evidence")
+    assert "Admissible values produce differing verdicts" in finding.message
+
+
+def test_unknown_comparison_materiality_fails_closed_above_bound() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+    dossier = _replace_comparison_results(
+        dossier,
+        0,
+        cost=ComparisonResult.UNKNOWN,
+        latency=ComparisonResult.UNKNOWN,
+        human_effort=ComparisonResult.UNKNOWN,
+        integration_burden=ComparisonResult.UNKNOWN,
+        operability=ComparisonResult.UNKNOWN,
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    admissible_result_count = len(
+        (ComparisonResult.BETTER, ComparisonResult.EQUIVALENT, ComparisonResult.WORSE)
+    )
+    assert admissible_result_count**5 > MAX_COMPARISON_MATERIALITY_EVALUATIONS
+    unknown_findings = tuple(
+        finding
+        for finding in evaluation.prerequisite_evaluation.findings
+        if finding.rule_id == "comparison-result-unknown"
+    )
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert len(unknown_findings) == 5
+    assert all(
+        finding.counterpart == "counterfactual enumeration bound exceeded"
+        for finding in unknown_findings
+    )
 
 
 def test_missing_strongest_simpler_boundary_abstains_before_selection() -> None:

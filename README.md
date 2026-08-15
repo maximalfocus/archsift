@@ -79,7 +79,7 @@ archsift usability-results usability-results.json
 archsift method-review-results method-review-results.json
 ```
 
-`init` creates `case.yaml` declaring `language: en`, workspace guidance rendered in that language, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. Each case declares a `language` code defaulting to `en` — the language ArchSift generates workspace guidance and every report in, and part of the dossier bytes the record is addressed by, so changing it produces a distinct record; English is the only supported language today, an unknown or unsupported code fails closed, and the language of authored prose is a convention ArchSift never inspects or validates as truth. `rules` lists the immutable packaged rules and their stable public rationale/source mappings without requiring a case workspace. The [versioned method specification](docs/method-v1.2.0.md) defines the current decision constitution, evidence truth boundary, rule rationale, citations, explicit limits, and rule-change governance.
+`init` creates `case.yaml` declaring `language: en`, workspace guidance rendered in that language, and empty `evidence/` and `output/` directories. The dossier captures optional operational task, problem-value, agency-necessity, autonomy-permission, and candidate-comparison boundaries and distinguishes observations, assumptions, estimates, and known gaps without opening dossier-supplied paths. `validate` safely checks the versioned dossier, reports deterministic prerequisite readiness in JSON mode, and fails closed on malformed, unsupported, unknown, duplicate, or unsafe input. Each case declares a `language` code defaulting to `en` — the language ArchSift generates workspace guidance and every report in, and part of the dossier bytes the record is addressed by, so changing it produces a distinct record; English is the only supported language today, an unknown or unsupported code fails closed, and the language of authored prose is a convention ArchSift never inspects or validates as truth. `rules` lists the immutable packaged rules and their stable public rationale/source mappings without requiring a case workspace. The [versioned method specification](docs/method-v1.3.0.md) defines the current decision constitution, evidence truth boundary, rule rationale, citations, explicit limits, and rule-change governance.
 
 `assess` validates first, hashes only explicit workspace artefacts or external artefacts beneath the caller-granted `--external-evidence-root`, and writes canonical JSON plus a Markdown review view to `output/sha256-<record-id>.json` and `.md`. Both files share the record identity; identical reruns reuse byte-identical outputs without rewriting them, and a non-identical file at either path is never overwritten. Every authored Markdown value is visibly quoted as inert data, including provenance and artefact paths, and no locator is dereferenced. `--json` still emits only the exact canonical JSON bytes, while human and quiet modes never render dossier-authored text. Before either representation is emitted, authored strings are passed through a deterministic offline sensitive-value masking policy; both outputs disclose the masking and warn that a record is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material. See the [stable exit-code contract](docs/exit-codes.md) and the [usage reference](docs/usage.md).
 
@@ -93,7 +93,7 @@ The [architecture knowledge graph snapshot contract](docs/graph-snapshot-v1.md) 
 
 The [graph-change proposal contract](docs/graph-change-v1.md) makes publication and evolution reviewable. `graph-change` checks one public issue, mandatory privacy and open-world attestations, exact immutable base/proposed identities, every stable-ID semantic delta, evidence-source bindings, visible lifecycle or typed-relation rationales, and synthetic proof for behavior changes. It is deterministic, offline, read-only, and never renders authored graph text.
 
-The [initial architecture knowledge publication](docs/architecture-knowledge-v1.md) is a wheel-packaged immutable snapshot with all graph node/relation kinds, all five control classes, all six public method sources, and one exact source-mapped decision-rule node and complete rationale path for every packaged rule. `graph-corpus` reports its identity or emits its exact canonical bytes without assuming an installation path. The corpus is finite and open-world: absence is never evidence of nonexistence, and its public sources inform rather than mandate ArchSift's local design.
+The [current architecture knowledge publication](docs/architecture-knowledge-v2.md) is a wheel-packaged immutable snapshot with all graph node/relation kinds, all five control classes, all six public method sources, and one exact source-mapped decision-rule node and complete rationale path for every packaged rule. `graph-corpus` reports its identity or emits its exact canonical bytes without assuming an installation path. The corpus is finite and open-world: absence is never evidence of nonexistence, and its public sources inform rather than mandate ArchSift's local design. The immutable [initial publication](docs/architecture-knowledge-v1.md) remains packaged as the exact evolution base.
 
 `graph-view` combines a validated published snapshot with one explicit, canonical private request naming relevance roots and private finding-to-rule bindings. It returns a deterministic private view with reusable claim traces, visible conflicts, and reusable-knowledge gaps; it never infers applicability, changes a verdict, persists the view, or merges case material into the public snapshot.
 
@@ -113,14 +113,17 @@ four-example causal-trace review and privacy-bounded result contract for the pub
 [simulated architecture-method review protocol](docs/method-review-v2.md) freezes the
 initial-release gate: four independent simulated review sessions by distinct agent products,
 criterion met when at least three pass. The second simulated cohort has run and its committed
-[result](method-review-results.json) validates with `criterion-met` (three of four sessions
-passed) for method `1.2.0`, ruleset `1.8.0`, and corpus `1.0.0`; the first cohort is preserved as
-an honest historical [record](method-review-results-1-criterion-not-met.json) for that same binding;
+[result](method-review-results.json) remains valid historical evidence with
+`criterion-met-superseded` (three of four sessions passed) for method `1.2.0`, ruleset `1.8.0`,
+and corpus `1.0.0`; the first cohort is preserved as an honest historical
+[record](method-review-results-1-criterion-not-met.json) with
+`criterion-not-met-superseded` for that same binding;
 the human protocol has not been run. Results for a packaged superseded binding remain loadable as
 historical evidence, name the binding, and exit `16` so they cannot be read as current success;
 unregistered bindings fail closed.
 The evidence is simulated, and no claim that a human architect passed is made. A completed result
-is checked offline with exactly `archsift method-review-results method-review-results.json`.
+is checked offline with exactly `archsift method-review-results method-review-results.json`, which
+now exits `16` because the reviewed method/ruleset binding is superseded.
 
 ## Runnable examples
 
