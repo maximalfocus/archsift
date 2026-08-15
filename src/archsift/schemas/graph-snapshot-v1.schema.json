@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://archsift.invalid/schemas/graph-snapshot-v1.schema.json",
+  "title": "ArchSift architecture knowledge graph snapshot, version 1",
+  "description": "One published, content-addressed snapshot of reusable architecture knowledge. It never contains case dossiers, case evidence, or any other case-scoped material.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "graph_schema_version",
+    "graph_version",
+    "nodes",
+    "relations",
+    "snapshot_content_identity"
+  ],
+  "properties": {
+    "graph_schema_version": {
+      "description": "Structure version of this snapshot format.",
+      "const": 1
+    },
+    "graph_version": {
+      "description": "Immutable version of the semantic knowledge, derived from the nodes and relations and hashed with them.",
+      "type": "string",
+      "pattern": "^gv1:[0-9a-f]{64}$"
+    },
+    "snapshot_content_identity": {
+      "description": "Lowercase SHA-256 over the complete canonical snapshot excluding only this field.",
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nodes": {
+      "description": "Reusable knowledge entries, each with a stable semantic identifier.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "relations": {
+      "description": "Typed, attributed assertions between declared nodes.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/relation" }
+    }
+  },
+  "$defs": {
+    "semanticId": {
+      "description": "A stable semantic identifier, unchanged when mutable content changes.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "lifecycle": {
+      "description": "Epistemic or lifecycle state of one asserted entry.",
+      "enum": ["proposed", "supported", "challenged", "superseded", "deprecated"]
+    },
+    "citation": {
+      "description": "A typed reference from an assertion to an evidence source.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "stance", "content_identity"],
+      "properties": {
+        "source_id": { "$ref": "#/$defs/semanticId" },
+        "stance": {
+          "description": "Whether the cited source supports or challenges the citing entry.",
+          "enum": ["supports", "challenges"]
+        },
+        "content_identity": {
+          "description": "Identity of the retained cited bytes, or null when the bytes were not archived.",
+          "type": ["string", "null"],
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "source": {
+      "description": "Where an evidence source's content comes from. A locator is provenance data and is never dereferenced.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator", "date_kind", "dated", "version", "publication_state"],
+      "properties": {
+        "locator": { "type": "string", "minLength": 1 },
+        "date_kind": { "enum": ["observed", "published", "retrieved"] },
+        "dated": { "type": "string", "format": "date" },
+        "version": { "type": ["string", "null"], "minLength": 1 },
+        "publication_state": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "statement", "lifecycle", "citations", "source"],
+      "properties": {
+        "id": { "$ref": "#/$defs/semanticId" },
+        "kind": {
+          "description": "The role this knowledge plays; kinds are never conflated.",
+          "enum": [
+            "concept",
+            "theory",
+            "architecture-class",
+            "pattern",
+            "decision-criterion",
+            "constraint",
+            "decision-rule",
+            "evidence-source",
+            "counterexample"
+          ]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "statement": { "type": "string", "minLength": 1 },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "citations": { "type": "array", "items": { "$ref": "#/$defs/citation" } },
+        "source": {
+          "description": "Present only on evidence-source nodes; null on every asserted node.",
+          "oneOf": [{ "$ref": "#/$defs/source" }, { "type": "null" }]
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "subject_id",
+        "object_id",
+        "statement",
+        "lifecycle",
+        "citations"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/semanticId" },
+        "kind": {
+          "description": "The declared semantics of this assertion.",
+          "enum": [
+            "specialises",
+            "applies-to",
+            "constrains",
+            "supports",
+            "challenges",
+            "supersedes",
+            "informs-rule"
+          ]
+        },
+        "subject_id": { "$ref": "#/$defs/semanticId" },
+        "object_id": { "$ref": "#/$defs/semanticId" },
+        "statement": { "type": "string", "minLength": 1 },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "citations": { "type": "array", "items": { "$ref": "#/$defs/citation" } }
+      }
+    }
+  }
+}
