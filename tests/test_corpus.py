@@ -46,6 +46,9 @@ def test_packaged_corpus_is_the_exact_governed_initial_publication() -> None:
     assert summary["changed_entry_count"] == len(snapshot.nodes) + len(snapshot.relations)
     assert len(snapshot.nodes) == 113
     assert len(snapshot.relations) == 88
+    assert "src/archsift/knowledge/*.json text eol=lf" in (
+        _REPOSITORY / ".gitattributes"
+    ).read_text(encoding="utf-8")
 
 
 def test_corpus_covers_every_typed_kind_and_keeps_competing_knowledge_visible() -> None:
