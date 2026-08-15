@@ -3,8 +3,13 @@
 Protocol 1.0.1 supersedes protocol 1.0.0 before the first cohort. It preserves the material set,
 milestones, privacy contract, and success threshold while clarifying the boundary between
 ArchSift's offline runtime and an external authoring product's ordinary user-controlled model
-transport. Protocol 1.0.0 remains frozen at [authoring-check-v1.md](authoring-check-v1.md). At
-publication, no cohort has been run and no success claim is made.
+transport. Protocol 1.0.0 remains frozen at [authoring-check-v1.md](authoring-check-v1.md).
+
+As of 2026-08-16, one cohort has been run against source commit
+`02a1dbaef73df683957654b5195fc2f2ff4835b9`. Its committed
+[result](../authoring-results.json) validates with `criterion-not-met`: one of four sessions passed.
+The evidence is simulated, no human-author claim is made, and no assisted-authoring success claim
+is made. A later attempt must be a separately precommitted cohort and a new result record.
 
 This is an independent, fully synthetic check of whether agent products can use ArchSift's public
 authoring surfaces to produce and assess a structurally valid decision dossier. It does not measure

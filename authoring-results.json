@@ -1,0 +1,101 @@
+{
+  "archsift_source_commit": "02a1dbaef73df683957654b5195fc2f2ff4835b9",
+  "material_set_content_identity": "sha256:deca6741b7c69fbb313ed1292caa55a7a698eecb60f4a42aed849b3dcffd57ee",
+  "overall_result": "not-met",
+  "protocol_version": "1.0.1",
+  "schema_version": 1,
+  "sessions": [
+    {
+      "agent_model": "gpt-5.6-sol",
+      "agent_product": "codex",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": null,
+      "fresh_session": true,
+      "harness_version": "0.147.0",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "pass",
+        "author_dossier": "pass",
+        "complete_prerequisites": "pass",
+        "inspect_schema": "pass",
+        "register_material": "pass",
+        "validate": "pass"
+      },
+      "session_id": "session-01",
+      "session_result": "pass"
+    },
+    {
+      "agent_model": "deepseek-v4-flash[1m]",
+      "agent_product": "claude-code",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": "Product configuration prevented task startup.",
+      "fresh_session": true,
+      "harness_version": "2.1.233",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
+      },
+      "session_id": "session-02",
+      "session_result": "fail"
+    },
+    {
+      "agent_model": "kimi-k3",
+      "agent_product": "opencode",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": "Agent transport produced no events before the session was stopped.",
+      "fresh_session": true,
+      "harness_version": "1.18.18",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
+      },
+      "session_id": "session-03",
+      "session_result": "fail"
+    },
+    {
+      "agent_model": "default",
+      "agent_product": "kimi-code",
+      "environment": {
+        "install_mode": "source-checkout",
+        "operating_system": "macos",
+        "python_version": "3.14.7"
+      },
+      "failure_reason": "Product process ended before task startup.",
+      "fresh_session": true,
+      "harness_version": "0.32.0",
+      "maintainer_intervention": false,
+      "milestones": {
+        "assess": "fail",
+        "author_dossier": "fail",
+        "complete_prerequisites": "fail",
+        "inspect_schema": "fail",
+        "register_material": "fail",
+        "validate": "fail"
+      },
+      "session_id": "session-04",
+      "session_result": "fail"
+    }
+  ]
+}
