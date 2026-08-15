@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import json
 from collections import deque
 from dataclasses import dataclass
 from enum import StrEnum
 from hashlib import sha256
-from typing import cast
+from typing import Any, Final, cast
 
 from archsift.canonical import JsonObject, canonical_json_bytes
+from archsift.diagnostics import ExitCode
 from archsift.knowledge_graph import NodeKind, Relation, RelationKind, Snapshot
 
 _TRAVERSABLE = frozenset(
@@ -20,9 +22,14 @@ _TRAVERSABLE = frozenset(
         RelationKind.INFORMS_RULE,
     }
 )
+CASE_VIEW_REQUEST_SCHEMA_VERSION: Final = 1
 
 
 class CaseViewFailure(StrEnum):
+    INVALID_UTF8 = "invalid-utf8"
+    INVALID_JSON = "invalid-json"
+    UNSUPPORTED_SCHEMA = "unsupported-schema"
+    MALFORMED_REQUEST = "malformed-request"
     UNKNOWN_ROOT = "unknown-root"
     UNKNOWN_FINDING = "unknown-finding"
     UNKNOWN_RULE = "unknown-rule"
@@ -40,6 +47,14 @@ class CaseViewError(ValueError):
         self.message = message
         self.remediation = remediation
         super().__init__(message)
+
+    @property
+    def exit_code(self) -> ExitCode:
+        if self.category is CaseViewFailure.UNSUPPORTED_SCHEMA:
+            return ExitCode.UNSUPPORTED_SCHEMA
+        if self.category in {CaseViewFailure.INVALID_UTF8, CaseViewFailure.INVALID_JSON}:
+            return ExitCode.MALFORMED_INPUT
+        return ExitCode.VALIDATION_FAILED
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +78,113 @@ class CaseKnowledgeView:
 
 def _fail(category: CaseViewFailure, field: str, message: str, remediation: str) -> CaseViewError:
     return CaseViewError(category, field, message, remediation)
+
+
+def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise _fail(
+                CaseViewFailure.INVALID_JSON,
+                "$",
+                f"The case-view request repeats JSON field {key!r}.",
+                "Emit each request field exactly once.",
+            )
+        value[key] = item
+    return value
+
+
+def load_case_view_request(content: bytes) -> CaseViewRequest:
+    """Load one strict canonical versioned private case-view request."""
+    try:
+        text = content.decode("utf-8", "strict")
+    except UnicodeDecodeError as error:
+        raise _fail(
+            CaseViewFailure.INVALID_UTF8,
+            "$",
+            "The case-view request is not valid UTF-8.",
+            "Encode the canonical JSON request as UTF-8.",
+        ) from error
+    try:
+        raw = json.loads(
+            text,
+            object_pairs_hook=_unique_object,
+            parse_constant=lambda value: (_ for _ in ()).throw(ValueError(value)),
+        )
+    except CaseViewError:
+        raise
+    except (json.JSONDecodeError, RecursionError, ValueError) as error:
+        raise _fail(
+            CaseViewFailure.INVALID_JSON,
+            "$",
+            "The case-view request is not unambiguous JSON.",
+            "Provide one canonical JSON object without duplicate fields or non-standard numbers.",
+        ) from error
+    if type(raw) is not dict:
+        raise _fail(
+            CaseViewFailure.MALFORMED_REQUEST,
+            "$",
+            "The case-view request root is not an object.",
+            "Provide the versioned request object.",
+        )
+    request = cast(dict[str, Any], raw)
+    declared = request.get("request_schema_version")
+    if type(declared) is int and declared != CASE_VIEW_REQUEST_SCHEMA_VERSION:
+        raise _fail(
+            CaseViewFailure.UNSUPPORTED_SCHEMA,
+            "$.request_schema_version",
+            f"Case-view request schema version {declared} is not supported.",
+            f"Use request schema version {CASE_VIEW_REQUEST_SCHEMA_VERSION} or upgrade ArchSift.",
+        )
+    if set(request) != {"bindings", "finding_ids", "request_schema_version", "root_ids"}:
+        raise _fail(
+            CaseViewFailure.MALFORMED_REQUEST,
+            "$",
+            "The case-view request has an unsupported field contract.",
+            "Provide only request_schema_version, root_ids, finding_ids, and bindings.",
+        )
+    try:
+        roots = request["root_ids"]
+        findings = request["finding_ids"]
+        raw_bindings = request["bindings"]
+        if (
+            declared != CASE_VIEW_REQUEST_SCHEMA_VERSION
+            or type(roots) is not list
+            or type(findings) is not list
+            or type(raw_bindings) is not list
+            or not all(type(item) is str and item for item in [*roots, *findings])
+        ):
+            raise ValueError
+        bindings: list[FindingBinding] = []
+        for item in raw_bindings:
+            if type(item) is not dict or set(item) != {"finding_id", "rule_id"}:
+                raise ValueError
+            finding_id = item["finding_id"]
+            rule_id = item["rule_id"]
+            if (
+                type(finding_id) is not str
+                or not finding_id
+                or type(rule_id) is not str
+                or not rule_id
+            ):
+                raise ValueError
+            bindings.append(FindingBinding(finding_id, rule_id))
+        result = CaseViewRequest(tuple(roots), tuple(findings), tuple(bindings))
+    except (KeyError, TypeError, ValueError) as error:
+        raise _fail(
+            CaseViewFailure.MALFORMED_REQUEST,
+            "$",
+            "The case-view request does not satisfy schema version 1.",
+            "Use non-empty string arrays and binding objects with finding_id and rule_id.",
+        ) from error
+    if canonical_json_bytes(cast(JsonObject, request)) != content:
+        raise _fail(
+            CaseViewFailure.MALFORMED_REQUEST,
+            "$",
+            "The case-view request bytes are not canonical JSON.",
+            "Serialize the request with sorted keys, compact separators, UTF-8, and one LF.",
+        )
+    return result
 
 
 def _validate_request(snapshot: Snapshot, request: CaseViewRequest) -> dict[str, tuple[str, ...]]:

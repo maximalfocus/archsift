@@ -69,6 +69,7 @@ archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json
 archsift compare output/sha256-<old-id>.json output/sha256-<new-id>.json --json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json
 archsift graph-snapshot tests/golden/graph-snapshot-v1.json --json
+archsift graph-view snapshot.json private-case-view-request.json --json
 archsift usability-results usability-results.json
 archsift method-review-results method-review-results.json
 ```
@@ -82,6 +83,8 @@ archsift method-review-results method-review-results.json
 Reassessment means running `assess` again after the dossier, evidence artefacts, ruleset, configuration, or tool version changes; the result is a new immutable content-addressed record. `compare` reads two generated records beneath the current directory and reports evidence-identity, finding/ruleset, and verdict-field changes. A verdict change names only changed evidence cited by a finding in either record and changed findings as causes; unrelated snapshot changes remain context. The command is offline and read-only, and `--json` emits a stable canonical comparison payload.
 
 The [architecture knowledge graph snapshot contract](docs/graph-snapshot-v1.md) defines the reusable public knowledge layer: typed nodes and relations with declared semantics, provenance and an epistemic state on every assertion, competing theories kept visibly in conflict rather than merged, and canonical bytes addressed by an immutable graph version and a snapshot content identity. A snapshot never contains case material, a source locator is provenance that is never dereferenced, and no graph-derived measure or inferred edge may determine a verdict. `graph-snapshot` safely validates one canonical published snapshot beneath the current directory, re-verifies both addressing values, and reports its typed node and relation inventory without writing, fetching, or querying anything.
+
+`graph-view` combines a validated published snapshot with one explicit, canonical private request naming relevance roots and private finding-to-rule bindings. It returns a deterministic private view with reusable claim traces, visible conflicts, and reusable-knowledge gaps; it never infers applicability, changes a verdict, persists the view, or merges case material into the public snapshot.
 
 No network service, model API, or telemetry is used by the current CLI.
 

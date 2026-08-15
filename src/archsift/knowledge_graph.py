@@ -883,6 +883,16 @@ def load_snapshot_file(path: Path, *, root: Path) -> Snapshot:
     return load_snapshot(_read_snapshot_bytes(resolved))
 
 
+def read_contained_graph_file(path: Path, *, root: Path) -> bytes:
+    """Safely read one regular graph input file beneath an authorised root.
+
+    Path resolution and descriptor checks intentionally share the published
+    snapshot boundary so private requests cannot weaken containment guarantees.
+    """
+    resolved = _resolve_snapshot_path(path, root=root)
+    return _read_snapshot_bytes(resolved)
+
+
 def snapshot_reference(snapshot: Snapshot) -> JsonObject:
     """Return the three values that identify a snapshot to any consumer.
 
