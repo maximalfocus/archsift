@@ -22,9 +22,10 @@ from archsift.comparison import (
     load_decision_record,
     render_human_comparison,
 )
-from archsift.decision_record import canonical_decision_record_bytes, compose_decision_record
+from archsift.decision_record import compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.markdown_report import render_markdown_decision_report
+from archsift.masking import masked_canonical_decision_record_bytes
 from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
 from archsift.method_review import validate_method_review_results
 from archsift.persistence import (
@@ -372,7 +373,7 @@ def _run_assess(
             tool_version=package_version(),
             artefact_identities=artefacts,
         )
-        content = canonical_decision_record_bytes(record)
+        content = masked_canonical_decision_record_bytes(record)
         report = render_markdown_decision_report(record)
         persisted = persist_decision_outputs(path, record, content, report)
     except (EvidenceArtefactError, RecordPersistenceError) as error:

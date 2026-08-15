@@ -71,6 +71,7 @@ jobs:
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
           assert "archsift/markdown_report.py" in names
+          assert "archsift/masking.py" in names
           assert "archsift/method.py" in names
           assert "archsift/method_review.py" in names
           assert "archsift/persistence.py" in names
@@ -679,7 +680,9 @@ jobs:
               tool_version=package_version(),
               artefact_identities=source_artefacts,
           )
-          source_assess_bytes = canonical_decision_record_bytes(source_assess)
+          from archsift.masking import masked_canonical_decision_record_bytes
+
+          source_assess_bytes = masked_canonical_decision_record_bytes(source_assess)
           source_report_bytes = render_markdown_decision_report(source_assess)
           assess_command = [
               archsift,
@@ -707,6 +710,44 @@ jobs:
           assert (record_path.stat().st_mtime_ns, report_path.stat().st_mtime_ns) == recorded_mtimes
           assert len(list((case / "output").glob("*.json"))) == 1
           assert len(list((case / "output").glob("*.md"))) == 1
+          masking_case = root / "masking-case"
+          subprocess.run([archsift, "init", masking_case], check=True)
+          masking_dossier = {
+              "schema_version": 1,
+              "case": {"id": "masking", "title": "Installed wheel masking smoke"},
+              "evidence": [{
+                  "id": "card",
+                  "kind": "observed",
+                  "claim": "The reference card 4111 1111 1111 1111 was used.",
+                  "owner": "Test owner",
+                  "affects": ["problem-value"],
+                  "provenance": "sanitised masking probe",
+                  "observed_at": "2026-08-15",
+                  "artefacts": [],
+              }],
+              "decision_conditions": [],
+          }
+          (masking_case / "case.yaml").write_text(
+              json.dumps(masking_dossier), encoding="utf-8"
+          )
+          masking_assess = subprocess.run(
+              [archsift, "assess", masking_case, "--json"],
+              check=True,
+              capture_output=True,
+              text=True,
+          )
+          masking_payload = json.loads(masking_assess.stdout)
+          assert masking_payload["masking"]["applied"] is True
+          assert masking_payload["masking"]["policy_version"] == 1
+          assert "4111 1111 1111 1111" not in masking_assess.stdout
+          assert "[ARCHSIFT-MASKED:payment-card]" in masking_assess.stdout
+          masking_identity = masking_payload["record_content_identity"][7:]
+          masking_report = (
+              masking_case / "output" / f"sha256-{masking_identity}.md"
+          ).read_text(encoding="utf-8")
+          assert "## Masking Notice" in masking_report
+          assert "4111 1111 1111 1111" not in masking_report
+          assert "[ARCHSIFT-MASKED:payment-card]" in masking_report
           manifest = json.loads(Path("examples/manifest.json").read_text(encoding="utf-8"))
           installed_examples = root / "installed-examples"
           installed_examples.mkdir()

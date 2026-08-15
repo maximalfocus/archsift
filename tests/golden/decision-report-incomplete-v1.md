@@ -4,7 +4,7 @@
 
 **Report Format Version**
 
-    1
+    2
 
 **Record Schema Version**
 
@@ -599,3 +599,13 @@
 **Reassessment Triggers**
 
     (none)
+
+## Masking Notice
+
+**Policy Version**
+
+    1
+
+**Warning**
+
+    This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.

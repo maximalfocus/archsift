@@ -18,6 +18,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 from archsift.canonical import JsonObject, JsonValue, canonical_json_bytes
 from archsift.decision_record import RECORD_SCHEMA_VERSION
 from archsift.diagnostics import ExitCode
+from archsift.masking import MASKING_POLICY_VERSION
 
 COMPARISON_SCHEMA_VERSION = 1
 
@@ -586,8 +587,30 @@ def _validate_assessment(value: object, *, ruleset_version: str, dossier_schema:
         _validate_finding(finding, prerequisite=False, field=f"ordered.findings[{index}]")
 
 
+def _validate_masking_declaration(value: object) -> None:
+    """Validate the NFR-009 disclosure on a masked decision-record file.
+
+    A masked presentation declares the policy that transformed its emitted
+    field values. The canonical dossier bytes, evidence content identities and
+    record content identity that address the immutable record cannot be
+    recomputed from masked bytes, so the file's declared identities are
+    checked for shape while every structural, schema, and cross-reference
+    check still applies.
+    """
+    declaration = _require_object(value, "$.masking")
+    _require_keys(declaration, {"applied", "policy_version", "warning"}, "$.masking")
+    if declaration["applied"] is not True:
+        raise ValueError("masking disclosure must declare masking applied")
+    if declaration["policy_version"] != MASKING_POLICY_VERSION:
+        raise ValueError("masking policy version is unsupported")
+    _require_text(declaration["warning"], "$.masking.warning")
+
+
 def _validate_record(record: dict[str, object]) -> None:
-    _require_keys(record, _RECORD_KEYS, "$")
+    masked = record.get("masking") is not None
+    if masked:
+        _validate_masking_declaration(record["masking"])
+    _require_keys(record, _RECORD_KEYS | ({"masking"} if masked else set()), "$")
     if record["record_schema_version"] != RECORD_SCHEMA_VERSION:
         raise ValueError("record schema version is missing or unsupported")
     record_identity = _require_identity(record["record_content_identity"], "record identity")
@@ -605,7 +628,9 @@ def _validate_record(record: dict[str, object]) -> None:
         raise ValueError("embedded dossier does not satisfy schema version 1")
     evidence = _require_list(dossier.get("evidence"), "$.dossier.evidence")
     dossier_identity = _require_identity(record["dossier_content_identity"], "dossier identity")
-    if dossier_identity != _identity(canonical_json_bytes(cast(JsonObject, dossier))):
+    if not masked and dossier_identity != _identity(
+        canonical_json_bytes(cast(JsonObject, dossier))
+    ):
         raise ValueError("dossier content identity is inconsistent")
 
     configuration = _require_object(record["configuration"], "$.configuration")
@@ -624,7 +649,9 @@ def _validate_record(record: dict[str, object]) -> None:
     configuration_identity = _require_identity(
         record["configuration_content_identity"], "configuration identity"
     )
-    if configuration_identity != _identity(canonical_json_bytes(cast(JsonObject, configuration))):
+    if not masked and configuration_identity != _identity(
+        canonical_json_bytes(cast(JsonObject, configuration))
+    ):
         raise ValueError("configuration content identity is inconsistent")
 
     evidence_links = _require_object(record["evidence_links"], "$.evidence_links")
@@ -645,7 +672,7 @@ def _validate_record(record: dict[str, object]) -> None:
         ):
             raise ValueError("evidence link identity or kind is inconsistent")
         content_identity = _require_identity(link["content_identity"], "evidence content identity")
-        if content_identity != _identity(
+        if not masked and content_identity != _identity(
             canonical_json_bytes(cast(JsonObject, evidence_by_id[identifier]))
         ):
             raise ValueError("evidence content identity is inconsistent")
@@ -770,7 +797,7 @@ def _validate_record(record: dict[str, object]) -> None:
         JsonObject,
         {key: value for key, value in record.items() if key != "record_content_identity"},
     )
-    if record_identity != _identity(canonical_json_bytes(payload)):
+    if not masked and record_identity != _identity(canonical_json_bytes(payload)):
         raise ValueError("record content identity is inconsistent")
 
 
