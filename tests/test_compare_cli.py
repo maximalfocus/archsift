@@ -26,6 +26,36 @@ def _record() -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(_GOLDEN.read_bytes()))
 
 
+def _digest(value: str) -> str:
+    return sha256(value.encode("ascii")).hexdigest()
+
+
+def _graph_use(value: str = "old") -> dict[str, Any]:
+    return {
+        "case_view_content_identity": f"sha256:{_digest(f'{value}-view')}",
+        "finding_relevant_nodes": [
+            {
+                "content_identity": f"sha256:{_digest(f'{value}-claim')}",
+                "id": "reusable-claim",
+            },
+            {
+                "content_identity": f"sha256:{_digest('stable-rule')}",
+                "id": "reusable-rule",
+            },
+        ],
+        "finding_relevant_relations": [
+            {
+                "content_identity": f"sha256:{_digest(f'{value}-relation')}",
+                "id": "claim-informs-rule",
+            }
+        ],
+        "graph_schema_version": 1,
+        "graph_snapshot_content_identity": f"sha256:{_digest(f'{value}-snapshot')}",
+        "graph_version": f"gv1:{_digest(f'{value}-graph')}",
+        "supported_finding_rule_ids": ["agentic-agency-fact-non-decisive"],
+    }
+
+
 def _rehash(record: dict[str, Any]) -> None:
     dossier = cast(JsonObject, record["dossier"])
     record["dossier_content_identity"] = _identity(dossier)
@@ -87,10 +117,35 @@ def test_compare_identical_records_has_empty_stable_changes(
         "removed": [],
     }
     assert comparison["changed_verdict_fields"] == []
-    assert comparison["causes"] == {"evidence_ids": [], "finding_changes": 0}
+    assert comparison["comparison_schema_version"] == 2
+    assert comparison["changed_graph"] == {
+        "finding_relevant_nodes": {"added": [], "changed": [], "removed": []},
+        "finding_relevant_relations": {"added": [], "changed": [], "removed": []},
+        "identities": {
+            name: {"changed": False, "new": None, "old": None}
+            for name in (
+                "case_view_content_identity",
+                "graph_schema_version",
+                "graph_snapshot_content_identity",
+                "graph_version",
+            )
+        },
+        "presence": {"changed": False, "new": False, "old": False},
+        "supported_finding_rule_ids": {"added": [], "removed": []},
+    }
+    assert comparison["causes"] == {
+        "evidence_ids": [],
+        "finding_changes": 0,
+        "graph_entries": [],
+        "graph_supported_finding_rule_ids": [],
+    }
     assert comparison["context"] == {
         "evidence_ids": [],
         "finding_changes": 0,
+        "graph_entries": [],
+        "graph_identity_fields": [],
+        "graph_presence_changed": False,
+        "graph_supported_finding_rule_ids": [],
         "snapshot_fields": [],
     }
 
@@ -111,6 +166,148 @@ def test_compare_accepts_current_complete_and_incomplete_canonical_records(
         "new": "insufficient-evidence",
         "old": "conditional",
     }
+
+
+def test_compare_reports_graph_use_addition_and_removal_explicitly(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    old_record = _record()
+    new_record = copy.deepcopy(old_record)
+    new_record["graph_use"] = _graph_use()
+    _write(tmp_path / "old.json", old_record)
+    _write(tmp_path / "new.json", new_record)
+    monkeypatch.chdir(tmp_path)
+
+    old = load_decision_record(Path("old.json"), root=Path.cwd(), role="old")
+    new = load_decision_record(Path("new.json"), root=Path.cwd(), role="new")
+    added = compare_decision_records(old, new)
+    removed = compare_decision_records(new, old)
+
+    assert added["changed_graph"]["presence"] == {
+        "changed": True,
+        "new": True,
+        "old": False,
+    }
+    assert [item["id"] for item in added["changed_graph"]["finding_relevant_nodes"]["added"]] == [
+        "reusable-claim",
+        "reusable-rule",
+    ]
+    assert added["changed_graph"]["supported_finding_rule_ids"]["added"] == [
+        "agentic-agency-fact-non-decisive"
+    ]
+    assert added["context"]["graph_presence_changed"] is True
+    assert added["context"]["graph_supported_finding_rule_ids"] == [
+        "agentic-agency-fact-non-decisive"
+    ]
+    assert removed["changed_graph"]["presence"] == {
+        "changed": True,
+        "new": False,
+        "old": True,
+    }
+    assert [
+        item["id"] for item in removed["changed_graph"]["finding_relevant_relations"]["removed"]
+    ] == ["claim-informs-rule"]
+    assert main(["compare", "old.json", "new.json"]) == ExitCode.SUCCESS
+    human = capsys.readouterr().out
+    assert "Graph use: absent -> present; 4 identity changes (context)" in human
+    assert "Graph findings: +1 -0" in human
+    assert "Graph nodes: +2 -0 ~0" in human
+    assert "Graph relations: +1 -0 ~0" in human
+
+
+def test_compare_keeps_graph_identity_only_changes_in_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    old_record = _record()
+    old_record["graph_use"] = _graph_use()
+    new_record = copy.deepcopy(old_record)
+    graph_use = new_record["graph_use"]
+    graph_use["case_view_content_identity"] = f"sha256:{_digest('new-view')}"
+    graph_use["graph_snapshot_content_identity"] = f"sha256:{_digest('new-snapshot')}"
+    graph_use["graph_version"] = f"gv1:{_digest('new-graph')}"
+    _write(tmp_path / "old.json", old_record)
+    _write(tmp_path / "new.json", new_record)
+    monkeypatch.chdir(tmp_path)
+
+    old = load_decision_record(Path("old.json"), root=Path.cwd(), role="old")
+    new = load_decision_record(Path("new.json"), root=Path.cwd(), role="new")
+    comparison = compare_decision_records(old, new)
+
+    assert comparison["changed_graph"]["finding_relevant_nodes"] == {
+        "added": [],
+        "changed": [],
+        "removed": [],
+    }
+    assert comparison["changed_graph"]["finding_relevant_relations"] == {
+        "added": [],
+        "changed": [],
+        "removed": [],
+    }
+    assert comparison["causes"]["graph_entries"] == []
+    assert comparison["context"]["graph_identity_fields"] == [
+        "case_view_content_identity",
+        "graph_snapshot_content_identity",
+        "graph_version",
+    ]
+
+
+@pytest.mark.parametrize("verdict_changed", [False, True])
+def test_compare_classifies_only_finding_relevant_graph_entry_changes(
+    verdict_changed: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old_record = _record()
+    old_record["graph_use"] = _graph_use()
+    new_record = copy.deepcopy(old_record)
+    graph_use = new_record["graph_use"]
+    graph_use["finding_relevant_nodes"] = [
+        {
+            "content_identity": f"sha256:{_digest('new-node')}",
+            "id": "new-reusable-node",
+        },
+        {
+            "content_identity": f"sha256:{_digest('changed-claim')}",
+            "id": "reusable-claim",
+        },
+    ]
+    graph_use["finding_relevant_relations"][0]["content_identity"] = (
+        f"sha256:{_digest('changed-relation')}"
+    )
+    graph_use["supported_finding_rule_ids"] = [
+        "agentic-agency-fact-non-decisive",
+        "binding-outcome-met",
+    ]
+    if verdict_changed:
+        new_record["assessment"]["verdict"] = "supported"
+    _write(tmp_path / "old.json", old_record)
+    _write(tmp_path / "new.json", new_record)
+    monkeypatch.chdir(tmp_path)
+
+    old = load_decision_record(Path("old.json"), root=Path.cwd(), role="old")
+    new = load_decision_record(Path("new.json"), root=Path.cwd(), role="new")
+    comparison = compare_decision_records(old, new)
+    graph = comparison["changed_graph"]
+
+    assert [item["id"] for item in graph["finding_relevant_nodes"]["added"]] == [
+        "new-reusable-node"
+    ]
+    assert [item["id"] for item in graph["finding_relevant_nodes"]["removed"]] == ["reusable-rule"]
+    assert [item["id"] for item in graph["finding_relevant_nodes"]["changed"]] == ["reusable-claim"]
+    assert graph["finding_relevant_relations"]["changed"][0]["id"] == ("claim-informs-rule")
+    assert graph["supported_finding_rule_ids"]["added"] == ["binding-outcome-met"]
+    destination = "causes" if verdict_changed else "context"
+    other = "context" if verdict_changed else "causes"
+    assert comparison[destination]["graph_entries"] == [
+        {"id": "new-reusable-node", "kind": "node"},
+        {"id": "reusable-claim", "kind": "node"},
+        {"id": "reusable-rule", "kind": "node"},
+        {"id": "claim-informs-rule", "kind": "relation"},
+    ]
+    assert comparison[destination]["graph_supported_finding_rule_ids"] == ["binding-outcome-met"]
+    assert comparison[other]["graph_entries"] == []
 
 
 def test_compare_lists_added_removed_and_identity_changed_evidence(
@@ -257,7 +454,12 @@ def test_reordered_but_identical_evidence_is_context_not_a_cause(
     comparison = compare_decision_records(old, new)
 
     assert comparison["changed_evidence"]["changed"] == []
-    assert comparison["causes"] == {"evidence_ids": [], "finding_changes": 0}
+    assert comparison["causes"] == {
+        "evidence_ids": [],
+        "finding_changes": 0,
+        "graph_entries": [],
+        "graph_supported_finding_rule_ids": [],
+    }
     assert comparison["context"]["snapshot_fields"] == ["dossier_content_identity"]
 
 
@@ -288,6 +490,7 @@ def test_compare_json_and_human_modes_are_byte_deterministic_and_read_only(
         human.append(capsys.readouterr().out)
     assert human[0] == human[1]
     assert "Verdict:" in human[0]
+    assert "Graph use: absent -> absent; 0 identity changes (context)" in human[0]
     assert main(["compare", "old.json", "new.json", "--quiet"]) == ExitCode.SUCCESS
     assert capsys.readouterr() == ("", "")
     assert (tmp_path / "old.json").read_bytes() == old_content
