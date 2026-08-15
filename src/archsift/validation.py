@@ -575,6 +575,8 @@ _SCHEMA_RESOURCES = {
     2: "schemas/dossier-v2.schema.json",
     3: "schemas/dossier-v3.schema.json",
 }
+SUPPORTED_DOSSIER_SCHEMA_VERSIONS = tuple(sorted(_SCHEMA_RESOURCES))
+LATEST_DOSSIER_SCHEMA_VERSION = SUPPORTED_DOSSIER_SCHEMA_VERSIONS[-1]
 _AGENCY_QUESTION_FIELDS = (
     "execution_steps_predefinable",
     "step_count_or_order_predictable",
@@ -683,7 +685,10 @@ def _field_path(parts: Sequence[object]) -> str:
     return "$" + "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in parts)
 
 
-def _schema(schema_version: int) -> Mapping[str, Any]:
+def packaged_dossier_schema(schema_version: int) -> Mapping[str, Any]:
+    """Return one supported packaged dossier schema as parsed JSON data."""
+    if schema_version not in _SCHEMA_RESOURCES:
+        raise ValueError("Unsupported dossier schema version.")
     content = (
         files("archsift").joinpath(_SCHEMA_RESOURCES[schema_version]).read_text(encoding="utf-8")
     )
@@ -2951,7 +2956,10 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         )
 
     schema_version = declared_version
-    validator = Draft202012Validator(_schema(schema_version), format_checker=FormatChecker())
+    validator = Draft202012Validator(
+        packaged_dossier_schema(schema_version),
+        format_checker=FormatChecker(),
+    )
     errors = sorted(
         validator.iter_errors(loaded),
         key=lambda item: (_field_path(list(item.absolute_path)), item.validator, item.message),
