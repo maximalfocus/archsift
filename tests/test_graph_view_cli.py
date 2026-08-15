@@ -105,7 +105,9 @@ def test_graph_view_enforces_contained_paths_and_unavailable_files(
         main(["graph-view", "../snapshot.json", "../request.json", "--json"])
         == ExitCode.UNSAFE_PATH
     )
-    assert json.loads(capsys.readouterr().out)["diagnostics"][0]["file"] == "../snapshot.json"
+    assert json.loads(capsys.readouterr().out)["diagnostics"][0]["file"] == str(
+        Path("../snapshot.json")
+    )
     assert (
         main(["graph-view", "missing.json", "request.json", "--quiet"])
         == ExitCode.ARTEFACT_UNAVAILABLE
