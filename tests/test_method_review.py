@@ -908,8 +908,9 @@ def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
     assert "protocol 2.0.0" in protocol_words
     assert "exactly four independent simulated review sessions" in protocol_words
     assert "at least three of the four sessions" in protocol_words
-    assert "simulated review cohort has been run" in protocol_words
-    assert "criterion-not-met" in protocol_words
+    assert "simulated review cohorts have been run" in protocol_words
+    assert "criterion-met" in protocol_words
+    assert "method-review-results-1-criterion-not-met.json" in protocol_words
     assert "no claim that a human architect passed" in protocol_words
     assert "no agentic candidate is represented" in protocol_words
     assert "agentic-agency-fact-non-decisive" in protocol_words

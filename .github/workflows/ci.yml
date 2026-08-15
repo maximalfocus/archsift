@@ -58,8 +58,16 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert run.returncode == 12, run.stderr
-          assert json.loads(run.stdout)["status"] == "criterion-not-met"
+          assert run.returncode == 0, run.stderr
+          assert json.loads(run.stdout)["status"] == "criterion-met"
+          historical = subprocess.run(
+              [sys.executable, "-m", "archsift", "method-review-results",
+               "method-review-results-1-criterion-not-met.json", "--json"],
+              capture_output=True,
+              text=True,
+          )
+          assert historical.returncode == 12, historical.stderr
+          assert json.loads(historical.stdout)["status"] == "criterion-not-met"
 
       - name: Lint
         run: python -m ruff check .

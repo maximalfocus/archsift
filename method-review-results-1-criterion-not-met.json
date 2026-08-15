@@ -1,8 +1,8 @@
 {
-  "archsift_version_or_commit": "38dc9a9388c1b7e778dbc07c580d6420bab4302e",
+  "archsift_version_or_commit": "75fb242e2207486dd52cd356f07966dc86790f6c",
   "corpus_version": "1.0.0",
   "method_version": "1.2.0",
-  "overall_result": "met",
+  "overall_result": "not-met",
   "protocol_version": "2.0.0",
   "ruleset_version": "1.8.0",
   "schema_version": 2,
@@ -120,10 +120,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-supported"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -157,9 +158,9 @@
               "verdict_rule_id": "verdict-supported"
             }
           ],
-          "decision_record_identity": "sha256:e798c7c15cb027f68da85720be117a0c3edc3957a0120f190b9fd609b4eee272",
+          "decision_record_identity": "sha256:f6287b44f3ca7cad99ac8990d704d54c7f8115c694f4856395859ba9f9bee77c",
           "example_id": "fixed-workflow",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -174,6 +175,7 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
+                "candidate-test-result-unknown",
                 "binding-constraint-met"
               ],
               "trace_outcome": "causal",
@@ -186,10 +188,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-insufficient-evidence"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -207,8 +210,8 @@
             },
             {
               "candidate_ids": [
-                "fixed-workflow",
-                "human-review"
+                "human-review",
+                "fixed-workflow"
               ],
               "decision_area": "comparative-fit",
               "evidence_ids": [
@@ -216,15 +219,17 @@
               ],
               "rule_ids": [
                 "candidate-test-result-unknown",
-                "comparison-result-unknown"
+                "comparison-result-unknown",
+                "binding-outcome-failed",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-insufficient-evidence"
             }
           ],
-          "decision_record_identity": "sha256:ba9b8b804a60bdc2ef3b8f3e9646f5f7864979044514e9bdd1e1f277e6d64a22",
+          "decision_record_identity": "sha256:d6ce588dc5ba2c0df4d18db55dd8147b129a1ee373f5ad38166eaff245e8e6b7",
           "example_id": "insufficient-evidence",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -251,10 +256,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-no-technology-change"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [],
@@ -263,10 +269,11 @@
                 "autonomy-observed"
               ],
               "rule_ids": [
-                "autonomy-boundary-non-decisive"
+                "active-veto-blocks-candidate",
+                "mandatory-human-control-retained"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-no-technology-change"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -285,21 +292,23 @@
               "verdict_rule_id": "verdict-no-technology-change"
             }
           ],
-          "decision_record_identity": "sha256:87eef38eacdfb47e80b8846b95e52de9d4068fc422ebcd1e349e084b4abd0a43",
+          "decision_record_identity": "sha256:816ab5861b6d5f342b1b0150ef9994ca3a7e6548ea1708cd8b5873582bd22179",
           "example_id": "no-technology-change",
-          "example_result": "pass"
+          "example_result": "fail"
         }
       ],
-      "failure_reasons": [],
+      "failure_reasons": [
+        "display-only-decision-area"
+      ],
       "fresh_session": true,
       "harness_version": "2.1.233",
       "maintainer_intervention": false,
       "session_id": "session-01",
-      "session_result": "pass"
+      "session_result": "fail"
     },
     {
-      "agent_model": "GPT-5",
-      "agent_product": "OpenAI Codex",
+      "agent_model": "gpt-5.6-sol",
+      "agent_product": "codex",
       "disagreements": [],
       "environment": {
         "install_mode": "source-checkout",
@@ -321,8 +330,8 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
-                "binding-constraint-met",
-                "binding-outcome-met"
+                "binding-outcome-met",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-supported"
@@ -336,10 +345,12 @@
                 "agency-observed"
               ],
               "rule_ids": [
+                "agentic-dynamic-execution-supports-agency",
                 "agentic-runtime-adaptation-supports-agency",
                 "agentic-feedback-supports-agency",
                 "agentic-fixed-workflow-insufficiency-supports-agency",
-                "agentic-residual-case-supports-agency"
+                "agentic-residual-case-supports-agency",
+                "agentic-agency-fact-non-decisive"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-supported"
@@ -371,8 +382,8 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
-                "binding-constraint-met",
-                "binding-outcome-met"
+                "binding-outcome-met",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-supported"
@@ -395,8 +406,8 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
-                "binding-constraint-met",
-                "binding-outcome-met"
+                "binding-outcome-met",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-supported"
@@ -408,10 +419,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-supported"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -438,16 +450,16 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
-                "binding-constraint-met",
-                "binding-outcome-met"
+                "binding-outcome-met",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-supported"
             }
           ],
-          "decision_record_identity": "sha256:e798c7c15cb027f68da85720be117a0c3edc3957a0120f190b9fd609b4eee272",
+          "decision_record_identity": "sha256:f6287b44f3ca7cad99ac8990d704d54c7f8115c694f4856395859ba9f9bee77c",
           "example_id": "fixed-workflow",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -462,8 +474,8 @@
               ],
               "rule_ids": [
                 "binding-outcome-failed",
-                "binding-constraint-met",
-                "candidate-test-result-unknown"
+                "candidate-test-result-unknown",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-insufficient-evidence"
@@ -475,10 +487,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-insufficient-evidence"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -496,7 +509,6 @@
             },
             {
               "candidate_ids": [
-                "human-review",
                 "fixed-workflow"
               ],
               "decision_area": "comparative-fit",
@@ -504,8 +516,6 @@
                 "decision-observed"
               ],
               "rule_ids": [
-                "binding-outcome-failed",
-                "binding-constraint-met",
                 "candidate-test-result-unknown",
                 "comparison-result-unknown"
               ],
@@ -513,9 +523,9 @@
               "verdict_rule_id": "verdict-insufficient-evidence"
             }
           ],
-          "decision_record_identity": "sha256:ba9b8b804a60bdc2ef3b8f3e9646f5f7864979044514e9bdd1e1f277e6d64a22",
+          "decision_record_identity": "sha256:d6ce588dc5ba2c0df4d18db55dd8147b129a1ee373f5ad38166eaff245e8e6b7",
           "example_id": "insufficient-evidence",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -542,10 +552,11 @@
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-no-technology-change"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [],
@@ -554,10 +565,11 @@
                 "autonomy-observed"
               ],
               "rule_ids": [
-                "autonomy-boundary-non-decisive"
+                "active-veto-blocks-candidate",
+                "mandatory-human-control-omitted"
               ],
-              "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": "verdict-no-technology-change"
+              "trace_outcome": "display-only",
+              "verdict_rule_id": null
             },
             {
               "candidate_ids": [
@@ -576,17 +588,19 @@
               "verdict_rule_id": "verdict-no-technology-change"
             }
           ],
-          "decision_record_identity": "sha256:87eef38eacdfb47e80b8846b95e52de9d4068fc422ebcd1e349e084b4abd0a43",
+          "decision_record_identity": "sha256:816ab5861b6d5f342b1b0150ef9994ca3a7e6548ea1708cd8b5873582bd22179",
           "example_id": "no-technology-change",
-          "example_result": "pass"
+          "example_result": "fail"
         }
       ],
-      "failure_reasons": [],
+      "failure_reasons": [
+        "display-only-decision-area"
+      ],
       "fresh_session": true,
-      "harness_version": "codex-cli 0.147.0",
+      "harness_version": "0.147.0",
       "maintainer_intervention": false,
       "session_id": "session-02",
-      "session_result": "pass"
+      "session_result": "fail"
     },
     {
       "agent_model": "mimo-v2.5-free",
@@ -602,7 +616,9 @@
           "decision_areas": [
             {
               "candidate_ids": [
-                "adaptive-agent"
+                "adaptive-agent",
+                "human-review",
+                "fixed-workflow"
               ],
               "decision_area": "problem-value",
               "evidence_ids": [
@@ -625,15 +641,19 @@
               ],
               "rule_ids": [
                 "agentic-runtime-adaptation-supports-agency",
+                "agentic-dynamic-execution-supports-agency",
+                "agentic-feedback-supports-agency",
                 "agentic-fixed-workflow-insufficiency-supports-agency",
-                "agentic-residual-case-supports-agency"
+                "agentic-residual-case-supports-agency",
+                "agentic-agency-fact-non-decisive"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": null
             },
             {
               "candidate_ids": [
-                "adaptive-agent"
+                "adaptive-agent",
+                "fixed-workflow"
               ],
               "decision_area": "autonomy-permission",
               "evidence_ids": [
@@ -647,14 +667,18 @@
             },
             {
               "candidate_ids": [
-                "adaptive-agent"
+                "adaptive-agent",
+                "human-review",
+                "fixed-workflow"
               ],
               "decision_area": "comparative-fit",
               "evidence_ids": [
-                "decision-observed"
+                "decision-observed",
+                "autonomy-observed"
               ],
               "rule_ids": [
                 "binding-outcome-met",
+                "binding-outcome-failed",
                 "binding-constraint-met"
               ],
               "trace_outcome": "causal",
@@ -669,7 +693,8 @@
           "decision_areas": [
             {
               "candidate_ids": [
-                "fixed-workflow"
+                "fixed-workflow",
+                "human-review"
               ],
               "decision_area": "problem-value",
               "evidence_ids": [
@@ -683,7 +708,9 @@
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "fixed-workflow"
+              ],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
@@ -695,7 +722,9 @@
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "fixed-workflow"
+              ],
               "decision_area": "autonomy-permission",
               "evidence_ids": [
                 "autonomy-observed"
@@ -708,13 +737,15 @@
             },
             {
               "candidate_ids": [
-                "fixed-workflow"
+                "fixed-workflow",
+                "human-review"
               ],
               "decision_area": "comparative-fit",
               "evidence_ids": [
                 "decision-observed"
               ],
               "rule_ids": [
+                "binding-outcome-failed",
                 "binding-outcome-met",
                 "binding-constraint-met"
               ],
@@ -722,7 +753,7 @@
               "verdict_rule_id": "verdict-supported"
             }
           ],
-          "decision_record_identity": "sha256:e798c7c15cb027f68da85720be117a0c3edc3957a0120f190b9fd609b4eee272",
+          "decision_record_identity": "sha256:f6287b44f3ca7cad99ac8990d704d54c7f8115c694f4856395859ba9f9bee77c",
           "example_id": "fixed-workflow",
           "example_result": "pass"
         },
@@ -730,21 +761,24 @@
           "decision_areas": [
             {
               "candidate_ids": [
-                "human-review"
+                "human-review",
+                "fixed-workflow"
               ],
               "decision_area": "problem-value",
               "evidence_ids": [
                 "decision-observed"
               ],
               "rule_ids": [
-                "binding-constraint-met",
-                "binding-outcome-failed"
+                "binding-outcome-failed",
+                "binding-constraint-met"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "fixed-workflow"
+              ],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
@@ -756,7 +790,9 @@
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "fixed-workflow"
+              ],
               "decision_area": "autonomy-permission",
               "evidence_ids": [
                 "autonomy-observed"
@@ -778,21 +814,24 @@
               ],
               "rule_ids": [
                 "candidate-test-result-unknown",
-                "comparison-result-unknown"
+                "comparison-result-unknown",
+                "binding-outcome-failed",
+                "binding-constraint-met"
               ],
-              "trace_outcome": "display-only",
+              "trace_outcome": "causal",
               "verdict_rule_id": "verdict-insufficient-evidence"
             }
           ],
-          "decision_record_identity": "sha256:ba9b8b804a60bdc2ef3b8f3e9646f5f7864979044514e9bdd1e1f277e6d64a22",
+          "decision_record_identity": "sha256:d6ce588dc5ba2c0df4d18db55dd8147b129a1ee373f5ad38166eaff245e8e6b7",
           "example_id": "insufficient-evidence",
-          "example_result": "fail"
+          "example_result": "pass"
         },
         {
           "decision_areas": [
             {
               "candidate_ids": [
-                "human-review"
+                "human-review",
+                "process-redesign"
               ],
               "decision_area": "problem-value",
               "evidence_ids": [
@@ -806,7 +845,9 @@
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "human-review"
+              ],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
@@ -818,7 +859,9 @@
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [],
+              "candidate_ids": [
+                "human-review"
+              ],
               "decision_area": "autonomy-permission",
               "evidence_ids": [
                 "autonomy-observed"
@@ -831,6 +874,7 @@
             },
             {
               "candidate_ids": [
+                "human-review",
                 "process-redesign"
               ],
               "decision_area": "comparative-fit",
@@ -845,19 +889,17 @@
               "verdict_rule_id": "verdict-no-technology-change"
             }
           ],
-          "decision_record_identity": "sha256:87eef38eacdfb47e80b8846b95e52de9d4068fc422ebcd1e349e084b4abd0a43",
+          "decision_record_identity": "sha256:816ab5861b6d5f342b1b0150ef9994ca3a7e6548ea1708cd8b5873582bd22179",
           "example_id": "no-technology-change",
           "example_result": "pass"
         }
       ],
-      "failure_reasons": [
-        "display-only-decision-area"
-      ],
+      "failure_reasons": [],
       "fresh_session": true,
-      "harness_version": "0.1.0",
+      "harness_version": "1.18.18",
       "maintainer_intervention": false,
       "session_id": "session-03",
-      "session_result": "fail"
+      "session_result": "pass"
     },
     {
       "agent_model": "deepseek-v4-flash",
@@ -921,7 +963,7 @@
                 "autonomy-boundary-non-decisive"
               ],
               "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": null
+              "verdict_rule_id": "verdict-supported"
             },
             {
               "candidate_ids": [
@@ -966,18 +1008,16 @@
               "verdict_rule_id": "verdict-supported"
             },
             {
-              "candidate_ids": [
-                "human-review",
-                "fixed-workflow"
-              ],
+              "candidate_ids": [],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
+              "trace_outcome": "display-only",
               "verdict_rule_id": null
             },
             {
@@ -992,7 +1032,7 @@
                 "autonomy-boundary-non-decisive"
               ],
               "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": null
+              "verdict_rule_id": "verdict-supported"
             },
             {
               "candidate_ids": [
@@ -1012,9 +1052,9 @@
               "verdict_rule_id": "verdict-supported"
             }
           ],
-          "decision_record_identity": "sha256:e798c7c15cb027f68da85720be117a0c3edc3957a0120f190b9fd609b4eee272",
+          "decision_record_identity": "sha256:f6287b44f3ca7cad99ac8990d704d54c7f8115c694f4856395859ba9f9bee77c",
           "example_id": "fixed-workflow",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -1036,18 +1076,16 @@
               "verdict_rule_id": "verdict-insufficient-evidence"
             },
             {
-              "candidate_ids": [
-                "human-review",
-                "fixed-workflow"
-              ],
+              "candidate_ids": [],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
+              "trace_outcome": "display-only",
               "verdict_rule_id": null
             },
             {
@@ -1062,11 +1100,10 @@
                 "autonomy-boundary-non-decisive"
               ],
               "trace_outcome": "explicitly-non-decisive",
-              "verdict_rule_id": null
+              "verdict_rule_id": "verdict-insufficient-evidence"
             },
             {
               "candidate_ids": [
-                "human-review",
                 "fixed-workflow"
               ],
               "decision_area": "comparative-fit",
@@ -1075,17 +1112,15 @@
               ],
               "rule_ids": [
                 "candidate-test-result-unknown",
-                "comparison-result-unknown",
-                "binding-outcome-failed",
-                "binding-constraint-met"
+                "comparison-result-unknown"
               ],
               "trace_outcome": "causal",
               "verdict_rule_id": "verdict-insufficient-evidence"
             }
           ],
-          "decision_record_identity": "sha256:ba9b8b804a60bdc2ef3b8f3e9646f5f7864979044514e9bdd1e1f277e6d64a22",
+          "decision_record_identity": "sha256:d6ce588dc5ba2c0df4d18db55dd8147b129a1ee373f5ad38166eaff245e8e6b7",
           "example_id": "insufficient-evidence",
-          "example_result": "pass"
+          "example_result": "fail"
         },
         {
           "decision_areas": [
@@ -1106,33 +1141,29 @@
               "verdict_rule_id": "verdict-no-technology-change"
             },
             {
-              "candidate_ids": [
-                "human-review",
-                "process-redesign"
-              ],
+              "candidate_ids": [],
               "decision_area": "agency-necessity",
               "evidence_ids": [
                 "agency-observed"
               ],
               "rule_ids": [
-                "agentic-agency-fact-non-decisive"
+                "agentic-fixed-workflow-sufficient-blocks-candidate",
+                "agentic-runtime-adaptation-missing"
               ],
-              "trace_outcome": "explicitly-non-decisive",
+              "trace_outcome": "display-only",
               "verdict_rule_id": null
             },
             {
-              "candidate_ids": [
-                "human-review",
-                "process-redesign"
-              ],
+              "candidate_ids": [],
               "decision_area": "autonomy-permission",
               "evidence_ids": [
                 "autonomy-observed"
               ],
               "rule_ids": [
-                "autonomy-boundary-non-decisive"
+                "active-veto-blocks-candidate",
+                "mandatory-human-control-omitted"
               ],
-              "trace_outcome": "explicitly-non-decisive",
+              "trace_outcome": "display-only",
               "verdict_rule_id": null
             },
             {
@@ -1152,17 +1183,19 @@
               "verdict_rule_id": "verdict-no-technology-change"
             }
           ],
-          "decision_record_identity": "sha256:87eef38eacdfb47e80b8846b95e52de9d4068fc422ebcd1e349e084b4abd0a43",
+          "decision_record_identity": "sha256:816ab5861b6d5f342b1b0150ef9994ca3a7e6548ea1708cd8b5873582bd22179",
           "example_id": "no-technology-change",
-          "example_result": "pass"
+          "example_result": "fail"
         }
       ],
-      "failure_reasons": [],
+      "failure_reasons": [
+        "display-only-decision-area"
+      ],
       "fresh_session": true,
       "harness_version": "0.84.2",
       "maintainer_intervention": false,
       "session_id": "session-04",
-      "session_result": "pass"
+      "session_result": "fail"
     }
   ]
 }
