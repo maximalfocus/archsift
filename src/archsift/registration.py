@@ -246,9 +246,18 @@ def _read_inert(
             byte_length += len(chunk)
         after = os.fstat(stream.fileno())
     current = source.stat(follow_symlinks=False)
-    generation_before = (before.st_size, before.st_mtime_ns, before.st_ctime_ns)
-    generation_after = (after.st_size, after.st_mtime_ns, after.st_ctime_ns)
-    generation_current = (current.st_size, current.st_mtime_ns, current.st_ctime_ns)
+
+    def generation(value: os.stat_result) -> tuple[int, ...]:
+        # Windows exposes creation/change timestamps differently through path
+        # and open-handle stat calls. File identity, size, and last-write time
+        # remain the stable cross-platform race token; POSIX additionally has
+        # a consistent metadata-change time that catches same-size rewrites.
+        common = (value.st_size, value.st_mtime_ns)
+        return common if os.name == "nt" else (*common, value.st_ctime_ns)
+
+    generation_before = generation(before)
+    generation_after = generation(after)
+    generation_current = generation(current)
     if (
         not os.path.samestat(before, after)
         or not os.path.samestat(before, current)
