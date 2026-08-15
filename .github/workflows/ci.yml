@@ -274,7 +274,7 @@ jobs:
           usability_path = root / "usability-results.json"
           usability_payload = {
               "schema_version": 1,
-              "protocol_version": "1.0.1",
+              "protocol_version": "1.0.0",
               "archsift_version_or_commit": package_version(),
               "overall_result": "met",
               "sessions": sessions,
