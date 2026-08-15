@@ -1,4 +1,4 @@
-"""Deterministic validation for the independent usability protocol."""
+"""Deterministic validation for the independent usability protocols."""
 
 from __future__ import annotations
 
@@ -19,6 +19,12 @@ RESULT_SCHEMA_VERSION = 1
 REQUIRED_MILESTONES = ("initialize", "complete", "validate", "assess")
 REQUIRED_SESSION_COUNT = 5
 REQUIRED_PASS_COUNT = 4
+
+PROTOCOL_VERSION_2 = "2.0.0"
+RESULT_SCHEMA_VERSION_2 = 2
+REQUIRED_SESSION_COUNT_2 = 4
+REQUIRED_PASS_COUNT_2 = 3
+
 MAX_RESULT_BYTES = 64 * 1024
 _REQUIREMENT = "USABILITY-1.0.0"
 
@@ -35,6 +41,64 @@ class UsabilityValidationResult:
     criterion_met: bool
 
 
+@dataclass(frozen=True, slots=True)
+class _CohortSpec:
+    """One frozen protocol's schema, thresholds, and diagnostic wording."""
+
+    schema_name: str
+    schema_version: int
+    protocol_version: str
+    requirement: str
+    session_count: int
+    pass_count: int
+    identity_key: str
+    duplicate_id: str
+    duplicate_message: str
+    duplicate_remediation: str
+    overall_remediation: str
+    threshold_remediation: str
+
+
+_V1_SPEC = _CohortSpec(
+    schema_name="usability-results-v1",
+    schema_version=RESULT_SCHEMA_VERSION,
+    protocol_version=PROTOCOL_VERSION,
+    requirement="USABILITY-1.0.0",
+    session_count=REQUIRED_SESSION_COUNT,
+    pass_count=REQUIRED_PASS_COUNT,
+    identity_key="participant_id",
+    duplicate_id="usability-participant-duplicate",
+    duplicate_message="Participant IDs must be unique within the five-session cohort.",
+    duplicate_remediation="Assign each independent session one unused pseudonymous participant ID.",
+    overall_remediation="Claim met only when at least four of exactly five sessions pass.",
+    threshold_remediation=(
+        "Record a new precommitted five-session cohort; do not rewrite completed sessions."
+    ),
+)
+
+_V2_SPEC = _CohortSpec(
+    schema_name="usability-results-v2",
+    schema_version=RESULT_SCHEMA_VERSION_2,
+    protocol_version=PROTOCOL_VERSION_2,
+    requirement="USABILITY-2.0.0",
+    session_count=REQUIRED_SESSION_COUNT_2,
+    pass_count=REQUIRED_PASS_COUNT_2,
+    identity_key="agent_product",
+    duplicate_id="usability-agent-product-duplicate",
+    duplicate_message=(
+        "Agent product names must be unique within the four-session simulated cohort."
+    ),
+    duplicate_remediation="Assign each independent simulated session one distinct agent product.",
+    overall_remediation=(
+        "Claim met only when at least three of exactly four simulated sessions pass."
+    ),
+    threshold_remediation=(
+        "Record a new precommitted four-session simulated cohort; "
+        "do not rewrite completed sessions."
+    ),
+)
+
+
 class _DuplicateKeyError(ValueError):
     """A JSON object repeated a key."""
 
@@ -48,13 +112,14 @@ def _diagnostic(
     message: str,
     field: str,
     remediation: str,
+    requirement: str = _REQUIREMENT,
 ) -> Diagnostic:
     return Diagnostic(
         id=id,
         message=message,
         file="usability-results",
         field=field,
-        requirement=_REQUIREMENT,
+        requirement=requirement,
         remediation=remediation,
     )
 
@@ -91,11 +156,9 @@ def _reject_constant(_: str) -> NoReturn:
 
 
 @cache
-def _schema_validator() -> Draft202012Validator:
+def _schema_validator(schema_name: str) -> Draft202012Validator:
     raw = json.loads(
-        files("archsift")
-        .joinpath("schemas/usability-results-v1.schema.json")
-        .read_text(encoding="utf-8")
+        files("archsift").joinpath(f"schemas/{schema_name}.schema.json").read_text(encoding="utf-8")
     )
     if type(raw) is not dict:
         raise TypeError("packaged usability schema must be an object")
@@ -123,8 +186,169 @@ def _malformed(message: str, remediation: str) -> UsabilityValidationResult:
     )
 
 
+def _select_spec(payload: dict[str, object]) -> _CohortSpec | None:
+    for spec in (_V1_SPEC, _V2_SPEC):
+        if (
+            payload.get("schema_version") == spec.schema_version
+            and payload.get("protocol_version") == spec.protocol_version
+        ):
+            return spec
+    return None
+
+
+def _unsupported_result(payload: dict[str, object]) -> UsabilityValidationResult:
+    schema_version = payload.get("schema_version")
+    declared_protocol = payload.get("protocol_version")
+    protocol_text = declared_protocol if type(declared_protocol) is str else None
+    if type(schema_version) is int and schema_version not in (
+        RESULT_SCHEMA_VERSION,
+        RESULT_SCHEMA_VERSION_2,
+    ):
+        return _result(
+            ExitCode.UNSUPPORTED_SCHEMA,
+            (
+                _diagnostic(
+                    "usability-schema-unsupported",
+                    "The declared usability result schema version is unsupported.",
+                    "$.schema_version",
+                    f"Use schema version {RESULT_SCHEMA_VERSION} with protocol {PROTOCOL_VERSION}, "
+                    f"or schema version {RESULT_SCHEMA_VERSION_2} with protocol "
+                    f"{PROTOCOL_VERSION_2}.",
+                ),
+            ),
+            protocol_version=protocol_text,
+        )
+    if type(declared_protocol) is str and declared_protocol not in (
+        PROTOCOL_VERSION,
+        PROTOCOL_VERSION_2,
+    ):
+        return _result(
+            ExitCode.UNSUPPORTED_SCHEMA,
+            (
+                _diagnostic(
+                    "usability-protocol-unsupported",
+                    "The declared usability protocol version is unsupported.",
+                    "$.protocol_version",
+                    f"Use protocol version {PROTOCOL_VERSION} or {PROTOCOL_VERSION_2}.",
+                ),
+            ),
+            protocol_version=declared_protocol,
+        )
+    if type(schema_version) is int:
+        expected = (
+            PROTOCOL_VERSION if schema_version == RESULT_SCHEMA_VERSION else PROTOCOL_VERSION_2
+        )
+        remediation = f"Use protocol version {expected} with schema version {schema_version}."
+    else:
+        remediation = (
+            f"Declare schema version {RESULT_SCHEMA_VERSION} with protocol {PROTOCOL_VERSION}, "
+            f"or schema version {RESULT_SCHEMA_VERSION_2} with protocol {PROTOCOL_VERSION_2}."
+        )
+    return _result(
+        ExitCode.UNSUPPORTED_SCHEMA,
+        (
+            _diagnostic(
+                "usability-protocol-unsupported",
+                "The declared usability protocol version does not match the result schema version.",
+                "$.protocol_version",
+                remediation,
+            ),
+        ),
+        protocol_version=protocol_text,
+    )
+
+
+def _validate_cohort(
+    payload: object,
+    spec: _CohortSpec,
+    *,
+    declared_protocol: str | None,
+) -> UsabilityValidationResult:
+    errors = sorted(_schema_validator(spec.schema_name).iter_errors(payload), key=_error_sort_key)
+    if errors:
+        first = errors[0]
+        return _result(
+            ExitCode.VALIDATION_FAILED,
+            (
+                _diagnostic(
+                    "usability-results-contract",
+                    f"The result data does not match the {spec.schema_name} contract.",
+                    _path(first.absolute_path),
+                    "Correct the named field using the protocol and packaged JSON schema.",
+                ),
+            ),
+            protocol_version=declared_protocol,
+        )
+
+    result_payload = cast(dict[str, object], payload)
+    sessions = cast(list[dict[str, object]], result_payload["sessions"])
+    diagnostics: list[Diagnostic] = []
+    identity_ids = [cast(str, session[spec.identity_key]) for session in sessions]
+    if len(identity_ids) != len(set(identity_ids)):
+        diagnostics.append(
+            _diagnostic(
+                spec.duplicate_id,
+                spec.duplicate_message,
+                "$.sessions",
+                spec.duplicate_remediation,
+                requirement=spec.requirement,
+            )
+        )
+
+    passed_session_count = 0
+    for index, session in enumerate(sessions):
+        milestones = cast(dict[str, str], session["milestones"])
+        derived_pass = all(milestones[name] == "pass" for name in REQUIRED_MILESTONES) and not cast(
+            bool, session["maintainer_intervention"]
+        )
+        declared_pass = session["session_result"] == "pass"
+        if derived_pass:
+            passed_session_count += 1
+        if declared_pass != derived_pass:
+            diagnostics.append(
+                _diagnostic(
+                    "usability-session-inconsistent",
+                    "The session outcome conflicts with its milestones or intervention state.",
+                    f"$.sessions[{index}].session_result",
+                    "Mark the session pass only when all milestones pass without intervention.",
+                    requirement=spec.requirement,
+                )
+            )
+
+    criterion_met = passed_session_count >= spec.pass_count
+    declared_met = result_payload["overall_result"] == "met"
+    if declared_met != criterion_met:
+        diagnostics.append(
+            _diagnostic(
+                "usability-overall-inconsistent",
+                "The overall result conflicts with the derived session count.",
+                "$.overall_result",
+                spec.overall_remediation,
+                requirement=spec.requirement,
+            )
+        )
+    if not criterion_met:
+        diagnostics.append(
+            _diagnostic(
+                "usability-threshold-not-met",
+                "The independent usability success threshold was not met.",
+                "$.sessions",
+                spec.threshold_remediation,
+                requirement=spec.requirement,
+            )
+        )
+
+    return _result(
+        ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
+        diagnostics,
+        protocol_version=spec.protocol_version,
+        session_count=len(sessions),
+        passed_session_count=passed_session_count,
+    )
+
+
 def validate_usability_results(path: Path) -> UsabilityValidationResult:
-    """Validate one completed protocol-1.0.0 result file and its success threshold."""
+    """Validate one completed protocol result file and its success threshold."""
     try:
         content = path.read_bytes()
     except OSError:
@@ -163,110 +387,23 @@ def validate_usability_results(path: Path) -> UsabilityValidationResult:
         )
 
     if type(payload) is dict:
-        declared_protocol = payload.get("protocol_version")
-        if type(declared_protocol) is str and declared_protocol != PROTOCOL_VERSION:
-            return _result(
-                ExitCode.UNSUPPORTED_SCHEMA,
-                (
-                    _diagnostic(
-                        "usability-protocol-unsupported",
-                        "The declared usability protocol version is unsupported.",
-                        "$.protocol_version",
-                        f"Use protocol version {PROTOCOL_VERSION}.",
-                    ),
-                ),
-                protocol_version=declared_protocol,
-            )
-
-    errors = sorted(_schema_validator().iter_errors(payload), key=_error_sort_key)
-    if errors:
-        first = errors[0]
-        return _result(
-            ExitCode.VALIDATION_FAILED,
-            (
-                _diagnostic(
-                    "usability-results-contract",
-                    "The result data does not match the usability-results-v1 contract.",
-                    _path(first.absolute_path),
-                    "Correct the named field using the protocol and packaged JSON schema.",
-                ),
-            ),
-            protocol_version=(
-                cast(str, payload["protocol_version"])
-                if type(payload) is dict and type(payload.get("protocol_version")) is str
-                else None
-            ),
-        )
-
-    result_payload = cast(dict[str, object], payload)
-    sessions = cast(list[dict[str, object]], result_payload["sessions"])
-    diagnostics: list[Diagnostic] = []
-    participant_ids = [cast(str, session["participant_id"]) for session in sessions]
-    if len(participant_ids) != len(set(participant_ids)):
-        diagnostics.append(
-            _diagnostic(
-                "usability-participant-duplicate",
-                "Participant IDs must be unique within the five-session cohort.",
-                "$.sessions",
-                "Assign each independent session one unused pseudonymous participant ID.",
-            )
-        )
-
-    passed_session_count = 0
-    for index, session in enumerate(sessions):
-        milestones = cast(dict[str, str], session["milestones"])
-        derived_pass = all(milestones[name] == "pass" for name in REQUIRED_MILESTONES) and not cast(
-            bool, session["maintainer_intervention"]
-        )
-        declared_pass = session["session_result"] == "pass"
-        if derived_pass:
-            passed_session_count += 1
-        if declared_pass != derived_pass:
-            diagnostics.append(
-                _diagnostic(
-                    "usability-session-inconsistent",
-                    "The session outcome conflicts with its milestones or intervention state.",
-                    f"$.sessions[{index}].session_result",
-                    "Mark the session pass only when all milestones pass without intervention.",
-                )
-            )
-
-    criterion_met = passed_session_count >= REQUIRED_PASS_COUNT
-    declared_met = result_payload["overall_result"] == "met"
-    if declared_met != criterion_met:
-        diagnostics.append(
-            _diagnostic(
-                "usability-overall-inconsistent",
-                "The overall result conflicts with the derived session count.",
-                "$.overall_result",
-                "Claim met only when at least four of exactly five sessions pass.",
-            )
-        )
-    if not criterion_met:
-        diagnostics.append(
-            _diagnostic(
-                "usability-threshold-not-met",
-                "The independent usability success threshold was not met.",
-                "$.sessions",
-                "Record a new precommitted five-session cohort; do not rewrite completed sessions.",
-            )
-        )
-
-    return _result(
-        ExitCode.VALIDATION_FAILED if diagnostics else ExitCode.SUCCESS,
-        diagnostics,
-        protocol_version=PROTOCOL_VERSION,
-        session_count=len(sessions),
-        passed_session_count=passed_session_count,
-    )
+        spec = _select_spec(payload)
+        if spec is None:
+            return _unsupported_result(payload)
+        return _validate_cohort(payload, spec, declared_protocol=spec.protocol_version)
+    return _validate_cohort(payload, _V1_SPEC, declared_protocol=None)
 
 
 __all__ = [
     "PROTOCOL_VERSION",
+    "PROTOCOL_VERSION_2",
     "REQUIRED_MILESTONES",
     "REQUIRED_PASS_COUNT",
+    "REQUIRED_PASS_COUNT_2",
     "REQUIRED_SESSION_COUNT",
+    "REQUIRED_SESSION_COUNT_2",
     "RESULT_SCHEMA_VERSION",
+    "RESULT_SCHEMA_VERSION_2",
     "UsabilityValidationResult",
     "validate_usability_results",
 ]

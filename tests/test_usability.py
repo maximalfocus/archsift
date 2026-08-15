@@ -11,10 +11,14 @@ from archsift.cli import main
 from archsift.diagnostics import ExitCode
 from archsift.usability import (
     PROTOCOL_VERSION,
+    PROTOCOL_VERSION_2,
     REQUIRED_MILESTONES,
     REQUIRED_PASS_COUNT,
+    REQUIRED_PASS_COUNT_2,
     REQUIRED_SESSION_COUNT,
+    REQUIRED_SESSION_COUNT_2,
     RESULT_SCHEMA_VERSION,
+    RESULT_SCHEMA_VERSION_2,
     validate_usability_results,
 )
 
@@ -327,3 +331,247 @@ def test_public_docs_freeze_protocol_and_exact_offline_command() -> None:
     assert "archsift usability-results usability-results.json" in protocol
     assert "archsift usability-results usability-results.json" in readme
     assert "docs/usability-check-v1.md" in readme
+
+
+def test_public_docs_freeze_protocol_v2_and_offline_command() -> None:
+    root = Path(__file__).parents[1]
+    protocol = (root / "docs/usability-check-v2.md").read_text(encoding="utf-8")
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    protocol_words = " ".join(protocol.split())
+
+    assert "protocol 2.0.0" in protocol_words
+    assert "exactly four independent simulated sessions" in protocol_words
+    assert "at least three of the four sessions" in protocol_words
+    assert "initialize, complete, validate, and assess" in protocol_words
+    assert "no simulated sessions have been run" in protocol_words
+    assert "full 40-character lowercase commit ID" in protocol_words
+    assert "archsift usability-results usability-results.json" in protocol
+    assert "docs/usability-check-v2.md" in readme
+
+
+# --- Protocol 2.0.0 simulated cohort ---
+
+_SIMULATED_PRODUCTS = ("claude-code", "codex", "pi", "opencode")
+
+
+def _simulated_session(index: int, product: str, *, passed: bool) -> dict[str, Any]:
+    milestones = {
+        "initialize": "pass",
+        "complete": "pass",
+        "validate": "pass",
+        "assess": "pass" if passed else "fail",
+    }
+    return {
+        "session_id": f"session-{index:02d}",
+        "agent_product": product,
+        "agent_model": f"model-{product}",
+        "harness_version": "1.0.0",
+        "fresh_session": True,
+        "environment": {
+            "operating_system": "linux",
+            "python_version": "3.11",
+            "install_mode": "source-checkout",
+        },
+        "milestones": milestones,
+        "maintainer_intervention": False,
+        "session_result": "pass" if passed else "fail",
+        "failure_reason": None if passed else "Assess milestone was not completed.",
+    }
+
+
+def _simulated_cohort(pass_count: int) -> dict[str, Any]:
+    return {
+        "schema_version": RESULT_SCHEMA_VERSION_2,
+        "protocol_version": PROTOCOL_VERSION_2,
+        "archsift_version_or_commit": "95f2a785cbad05a0bd7563e0ff319d53f0c01a7c",
+        "overall_result": "met" if pass_count >= REQUIRED_PASS_COUNT_2 else "not-met",
+        "sessions": [
+            _simulated_session(index, product, passed=index <= pass_count)
+            for index, product in enumerate(_SIMULATED_PRODUCTS, start=1)
+        ],
+    }
+
+
+def test_packaged_simulated_result_schema_is_valid() -> None:
+    path = Path(__file__).parents[1] / "src/archsift/schemas/usability-results-v2.schema.json"
+    schema = json.loads(path.read_text(encoding="utf-8"))
+    Draft202012Validator.check_schema(schema)
+    assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION_2
+    assert schema["properties"]["protocol_version"]["const"] == PROTOCOL_VERSION_2
+    assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT_2
+    assert schema["properties"]["sessions"]["maxItems"] == REQUIRED_SESSION_COUNT_2
+    session = schema["$defs"]["session"]
+    assert session["properties"]["fresh_session"]["const"] is True
+    milestones = session["properties"]["milestones"]
+    assert tuple(milestones["required"]) == REQUIRED_MILESTONES
+    assert REQUIRED_PASS_COUNT_2 == 3
+
+
+def test_three_of_four_simulated_sessions_meets_criterion(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(3))
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.protocol_version == PROTOCOL_VERSION_2
+    assert result.session_count == 4
+    assert result.passed_session_count == 3
+    assert result.criterion_met is True
+    assert result.diagnostics == ()
+
+
+def test_two_of_four_simulated_sessions_rejects_the_cohort(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(2))
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.passed_session_count == 2
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["usability-threshold-not-met"]
+
+
+def test_duplicate_agent_product_is_rejected(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"][3]["agent_product"] = payload["sessions"][0]["agent_product"]
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.criterion_met is False
+    assert [item.id for item in result.diagnostics] == ["usability-agent-product-duplicate"]
+
+
+def test_simulated_requires_exactly_four_sessions(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"].pop()
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "usability-results-contract"
+    assert result.diagnostics[0].field == "$.sessions"
+
+
+def test_simulated_intervention_cannot_be_declared_successful(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"][0]["maintainer_intervention"] = True
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.passed_session_count == 2
+    assert [item.id for item in result.diagnostics] == [
+        "usability-session-inconsistent",
+        "usability-overall-inconsistent",
+        "usability-threshold-not-met",
+    ]
+
+
+def test_simulated_overall_success_cannot_be_claimed_below_threshold(tmp_path: Path) -> None:
+    payload = _simulated_cohort(2)
+    payload["overall_result"] = "met"
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert [item.id for item in result.diagnostics] == [
+        "usability-overall-inconsistent",
+        "usability-threshold-not-met",
+    ]
+
+
+def test_simulated_session_extra_field_is_rejected(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["sessions"][0]["agent_name"] = "private identity"
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.VALIDATION_FAILED
+    assert result.diagnostics[0].id == "usability-results-contract"
+    assert result.diagnostics[0].field == "$.sessions[0]"
+
+
+def test_simulated_with_v1_protocol_is_unsupported(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["protocol_version"] = PROTOCOL_VERSION
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "usability-protocol-unsupported"
+
+
+def test_unknown_schema_version_is_unsupported(tmp_path: Path) -> None:
+    payload = _simulated_cohort(3)
+    payload["schema_version"] = 3
+    path = tmp_path / "results.json"
+    _write_result(path, payload)
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.UNSUPPORTED_SCHEMA
+    assert result.diagnostics[0].id == "usability-schema-unsupported"
+
+
+def test_simulated_cli_reports_success_in_human_and_json_modes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(3))
+
+    assert main(["usability-results", str(path)]) == ExitCode.SUCCESS
+    assert capsys.readouterr().out == (
+        "Usability criterion met: 3 of 4 sessions passed (protocol 2.0.0)\n"
+    )
+
+    assert main(["usability-results", str(path), "--json"]) == ExitCode.SUCCESS
+    output = json.loads(capsys.readouterr().out)
+    assert output == {
+        "criterion_met": True,
+        "diagnostics": [],
+        "exit_code": 0,
+        "passed_session_count": 3,
+        "protocol_version": "2.0.0",
+        "session_count": 4,
+        "status": "criterion-met",
+    }
+
+
+def test_simulated_failure_is_criterion_not_met_in_cli(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _simulated_cohort(2))
+
+    assert main(["usability-results", str(path), "--json"]) == ExitCode.VALIDATION_FAILED
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "criterion-not-met"
+    assert output["criterion_met"] is False
+    assert output["diagnostics"][0]["id"] == "usability-threshold-not-met"
+
+
+def test_v1_protocol_still_validates_four_of_five(tmp_path: Path) -> None:
+    path = tmp_path / "results.json"
+    _write_result(path, _cohort(4))
+
+    result = validate_usability_results(path)
+
+    assert result.exit_code is ExitCode.SUCCESS
+    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.session_count == 5
+    assert result.passed_session_count == 4
