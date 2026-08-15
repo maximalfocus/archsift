@@ -26,6 +26,7 @@ from archsift.comparison import (
     render_human_comparison,
     resolve_record_path,
 )
+from archsift.corpus import packaged_corpus_bytes, packaged_corpus_snapshot
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.graph_change import (
@@ -193,6 +194,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--base-snapshot", type=Path, help="exact immutable base graph snapshot"
     )
     _output_options(graph_change_parser)
+
+    graph_corpus_parser = subparsers.add_parser(
+        "graph-corpus", help="inspect or emit the packaged architecture knowledge corpus"
+    )
+    _output_options(graph_corpus_parser)
     return parser
 
 
@@ -990,6 +996,33 @@ def _run_graph_change(
     return int(ExitCode.SUCCESS)
 
 
+def _run_graph_corpus(*, json_output: bool, quiet: bool) -> int:
+    try:
+        snapshot = packaged_corpus_snapshot()
+        content = packaged_corpus_bytes()
+    except Exception as error:  # packaged-integrity boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(content)
+        return int(ExitCode.SUCCESS)
+    node_counts = Counter(node.kind.value for node in snapshot.nodes)
+    relation_counts = Counter(relation.kind.value for relation in snapshot.relations)
+    _print(
+        (
+            f"Packaged graph corpus: schema {snapshot.graph_schema_version}; "
+            f"graph {snapshot.graph_version}; snapshot {snapshot.snapshot_content_identity}; "
+            f"{len(snapshot.nodes)} nodes across "
+            f"{sum(1 for count in node_counts.values() if count)} kinds; "
+            f"{len(snapshot.relations)} relations across "
+            f"{sum(1 for count in relation_counts.values() if count)} kinds"
+        ),
+        stream=sys.stdout,
+    )
+    return int(ExitCode.SUCCESS)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -1105,5 +1138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             json_output=args.json_output,
             quiet=args.quiet,
         )
+    if args.command == "graph-corpus":
+        return _run_graph_corpus(json_output=args.json_output, quiet=args.quiet)
     parser.print_help()
     return int(ExitCode.SUCCESS)

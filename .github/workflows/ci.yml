@@ -94,6 +94,7 @@ jobs:
               names = set(archive.namelist())
           assert "archsift/artefacts.py" in names
           assert "archsift/canonical.py" in names
+          assert "archsift/corpus.py" in names
           assert "archsift/decision.py" in names
           assert "archsift/decision_record.py" in names
           assert "archsift/graph_change.py" in names
@@ -105,6 +106,7 @@ jobs:
           assert "archsift/rules.py" in names
           assert "archsift/usability.py" in names
           assert "archsift/docs/exit-codes.md" in names
+          assert "archsift/docs/architecture-knowledge-v1.md" in names
           assert "archsift/docs/graph-change-v1.md" in names
           assert "archsift/docs/graph-snapshot-v1.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names
@@ -118,6 +120,8 @@ jobs:
           assert "archsift/schemas/graph-snapshot-v1.schema.json" in names
           assert "archsift/schemas/method-review-results-v1.schema.json" in names
           assert "archsift/schemas/usability-results-v1.schema.json" in names
+          assert "archsift/knowledge/architecture-v1.json" in names
+          assert "archsift/knowledge/architecture-v1.change.json" in names
           assert "archsift/templates/workspace-README.md" in names
           print(wheel)
 
@@ -182,6 +186,20 @@ jobs:
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 2
+          corpus = subprocess.run(
+              [archsift, "graph-corpus", "--json"],
+              check=True,
+              capture_output=True,
+          )
+          corpus_payload = json.loads(corpus.stdout)
+          assert corpus_payload["graph_version"] == (
+              "gv1:27959b78c32567a3b3267c749e08d7fd218c1e2aa315e412f02d290d19e71d06"
+          )
+          assert corpus_payload["snapshot_content_identity"] == (
+              "sha256:44c83bed52b8ac83ae4246b2f5a43f359696ccf46276b04138f26276ec10f291"
+          )
+          assert len(corpus_payload["nodes"]) == 113
+          assert len(corpus_payload["relations"]) == 88
           human_rules = subprocess.run(
               [archsift, "rules"],
               check=True,

@@ -6,4 +6,5 @@ examples/*.md text eol=lf
 examples/*/*.yaml text eol=lf
 examples/*/*.md text eol=lf
 examples/*/evidence/*.txt text eol=lf
+src/archsift/knowledge/*.json text eol=lf
 tests/golden/*.pptx binary

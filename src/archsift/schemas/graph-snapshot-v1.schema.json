@@ -42,7 +42,7 @@
     "semanticId": {
       "description": "A stable semantic identifier, unchanged when mutable content changes.",
       "type": "string",
-      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*$",
       "minLength": 1,
       "maxLength": 128
     },
