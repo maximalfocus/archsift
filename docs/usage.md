@@ -190,8 +190,24 @@ Reads two generated canonical decision-record JSON files beneath the current
 directory and explains the differences: changed evidence identities, changed
 findings and rules, changed verdict fields, and unrelated snapshot context.
 A verdict change names only changed evidence cited by a finding in either record
-and the changed findings as causes. The command is offline and read-only;
-`--json` emits the stable canonical comparison payload.
+and the changed findings as causes.
+
+Comparison schema version 2 always includes `changed_graph`. It states graph-use
+presence in both records; exact old/new graph schema, immutable graph version,
+snapshot content identity, and private-view content identity; added or removed
+supported finding rule IDs; and added, removed, or content-changed reusable
+nodes and relations keyed by stable semantic ID. Those entry deltas come only
+from the finding-relevant references frozen into either record. ArchSift never
+reloads a historical snapshot or dereferences its source locators.
+
+A graph identity change with no finding-relevant entry change is snapshot
+context, never a reusable-assertion change or verdict cause. Finding-relevant
+entry and supported-finding changes are named as cause candidates only when
+verdict fields also changed; otherwise they remain reassessment context. This
+classification never lets graph knowledge independently alter a verdict,
+satisfy case evidence, or infer causality. The command is offline and read-only;
+`--json` emits the stable canonical comparison payload and quiet mode emits
+nothing.
 
 ### `archsift rules` [--json]
 

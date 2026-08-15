@@ -20,7 +20,7 @@ from archsift.decision_record import RECORD_SCHEMA_VERSION
 from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
-COMPARISON_SCHEMA_VERSION = 1
+COMPARISON_SCHEMA_VERSION = 2
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -975,6 +975,98 @@ def _finding_delta(old: list[JsonObject], new: list[JsonObject]) -> JsonObject:
     return {"added": added, "changed": changed, "removed": removed}
 
 
+def _graph_use(record: Mapping[str, object]) -> dict[str, object] | None:
+    value = record.get("graph_use")
+    return cast(dict[str, object], value) if type(value) is dict else None
+
+
+def _graph_reference_delta(old: object, new: object) -> JsonObject:
+    old_items = cast(list[dict[str, object]], old) if type(old) is list else []
+    new_items = cast(list[dict[str, object]], new) if type(new) is list else []
+    old_by_id = {cast(str, item["id"]): item for item in old_items}
+    new_by_id = {cast(str, item["id"]): item for item in new_items}
+    shared = set(old_by_id) & set(new_by_id)
+    changed: list[JsonValue] = [
+        {
+            "id": identifier,
+            "new_content_identity": cast(str, new_by_id[identifier]["content_identity"]),
+            "old_content_identity": cast(str, old_by_id[identifier]["content_identity"]),
+        }
+        for identifier in sorted(shared)
+        if old_by_id[identifier]["content_identity"] != new_by_id[identifier]["content_identity"]
+    ]
+    return {
+        "added": cast(
+            list[JsonValue], [new_by_id[item] for item in sorted(set(new_by_id) - shared)]
+        ),
+        "changed": changed,
+        "removed": cast(
+            list[JsonValue], [old_by_id[item] for item in sorted(set(old_by_id) - shared)]
+        ),
+    }
+
+
+def _changed_graph(old: Mapping[str, object], new: Mapping[str, object]) -> JsonObject:
+    old_use = _graph_use(old)
+    new_use = _graph_use(new)
+    identities: JsonObject = {}
+    for name in (
+        "case_view_content_identity",
+        "graph_schema_version",
+        "graph_snapshot_content_identity",
+        "graph_version",
+    ):
+        old_value = cast(JsonValue, old_use.get(name)) if old_use is not None else None
+        new_value = cast(JsonValue, new_use.get(name)) if new_use is not None else None
+        identities[name] = {"changed": old_value != new_value, "new": new_value, "old": old_value}
+    old_findings = (
+        set(cast(list[str], old_use["supported_finding_rule_ids"]))
+        if old_use is not None
+        else set()
+    )
+    new_findings = (
+        set(cast(list[str], new_use["supported_finding_rule_ids"]))
+        if new_use is not None
+        else set()
+    )
+    return {
+        "finding_relevant_nodes": _graph_reference_delta(
+            old_use.get("finding_relevant_nodes") if old_use is not None else None,
+            new_use.get("finding_relevant_nodes") if new_use is not None else None,
+        ),
+        "finding_relevant_relations": _graph_reference_delta(
+            old_use.get("finding_relevant_relations") if old_use is not None else None,
+            new_use.get("finding_relevant_relations") if new_use is not None else None,
+        ),
+        "identities": identities,
+        "presence": {
+            "changed": (old_use is None) != (new_use is None),
+            "new": new_use is not None,
+            "old": old_use is not None,
+        },
+        "supported_finding_rule_ids": {
+            "added": cast(list[JsonValue], sorted(new_findings - old_findings)),
+            "removed": cast(list[JsonValue], sorted(old_findings - new_findings)),
+        },
+    }
+
+
+def _graph_changed_entry_keys(changed_graph: Mapping[str, object]) -> list[JsonObject]:
+    result: list[JsonObject] = []
+    for public_kind, field in (
+        ("node", "finding_relevant_nodes"),
+        ("relation", "finding_relevant_relations"),
+    ):
+        delta = cast(dict[str, list[dict[str, object]]], changed_graph[field])
+        identifiers = {
+            cast(str, item["id"])
+            for name in ("added", "changed", "removed")
+            for item in delta[name]
+        }
+        result.extend({"id": identifier, "kind": public_kind} for identifier in sorted(identifiers))
+    return result
+
+
 def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     """Return the stable canonical comparison payload for two validated records."""
     old_assessment = _assessment(old)
@@ -1029,9 +1121,19 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     finding_change_count = sum(
         len(cast(list[object], finding_delta[name])) for name in ("added", "changed", "removed")
     )
+    changed_graph = _changed_graph(old, new)
+    graph_entries = _graph_changed_entry_keys(changed_graph)
+    graph_findings = cast(dict[str, list[str]], changed_graph["supported_finding_rule_ids"])
+    changed_graph_finding_ids = sorted(
+        set(graph_findings["added"]) | set(graph_findings["removed"])
+    )
     causes: JsonObject = {
         "evidence_ids": cast(list[JsonValue], causal_evidence),
         "finding_changes": finding_change_count if verdict_changed else 0,
+        "graph_entries": cast(list[JsonValue], graph_entries if verdict_changed else []),
+        "graph_supported_finding_rule_ids": cast(
+            list[JsonValue], changed_graph_finding_ids if verdict_changed else []
+        ),
     }
     snapshot_fields: list[str] = []
     for field in ("artefact_links", "configuration_content_identity", "tool_version"):
@@ -1044,12 +1146,30 @@ def compare_decision_records(old: JsonObject, new: JsonObject) -> JsonObject:
     context: JsonObject = {
         "evidence_ids": cast(list[JsonValue], contextual_evidence),
         "finding_changes": 0 if verdict_changed else finding_change_count,
+        "graph_entries": cast(list[JsonValue], [] if verdict_changed else graph_entries),
+        "graph_identity_fields": cast(
+            list[JsonValue],
+            sorted(
+                name
+                for name, delta in cast(
+                    dict[str, dict[str, object]], changed_graph["identities"]
+                ).items()
+                if delta["changed"]
+            ),
+        ),
+        "graph_presence_changed": cast(
+            bool, cast(dict[str, object], changed_graph["presence"])["changed"]
+        ),
+        "graph_supported_finding_rule_ids": cast(
+            list[JsonValue], [] if verdict_changed else changed_graph_finding_ids
+        ),
         "snapshot_fields": cast(list[JsonValue], sorted(snapshot_fields)),
     }
 
     return {
         "causes": causes,
         "changed_evidence": evidence_delta,
+        "changed_graph": changed_graph,
         "changed_rules": changed_rules,
         "changed_verdict_fields": verdict_fields,
         "comparison_schema_version": COMPARISON_SCHEMA_VERSION,
@@ -1079,6 +1199,12 @@ def render_human_comparison(comparison: Mapping[str, object]) -> str:
     context = cast(dict[str, object], comparison["context"])
     context_evidence = cast(list[str], context["evidence_ids"])
     context_fields = cast(list[str], context["snapshot_fields"])
+    graph = cast(dict[str, object], comparison["changed_graph"])
+    graph_presence = cast(dict[str, object], graph["presence"])
+    graph_identities = cast(dict[str, dict[str, object]], graph["identities"])
+    graph_findings = cast(dict[str, list[object]], graph["supported_finding_rule_ids"])
+    graph_nodes = cast(dict[str, list[object]], graph["finding_relevant_nodes"])
+    graph_relations = cast(dict[str, list[object]], graph["finding_relevant_relations"])
     verdict_text = (
         f"{verdict['old']} -> {verdict['new']}"
         if verdict["changed"]
@@ -1092,9 +1218,25 @@ def render_human_comparison(comparison: Mapping[str, object]) -> str:
         f"~{len(cast(Sequence[object], evidence['changed']))}",
         f"Findings: +{len(findings['added'])} -{len(findings['removed'])} "
         f"~{len(findings['changed'])}",
+        "Graph use: "
+        f"{'present' if graph_presence['old'] else 'absent'} -> "
+        f"{'present' if graph_presence['new'] else 'absent'}; "
+        f"{sum(1 for item in graph_identities.values() if item['changed'])} "
+        "identity changes (context)",
+        f"Graph findings: +{len(graph_findings['added'])} -{len(graph_findings['removed'])}",
+        f"Graph nodes: +{len(graph_nodes['added'])} -{len(graph_nodes['removed'])} "
+        f"~{len(graph_nodes['changed'])}",
+        f"Graph relations: +{len(graph_relations['added'])} "
+        f"-{len(graph_relations['removed'])} ~{len(graph_relations['changed'])}",
         f"Causes: {len(cast(Sequence[object], causes['evidence_ids']))} evidence; "
-        f"{causes['finding_changes']} finding changes",
+        f"{causes['finding_changes']} finding changes; "
+        f"{len(cast(Sequence[object], causes['graph_entries']))} graph entries; "
+        f"{len(cast(Sequence[object], causes['graph_supported_finding_rule_ids']))} "
+        "graph findings",
         f"Context: {len(context_evidence)} evidence; {context['finding_changes']} finding changes; "
+        f"{len(cast(Sequence[object], context['graph_entries']))} graph entries; "
+        f"{len(cast(Sequence[object], context['graph_supported_finding_rule_ids']))} "
+        "graph findings; "
         f"{','.join(context_fields) or 'none'}",
     ]
     return "\n".join(lines)
