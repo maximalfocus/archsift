@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cache
 from importlib.resources import files
 from pathlib import Path
@@ -54,6 +54,36 @@ _COMMIT = re.compile(r"^[0-9a-f]{40}$")
 
 
 @dataclass(frozen=True, slots=True)
+class MethodReviewBinding:
+    """One published method, ruleset, and example-corpus binding for a cohort result."""
+
+    method_version: str
+    ruleset_version: str
+    corpus_version: str
+
+    def render(self) -> str:
+        """Render the binding for a human diagnostic or summary line."""
+        return (
+            f"method {self.method_version}, ruleset {self.ruleset_version}, "
+            f"corpus {self.corpus_version}"
+        )
+
+
+CURRENT_BINDING = MethodReviewBinding(
+    method_version=METHOD_VERSION,
+    ruleset_version=RULESET_VERSION,
+    corpus_version=CORPUS_VERSION,
+)
+# Bindings a cohort was published under before the current one. A published result is
+# frozen evidence for the versions its sessions actually reviewed, so it stays loadable
+# after those versions are superseded. Membership is this explicit enumeration: an
+# unrecognised version is never inferred to be merely older.
+SUPERSEDED_BINDINGS: tuple[MethodReviewBinding, ...] = ()
+PUBLISHED_BINDINGS = (CURRENT_BINDING, *SUPERSEDED_BINDINGS)
+_BINDING_FIELDS = ("method_version", "ruleset_version", "corpus_version")
+
+
+@dataclass(frozen=True, slots=True)
 class MethodReviewValidationResult:
     """One deterministic method-review result-gate outcome."""
 
@@ -65,6 +95,8 @@ class MethodReviewValidationResult:
     criterion_met: bool
     session_count: int = 0
     passed_session_count: int = 0
+    binding: MethodReviewBinding | None = None
+    binding_superseded: bool = False
 
 
 class _DuplicateKeyError(ValueError):
@@ -174,6 +206,29 @@ def _declared_protocol(payload: object) -> str | None:
     return None
 
 
+def _declared_binding(payload: dict[str, object]) -> MethodReviewBinding | None:
+    """Return the fully declared version binding, or None when the schema must judge it."""
+    declared = tuple(payload.get(field) for field in _BINDING_FIELDS)
+    if any(type(value) is not str for value in declared):
+        return None
+    method, ruleset, corpus = cast(tuple[str, str, str], declared)
+    return MethodReviewBinding(
+        method_version=method, ruleset_version=ruleset, corpus_version=corpus
+    )
+
+
+def _unpublished_binding_field(
+    binding: MethodReviewBinding, published: tuple[MethodReviewBinding, ...]
+) -> str:
+    """Name the first binding field whose value no published binding uses."""
+    for field in _BINDING_FIELDS:
+        declared = getattr(binding, field)
+        if all(getattr(candidate, field) != declared for candidate in published):
+            return field
+    # Every value is published, but not in this combination.
+    return _BINDING_FIELDS[0]
+
+
 def _unsupported_binding(
     payload: dict[str, object],
     *,
@@ -184,9 +239,6 @@ def _unsupported_binding(
     supported: tuple[tuple[str, object, str], ...] = (
         ("schema_version", schema_version, "result schema version"),
         ("protocol_version", protocol_version, "protocol version"),
-        ("method_version", METHOD_VERSION, "method version"),
-        ("ruleset_version", RULESET_VERSION, "ruleset version"),
-        ("corpus_version", CORPUS_VERSION, "corpus version"),
     )
     for field, expected, label in supported:
         declared = payload.get(field)
@@ -204,6 +256,28 @@ def _unsupported_binding(
                 ),
                 protocol_version=_declared_protocol(payload),
             )
+    binding = _declared_binding(payload)
+    if binding is not None and binding not in PUBLISHED_BINDINGS:
+        return _result(
+            ExitCode.UNSUPPORTED_SCHEMA,
+            (
+                _diagnostic(
+                    "method-review-binding-unsupported",
+                    (
+                        "The declared method, ruleset, and corpus binding "
+                        f"({binding.render()}) is not a published ArchSift binding."
+                    ),
+                    f"$.{_unpublished_binding_field(binding, PUBLISHED_BINDINGS)}",
+                    (
+                        "Declare one published binding: "
+                        + "; ".join(candidate.render() for candidate in PUBLISHED_BINDINGS)
+                        + "."
+                    ),
+                    requirement=requirement,
+                ),
+            ),
+            protocol_version=_declared_protocol(payload),
+        )
     tool_binding = payload.get("archsift_version_or_commit")
     if (
         type(tool_binding) is str
@@ -717,6 +791,32 @@ def _validate_v2(payload: dict[str, object]) -> MethodReviewValidationResult:
     )
 
 
+def _bound(
+    result: MethodReviewValidationResult,
+    binding: MethodReviewBinding | None,
+) -> MethodReviewValidationResult:
+    """Attach the resolved binding and report superseded evidence under its own code.
+
+    ``PUBLISHED_BINDINGS[0]`` is the current binding by construction. A superseded result that
+    still satisfies its contract exits `SUPERSEDED_BINDING` so that neither a caller
+    reading only the exit code nor one reading only the status can mistake it for a
+    cohort run against the current binding. A result that violates its contract keeps
+    the failure code that contract violation already earned.
+    """
+    if binding is None or binding == PUBLISHED_BINDINGS[0]:
+        return replace(result, binding=binding)
+    contract_met = result.exit_code is ExitCode.SUCCESS or (
+        result.exit_code is ExitCode.VALIDATION_FAILED
+        and {item.id for item in result.diagnostics} == {"method-review-criterion-not-met"}
+    )
+    return replace(
+        result,
+        exit_code=ExitCode.SUPERSEDED_BINDING if contract_met else result.exit_code,
+        binding=binding,
+        binding_superseded=True,
+    )
+
+
 def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
     """Validate one completed protocol result file and its success criterion."""
     try:
@@ -770,7 +870,7 @@ def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
         )
         if unsupported is not None:
             return unsupported
-        return _validate_v1(result_payload)
+        return _bound(_validate_v1(result_payload), _declared_binding(result_payload))
     if declared_schema == RESULT_SCHEMA_VERSION_2 and declared_protocol == PROTOCOL_VERSION_2:
         unsupported = _unsupported_binding(
             result_payload,
@@ -780,7 +880,7 @@ def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
         )
         if unsupported is not None:
             return unsupported
-        return _validate_v2(result_payload)
+        return _bound(_validate_v2(result_payload), _declared_binding(result_payload))
     return _result(
         ExitCode.UNSUPPORTED_SCHEMA,
         (
@@ -798,16 +898,20 @@ def validate_method_review_results(path: Path) -> MethodReviewValidationResult:
 
 __all__ = [
     "CORPUS_VERSION",
+    "CURRENT_BINDING",
     "FAILURE_REASONS",
     "PROTOCOL_VERSION",
     "PROTOCOL_VERSION_2",
+    "PUBLISHED_BINDINGS",
     "REQUIRED_DECISION_AREAS",
     "REQUIRED_EXAMPLES",
     "REQUIRED_PASS_COUNT_2",
     "REQUIRED_SESSION_COUNT_2",
     "RESULT_SCHEMA_VERSION",
     "RESULT_SCHEMA_VERSION_2",
+    "SUPERSEDED_BINDINGS",
     "SUPPORTED_ARCHSIFT_VERSION",
+    "MethodReviewBinding",
     "MethodReviewValidationResult",
     "validate_method_review_results",
 ]

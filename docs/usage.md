@@ -324,6 +324,12 @@ Under protocol 1.0.0, a single review that passes the four-example causal-trace 
 exits `0` with status `criterion-met`; a failing or incomplete review exits `12`.
 Under protocol 2.0.0, three or four simulated sessions meeting the session criterion exit `0`;
 two or fewer pass with exit `12`; a duplicate agent product across sessions is a contract error.
+Every result declares its exact method, ruleset, and example-corpus binding. The packaged registry,
+not version ordering, determines whether that combination was published. Current-binding output is
+unchanged. A valid result for a registered superseded binding remains historical evidence: human
+and JSON output name all three covered versions, JSON appends `-superseded` to the criterion status,
+and every output mode returns exit `16` rather than current success. An unregistered binding exits
+`11` with `method-review-binding-unsupported`.
 
 ## The case workspace and dossier
 

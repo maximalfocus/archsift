@@ -8,15 +8,24 @@ validator.
 
 Two simulated review cohorts have been run. The current committed result is
 [`method-review-results.json`](../method-review-results.json) (cohort date 2026-08-15, source
-commit `38dc9a9388c1b7e778dbc07c580d6420bab4302e`). `archsift method-review-results
+commit `38dc9a9388c1b7e778dbc07c580d6420bab4302e`, method `1.2.0`, ruleset `1.8.0`,
+corpus `1.0.0`). `archsift method-review-results
 method-review-results.json` exits `0` with `criterion-met`: three of four sessions met the
 session criterion, applying the clarified classification rule for examples with no agentic or
 automation candidate. The first cohort, bound to commit `75fb242e2207486dd52cd356f07966dc86790f6c`
 under the prior protocol text, is preserved as an honest historical record at
 [`method-review-results-1-criterion-not-met.json`](../method-review-results-1-criterion-not-met.json)
-(exit `12`, `criterion-not-met`). The evidence of both cohorts is simulated: sessions were
+(method `1.2.0`, ruleset `1.8.0`, corpus `1.0.0`; exit `12`, `criterion-not-met`). The evidence of both cohorts is simulated: sessions were
 executed by distinct agent products, and no claim that a human architect passed is made. Any later
 cohort is a new result record bound to its own source commit.
+
+Each result also freezes its exact method, ruleset, and example-corpus binding. The packaged
+binding registry is the sole compatibility authority; schema version fields constrain shape only,
+and no version-ordering heuristic treats an unknown version as historical. Once a registered
+binding is superseded, a valid result remains loadable and reports the covered versions with a
+`criterion-met-superseded` or `criterion-not-met-superseded` JSON status and exit `16`. Quiet mode
+emits no text but preserves that distinct exit code. An unregistered binding fails closed with exit
+`11` and `method-review-binding-unsupported`.
 
 ## Success criterion
 

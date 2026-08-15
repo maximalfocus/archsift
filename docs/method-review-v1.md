@@ -158,6 +158,15 @@ Do not record a name, contact detail, employer, free-form review narrative, tran
 history, private case content, internal URL, private path, or hidden evidence. A product-gap ID is a
 pointer for later public-safe issue work, not a container for case or participant information.
 
+The result names the exact method, ruleset, and example-corpus binding reviewed. The packaged
+binding registry is the sole authority for whether that combination was published: the JSON schema
+constrains each version's shape but does not infer compatibility from version ordering. A result
+for the current binding keeps the ordinary `criterion-met` or `criterion-not-met` status and exit
+behavior. A fully valid result for an explicitly registered superseded binding remains loadable as
+historical evidence, names all three covered versions, uses a `*-superseded` status in JSON, and
+exits `16` so it cannot be mistaken for a current successful cohort. An unregistered combination
+fails closed with exit `11` and `method-review-binding-unsupported`.
+
 Validate a completed result locally with the exact command:
 
 ```bash

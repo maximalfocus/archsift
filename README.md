@@ -114,8 +114,11 @@ four-example causal-trace review and privacy-bounded result contract for the pub
 initial-release gate: four independent simulated review sessions by distinct agent products,
 criterion met when at least three pass. The second simulated cohort has run and its committed
 [result](method-review-results.json) validates with `criterion-met` (three of four sessions
-passed); the first cohort is preserved as an honest historical
-[record](method-review-results-1-criterion-not-met.json); the human protocol has not been run.
+passed) for method `1.2.0`, ruleset `1.8.0`, and corpus `1.0.0`; the first cohort is preserved as
+an honest historical [record](method-review-results-1-criterion-not-met.json) for that same binding;
+the human protocol has not been run. Results for a packaged superseded binding remain loadable as
+historical evidence, name the binding, and exit `16` so they cannot be read as current success;
+unregistered bindings fail closed.
 The evidence is simulated, and no claim that a human architect passed is made. A completed result
 is checked offline with exactly `archsift method-review-results method-review-results.json`.
 
