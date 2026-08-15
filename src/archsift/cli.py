@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import NoReturn, TextIO
@@ -27,6 +28,13 @@ from archsift.comparison import (
 from archsift.decision_record import compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.html_report import render_detailed_html_report, render_executive_html_report
+from archsift.knowledge_graph import (
+    NodeKind,
+    RelationKind,
+    SnapshotError,
+    SnapshotFileError,
+    load_snapshot_file,
+)
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.masking import masked_canonical_decision_record_bytes
 from archsift.method import METHOD_SPECIFICATION, METHOD_VERSION, method_metadata
@@ -139,6 +147,14 @@ def build_parser() -> argparse.ArgumentParser:
         "results", type=Path, help="completed method-review-results JSON"
     )
     _output_options(method_review_parser)
+
+    graph_snapshot_parser = subparsers.add_parser(
+        "graph-snapshot", help="validate one published knowledge-graph snapshot"
+    )
+    graph_snapshot_parser.add_argument(
+        "snapshot", type=Path, help="canonical knowledge-graph snapshot JSON"
+    )
+    _output_options(graph_snapshot_parser)
     return parser
 
 
@@ -642,6 +658,69 @@ def _run_method_review_results(path: Path, *, json_output: bool, quiet: bool) ->
     return int(result.exit_code)
 
 
+def _run_graph_snapshot(path: Path, *, json_output: bool, quiet: bool) -> int:
+    try:
+        snapshot = load_snapshot_file(path, root=Path("."))
+    except (SnapshotError, SnapshotFileError) as error:
+        exit_code = error.exit_code
+        status = {
+            ExitCode.MALFORMED_INPUT: "malformed",
+            ExitCode.UNSUPPORTED_SCHEMA: "unsupported",
+            ExitCode.VALIDATION_FAILED: "invalid",
+            ExitCode.UNSAFE_PATH: "unsafe",
+            ExitCode.ARTEFACT_UNAVAILABLE: "artefact-unavailable",
+        }[exit_code]
+        diagnostic = Diagnostic(
+            id=f"graph-snapshot-{error.category.value}",
+            message=error.message,
+            file=str(path),
+            field=error.field,
+            requirement="FR-015",
+            remediation=error.remediation,
+        )
+        _emit(
+            status=status,
+            exit_code=exit_code,
+            diagnostics=(diagnostic,),
+            json_output=json_output,
+            quiet=quiet,
+            success_message="",
+            details={},
+        )
+        return int(exit_code)
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    node_counts = Counter(node.kind.value for node in snapshot.nodes)
+    relation_counts = Counter(relation.kind.value for relation in snapshot.relations)
+    details: dict[str, object] = {
+        "file": str(path),
+        "graph_schema_version": snapshot.graph_schema_version,
+        "graph_version": snapshot.graph_version,
+        "node_count": len(snapshot.nodes),
+        "node_counts_by_kind": {kind.value: node_counts[kind.value] for kind in NodeKind},
+        "relation_count": len(snapshot.relations),
+        "relation_counts_by_kind": {
+            kind.value: relation_counts[kind.value] for kind in RelationKind
+        },
+        "snapshot_content_identity": snapshot.snapshot_content_identity,
+    }
+    _emit(
+        status="valid",
+        exit_code=ExitCode.SUCCESS,
+        diagnostics=(),
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Valid graph snapshot: schema {snapshot.graph_schema_version}; "
+            f"graph {snapshot.graph_version}; snapshot {snapshot.snapshot_content_identity}; "
+            f"{len(snapshot.nodes)} nodes; {len(snapshot.relations)} relations"
+        ),
+        details=details,
+    )
+    return int(ExitCode.SUCCESS)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -729,6 +808,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "method-review-results":
         return _run_method_review_results(
             args.results,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "graph-snapshot":
+        return _run_graph_snapshot(
+            args.snapshot,
             json_output=args.json_output,
             quiet=args.quiet,
         )

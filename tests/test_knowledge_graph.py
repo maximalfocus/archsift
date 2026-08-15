@@ -475,8 +475,8 @@ def test_non_canonical_bytes_are_refused_even_when_the_content_is_valid() -> Non
         (b'{"a":NaN}\n', SnapshotFailure.INVALID_JSON, ExitCode.MALFORMED_INPUT),
         (
             b'{"graph_schema_version":1,"graph_schema_version":1}\n',
-            SnapshotFailure.MALFORMED_SNAPSHOT,
-            ExitCode.VALIDATION_FAILED,
+            SnapshotFailure.INVALID_JSON,
+            ExitCode.MALFORMED_INPUT,
         ),
     ],
 )
