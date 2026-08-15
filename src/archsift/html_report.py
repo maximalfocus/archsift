@@ -176,6 +176,8 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Record Schema Version", masked["record_schema_version"])
     _emit_field(lines, "Record Content Identity", masked["record_content_identity"])
     _emit_field(lines, "Dossier Schema Version", masked["dossier_schema_version"])
+    # NFR-010: the report states the language it is written in.
+    _emit_field(lines, "Case Language", dossier["language"])
     _emit_field(lines, "Dossier Content Identity", masked["dossier_content_identity"])
     _emit_field(lines, "Ruleset Version", masked["ruleset_version"])
     _emit_field(lines, "Tool Version", masked["tool_version"])
@@ -230,14 +232,18 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Policy Version", MASKING_POLICY_VERSION)
     _emit_field(lines, "Warning", MASKING_WARNING)
     lines.append("</section>")
-    return _document("ArchSift Decision Report", lines)
+    return _document("ArchSift Decision Report", lines, language=view.language)
 
 
-def _document(title: str, body: list[str]) -> bytes:
-    """Wrap rendered body markup in the shared self-contained document shell."""
+def _document(title: str, body: list[str], *, language: str) -> bytes:
+    """Wrap rendered body markup in the shared self-contained document shell.
+
+    NFR-010: the document declares the case's language, so a reader and an
+    assistive technology are told what language the report is written in.
+    """
     lines = [
         "<!DOCTYPE html>",
-        '<html lang="en">',
+        f'<html lang="{_text(language)}">',
         "<head>",
         '<meta charset="utf-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -276,7 +282,7 @@ def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
     _emit_field(body, "Policy Version", MASKING_POLICY_VERSION)
     _emit_field(body, "Warning", MASKING_WARNING)
     body.append("</section>")
-    return _document("ArchSift Executive Summary", body)
+    return _document("ArchSift Executive Summary", body, language=summary.language)
 
 
 def render_executive_html_report(record: JsonObject) -> bytes:

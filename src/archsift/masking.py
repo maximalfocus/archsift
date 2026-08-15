@@ -218,6 +218,7 @@ STRUCTURAL_KEYS: Final[frozenset[str]] = frozenset(
         "effect",
         "source",
         "decision_area",
+        "language",
         "target_control_class",
         "control_class",
         "criterion_kind",

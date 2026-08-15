@@ -2,6 +2,7 @@ schema_version: 1
 case:
   id: no-technology-change
   title: Fictional review that needs no technology change
+language: en
 evidence:
 - id: decision-observed
   claim: Fictional review observations meet the binding target without a technology change.

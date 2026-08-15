@@ -2,6 +2,7 @@ schema_version: 1
 case:
   id: fixed-workflow
   title: Fictional fixed workflow decision
+language: en
 evidence:
 - id: decision-observed
   claim: Fictional trials show the fixed workflow meets the binding target.

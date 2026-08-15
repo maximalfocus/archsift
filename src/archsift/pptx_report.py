@@ -94,14 +94,16 @@ def _text(value: str) -> str:
     return escaped.replace("<", "&lt;").replace(">", "&gt;")
 
 
-def _paragraph(text: str, *, size: int, bold: bool, bullet: bool) -> str:
+def _paragraph(text: str, *, size: int, bold: bool, bullet: bool, language: str) -> str:
     properties = (
         '<a:pPr marL="285750" indent="-285750"><a:buFont typeface="Arial"/>'
         '<a:buChar char="-"/></a:pPr>'
         if bullet
         else "<a:pPr/>"
     )
-    run_properties = f'<a:rPr lang="en-US" sz="{size}" b="{1 if bold else 0}" dirty="0"/>'
+    # NFR-010: every run declares the case's language, so a reader is told
+    # what language the deck is written in.
+    run_properties = f'<a:rPr lang="{language}" sz="{size}" b="{1 if bold else 0}" dirty="0"/>'
     return f"<a:p>{properties}<a:r>{run_properties}<a:t>{_text(text)}</a:t></a:r></a:p>"
 
 
@@ -128,10 +130,12 @@ def _shape(
     )
 
 
-def _slide(title: str, lines: tuple[str, ...]) -> str:
-    body = "".join(_paragraph(line, size=1400, bold=False, bullet=True) for line in lines)
+def _slide(title: str, lines: tuple[str, ...], *, language: str) -> str:
+    body = "".join(
+        _paragraph(line, size=1400, bold=False, bullet=True, language=language) for line in lines
+    )
     if not body:
-        body = '<a:p><a:pPr/><a:endParaRPr lang="en-US"/></a:p>'
+        body = f'<a:p><a:pPr/><a:endParaRPr lang="{language}"/></a:p>'
     shapes = _shape(
         identifier=2,
         name="Title",
@@ -139,7 +143,7 @@ def _slide(title: str, lines: tuple[str, ...]) -> str:
         top=_TITLE_TOP,
         width=_BODY_WIDTH,
         height=_TITLE_HEIGHT,
-        paragraphs=_paragraph(title, size=2800, bold=True, bullet=False),
+        paragraphs=_paragraph(title, size=2800, bold=True, bullet=False, language=language),
     ) + _shape(
         identifier=3,
         name="Body",
@@ -433,7 +437,9 @@ def render_executive_summary_pptx(summary: ExecutiveSummary) -> bytes:
         ("ppt/theme/theme1.xml", _theme()),
     ]
     for index, (title, lines) in enumerate(slides, start=1):
-        parts.append((f"ppt/slides/slide{index}.xml", _slide(title, lines)))
+        parts.append(
+            (f"ppt/slides/slide{index}.xml", _slide(title, lines, language=summary.language))
+        )
         parts.append(
             (
                 f"ppt/slides/_rels/slide{index}.xml.rels",

@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from importlib.resources import files
 from pathlib import Path
 
 import yaml
 
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.language import DEFAULT_LANGUAGE, workspace_guidance
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,13 +99,14 @@ def initialize_workspace(target: Path) -> InitResult:
         dossier = {
             "schema_version": 1,
             "case": {"id": _case_id(target.name), "title": target.name or "Architecture decision"},
+            # NFR-010: the workspace declares its language explicitly rather
+            # than relying on the default, so the case states it in writing.
+            "language": DEFAULT_LANGUAGE,
             "evidence": [],
             "decision_conditions": [],
         }
         case_yaml = yaml.safe_dump(dossier, sort_keys=False, allow_unicode=True)
-        guidance = (
-            files("archsift").joinpath("templates/workspace-README.md").read_text(encoding="utf-8")
-        )
+        guidance = workspace_guidance(DEFAULT_LANGUAGE)
         _write_text(target / "case.yaml", case_yaml)
         _write_text(target / "README.md", guidance)
         (target / "evidence").mkdir()

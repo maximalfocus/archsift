@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Final
 
 from archsift.canonical import JsonObject, JsonValue
+from archsift.language import is_supported_language
 from archsift.masking import masked_decision_record_view
 
 ABSENT: Final = "(not provided)"
@@ -46,6 +47,7 @@ REQUIRED_DOSSIER_KEYS: Final[tuple[str, ...]] = (
     "case",
     "decision_conditions",
     "evidence",
+    "language",
     "problem_value",
     "schema_version",
     "task",
@@ -112,6 +114,19 @@ def recommendation(assessment: JsonObject) -> str:
     raise ReportRecordError("A recommending verdict has no recommended class.")
 
 
+def declared_language(dossier: JsonObject) -> str:
+    """Return the language a record's generated reports must be rendered in.
+
+    NFR-010: every representation renders in the case's declared language, so
+    a record naming a language ArchSift cannot generate content in is refused
+    rather than quietly rendered in another one.
+    """
+    language = require_text(dossier["language"], "$.dossier.language")
+    if not is_supported_language(language):
+        raise ReportRecordError(f"Declared case language {language!r} is not supported.")
+    return language
+
+
 @dataclass(frozen=True, slots=True)
 class RecordView:
     """One masked, shape-checked record with its two decision-bearing parts."""
@@ -119,6 +134,7 @@ class RecordView:
     record: JsonObject
     dossier: JsonObject
     assessment: JsonObject
+    language: str
 
 
 def masked_record_view(record: JsonObject) -> RecordView:
@@ -131,4 +147,4 @@ def masked_record_view(record: JsonObject) -> RecordView:
     require_keys(dossier, REQUIRED_DOSSIER_KEYS, "$.dossier")
     assessment = require_object(masked["assessment"], "$.assessment")
     require_keys(assessment, REQUIRED_ASSESSMENT_KEYS, "$.assessment")
-    return RecordView(masked, dossier, assessment)
+    return RecordView(masked, dossier, assessment, declared_language(dossier))

@@ -35,6 +35,11 @@
         }
       }
     },
+    "language": {
+      "description": "Language ArchSift generates workspace boilerplate and decision-record reports in, defaulting to en. Authored dossier prose is expected to conform as a documented convention; conformance is never validated as truth.",
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$"
+    },
     "task": {
       "description": "Operational task and action boundary under architecture review.",
       "$ref": "#/$defs/taskBoundary"

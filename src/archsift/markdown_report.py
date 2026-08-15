@@ -262,6 +262,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
     v.Dossier: (
         "schema_version",
         "case",
+        "language",
         "evidence",
         "task",
         "problem_value",
@@ -453,6 +454,8 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     _emit_scalar(lines, "Record Schema Version", record.record_schema_version, maskable=False)
     _emit_scalar(lines, "Record Content Identity", record.record_content_identity, maskable=False)
     _emit_scalar(lines, "Dossier Schema Version", record.dossier_schema_version, maskable=False)
+    # NFR-010: the review view states the language it is written in.
+    _emit_scalar(lines, "Case Language", record.dossier.language, maskable=False)
     _emit_scalar(lines, "Dossier Content Identity", record.dossier_content_identity, maskable=False)
     _emit_scalar(lines, "Ruleset Version", record.ruleset_version, maskable=False)
     _emit_scalar(lines, "Tool Version", record.tool_version, maskable=False)

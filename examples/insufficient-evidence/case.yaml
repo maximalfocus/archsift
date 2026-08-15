@@ -2,6 +2,7 @@ schema_version: 1
 case:
   id: insufficient-evidence
   title: Fictional decision with an unresolved comparison
+language: en
 evidence:
 - id: decision-observed
   claim: Fictional trials have not established whether the fixed workflow meets the binding target.

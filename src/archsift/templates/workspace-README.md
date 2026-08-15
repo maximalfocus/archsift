@@ -6,6 +6,8 @@ This directory contains one local architecture-decision case.
 - `evidence/` is reserved for local evidence artefacts; ledger provenance is inert metadata and validation does not open it.
 - `output/` holds immutable content-addressed decision records; ArchSift never overwrites conflicting bytes.
 
+`case.yaml` declares a `language` code, defaulting to `en`. It is the language ArchSift generates this guidance and every decision-record report in, and English is the only language it currently supports; an unknown or unsupported code fails validation rather than being ignored. The language is part of the dossier bytes the record is addressed by, so changing it produces a distinct record. Writing this case's own prose and evidence in the declared language is a convention you keep; ArchSift never inspects authored text to judge what language it is written in, so a mismatch is never reported as an error.
+
 Add one operational `task` only after its boundary is known. A programme name is not enough: record observable start and completion conditions, participants, inputs, produced actions, approval boundaries, and explicit exclusions.
 
 ```yaml

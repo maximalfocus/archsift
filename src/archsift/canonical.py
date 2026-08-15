@@ -11,6 +11,7 @@ from hashlib import sha256
 from types import UnionType
 from typing import Any, TypeAlias, TypeVar, Union, cast, get_args, get_origin, get_type_hints
 
+from archsift.language import is_supported_language
 from archsift.validation import (
     AgencyAnswer,
     AgencyNecessity,
@@ -920,6 +921,7 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
     expected = (
         "schema_version",
         "case",
+        "language",
         "evidence",
         "task",
         "problem_value",
@@ -928,6 +930,8 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
         "candidate_comparison",
         "decision_conditions",
     )
+    if not is_supported_language(dossier.language):
+        raise CanonicalizationError("Unsupported declared case language for canonicalization.")
     return _checked_object(
         dossier,
         Dossier,
@@ -935,6 +939,9 @@ def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
         {
             "schema_version": dossier.schema_version,
             "case": _case(dossier.case),
+            # NFR-010: the declared language is part of the canonical bytes, so
+            # a language change addresses a distinct record.
+            "language": dossier.language,
             "evidence": [canonical_evidence_dict(entry) for entry in dossier.evidence],
             "task": _task(dossier.task) if dossier.task is not None else None,
             "problem_value": (
