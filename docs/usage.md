@@ -203,6 +203,35 @@ serialization violation exits `12`. A path outside the current directory, an
 unsafe path, or a non-regular-file target exits `13`; a missing or unreadable
 file exits `14`.
 
+### `archsift graph-view <snapshot> <request>`
+
+Constructs one deterministic private task-relevant view from a canonical
+published snapshot and a canonical private request, both regular files beneath
+the current directory. Request schema version 1 is strict canonical JSON:
+
+```json
+{"bindings":[{"finding_id":"finding-agency","rule_id":"agency-necessity-rule"}],"finding_ids":["finding-agency"],"request_schema_version":1,"root_ids":["runtime-agency"]}
+```
+
+`root_ids` explicitly select reusable semantic identifiers relevant to the
+bounded task. `finding_ids` are private case-scoped identifiers, and each
+binding connects one of them to a reusable `decision-rule` node. ArchSift never
+infers roots or bindings from topology or prose.
+
+Human output reports the graph and case-view identities and the trace,
+conflict, reusable-knowledge-gap, and private-finding counts without rendering
+authored graph text. `--json` returns the canonical private view plus its
+`case_view_content_identity`; `--quiet` returns only the exit status. The
+command writes nothing and never changes assessment, verdicts, records, or
+either input. The request and returned view remain private case material and
+must never be merged into a public reusable snapshot.
+
+Malformed or ambiguous JSON exits `10`; unsupported graph or request schema
+versions exit `11`; non-canonical, structurally invalid, or semantically invalid
+requests exit `12`; unsafe, escaping, or non-file paths exit `13`; and missing
+or unreadable inputs exit `14`. Every diagnostic names its input, field,
+FR-015, and remediation.
+
 ### `archsift usability-results <results>`
 
 Validates one completed usability cohort result against the frozen

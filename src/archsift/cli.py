@@ -8,7 +8,7 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import NoReturn, TextIO
+from typing import NoReturn, TextIO, cast
 
 from archsift import package_version
 from archsift.artefacts import (
@@ -17,6 +17,7 @@ from archsift.artefacts import (
     evidence_artefact_identities,
 )
 from archsift.canonical import JsonObject
+from archsift.case_view import CaseViewError, construct_case_view, load_case_view_request
 from archsift.comparison import (
     ComparisonInputError,
     canonical_comparison_bytes,
@@ -34,6 +35,7 @@ from archsift.knowledge_graph import (
     SnapshotError,
     SnapshotFileError,
     load_snapshot_file,
+    read_contained_graph_file,
 )
 from archsift.markdown_report import render_markdown_decision_report
 from archsift.masking import masked_canonical_decision_record_bytes
@@ -155,6 +157,13 @@ def build_parser() -> argparse.ArgumentParser:
         "snapshot", type=Path, help="canonical knowledge-graph snapshot JSON"
     )
     _output_options(graph_snapshot_parser)
+
+    graph_view_parser = subparsers.add_parser(
+        "graph-view", help="construct one deterministic private graph case view"
+    )
+    graph_view_parser.add_argument("snapshot", type=Path, help="canonical graph snapshot JSON")
+    graph_view_parser.add_argument("request", type=Path, help="canonical private case-view request")
+    _output_options(graph_view_parser)
     return parser
 
 
@@ -721,6 +730,95 @@ def _run_graph_snapshot(path: Path, *, json_output: bool, quiet: bool) -> int:
     return int(ExitCode.SUCCESS)
 
 
+def _emit_graph_input_failure(
+    error: SnapshotError | SnapshotFileError | CaseViewError,
+    *,
+    path: Path,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    exit_code = error.exit_code
+    status = {
+        ExitCode.MALFORMED_INPUT: "malformed",
+        ExitCode.UNSUPPORTED_SCHEMA: "unsupported",
+        ExitCode.VALIDATION_FAILED: "invalid",
+        ExitCode.UNSAFE_PATH: "unsafe",
+        ExitCode.ARTEFACT_UNAVAILABLE: "artefact-unavailable",
+    }[exit_code]
+    diagnostic = Diagnostic(
+        id=f"graph-view-{error.category.value}",
+        message=error.message,
+        file=str(path),
+        field=error.field,
+        requirement="FR-015",
+        remediation=error.remediation,
+    )
+    _emit(
+        status=status,
+        exit_code=exit_code,
+        diagnostics=(diagnostic,),
+        json_output=json_output,
+        quiet=quiet,
+        success_message="",
+        details={},
+    )
+    return int(exit_code)
+
+
+def _run_graph_view(
+    snapshot_path: Path,
+    request_path: Path,
+    *,
+    json_output: bool,
+    quiet: bool,
+) -> int:
+    root = Path(".")
+    try:
+        snapshot = load_snapshot_file(snapshot_path, root=root)
+    except (SnapshotError, SnapshotFileError) as error:
+        return _emit_graph_input_failure(
+            error, path=snapshot_path, json_output=json_output, quiet=quiet
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    try:
+        request = load_case_view_request(read_contained_graph_file(request_path, root=root))
+        view = construct_case_view(snapshot, request)
+    except (CaseViewError, SnapshotFileError) as error:
+        return _emit_graph_input_failure(
+            error, path=request_path, json_output=json_output, quiet=quiet
+        )
+    except Exception as error:  # defensive CLI boundary
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+
+    traces = view.content["reusable_claim_traces"]
+    conflicts = view.content["conflict_relation_ids"]
+    gaps = view.content["reusable_knowledge_gap_claim_ids"]
+    findings = view.content["case_finding_ids"]
+    if not all(type(value) is list for value in (traces, conflicts, gaps, findings)):
+        return _internal_error(
+            ValueError("case-view count contract"), json_output=json_output, quiet=quiet
+        )
+    trace_items = cast(list[object], traces)
+    conflict_items = cast(list[object], conflicts)
+    gap_items = cast(list[object], gaps)
+    finding_items = cast(list[object], findings)
+    _emit(
+        status="valid",
+        exit_code=ExitCode.SUCCESS,
+        diagnostics=(),
+        json_output=json_output,
+        quiet=quiet,
+        success_message=(
+            f"Graph case view {view.content_identity}: {len(trace_items)} traces; "
+            f"{len(conflict_items)} conflicts; {len(gap_items)} reusable-knowledge gaps; "
+            f"{len(finding_items)} private findings; graph {snapshot.graph_version}"
+        ),
+        details={"case_view": view.content, "case_view_content_identity": view.content_identity},
+    )
+    return int(ExitCode.SUCCESS)
+
+
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     if quiet:
@@ -814,6 +912,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "graph-snapshot":
         return _run_graph_snapshot(
             args.snapshot,
+            json_output=args.json_output,
+            quiet=args.quiet,
+        )
+    if args.command == "graph-view":
+        return _run_graph_view(
+            args.snapshot,
+            args.request,
             json_output=args.json_output,
             quiet=args.quiet,
         )
