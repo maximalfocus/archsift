@@ -74,3 +74,46 @@ Run the full gate from CONTRIBUTING.md — `pytest`, the large-dossier performan
 A check you did not run is not a check that passed. State failures plainly, including the ones you
 could not fix; a pull request describing green checks that were never executed is worse than one
 describing a real failure.
+
+## Naming conventions
+
+Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
+
+- **Issue title (N-1).** Imperative outcome, sentence case. No type prefix, no
+  trailing period, no issue number, no requirement/slice ID. Say what is true
+  when the issue closes, not only the symptom. One coherent outcome per issue —
+  a conjunction alone is not a reason to split; split only when the joined parts
+  are independently deliverable and verifiable. This is a review rule, not a
+  mechanical grammar.
+- **PR title (N-2).** Character-identical to the issue it delivers. If the
+  wording is wrong, edit the issue first, then match it.
+- **Branch (N-3).** As **Change flow** above:
+  `issue/<issue-number>-<lowercase-kebab-slug>`, matching
+  `^issue/[1-9][0-9]*-[a-z0-9]+(-[a-z0-9]+)*$`.
+- **Commit subject (N-4).** `<type>(<scope>)?: <lowercase imperative>`, at most
+  72 authored characters — a provider-added trailing ` (#N)` sits outside that
+  budget. Scope is one kebab-case identifier: no spaces, no colon, one scope
+  only. Evidence, rationale and measurements belong in the body, never the
+  subject.
+  Types: `feat` `fix` `docs` `test` `refactor` `perf` `chore` `build` `ci`
+- **Squash subjects are a known exception, until landing is changed.** `gh pr
+  merge --squash` without `--subject` derives the commit subject from the
+  untyped N-2 PR title, so N-4 cannot hold for the squash commit today. Until
+  landing builds `<type>: <issue title, initial letter lowercased> (#<PR>)` from
+  a `Delivery-Type:` field in the PR body, set the squash subject by hand at
+  merge time, or accept the untyped one. Do not "fix" it by putting a type
+  prefix on the PR title — that breaks N-2 instead.
+- **Private material.** This repository is public. Never name the private
+  companion product-contract repository (this project's `{project}-prd`
+  sibling), one of its documents, or one of its sections in a branch, commit,
+  issue, or PR — not even in order to say what must not be named. A requirement
+  or slice identifier
+  (`R-###`, `S-###`, `SLICE-###`, `FR-###`, `NFR-###`) is forbidden only where
+  it is defined *solely* in that companion. This repository defines its own
+  `FR-###`/`NFR-###` in tracked `docs/`, so they are public contract vocabulary
+  and **Change flow** above is right to ask that a change reference them. Never
+  rely on a history rewrite as cleanup — commits survive in provider-retained PR
+  refs, and issue/PR text is provider metadata outside git entirely.
+- **Labels.** None by default. Add one only when a repository template requires
+  it or it names a partition someone actually queries; a label applied uniformly
+  to every issue partitions nothing.
