@@ -1,0 +1,986 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://archsift.dev/schemas/dossier-v4.schema.json",
+  "title": "ArchSift dossier version 4",
+  "description": "Case identity, decision evidence, authorship-attestation, inert material-registration bindings, and the authored baseline-retention declaration for an architecture decision.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "ArchSift dossier schema version.",
+      "const": 4
+    },
+    "case": {
+      "description": "Human-editable identity for this architecture decision case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable local identifier for the case.",
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "description": "Human-readable case title.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "language": {
+      "description": "Language ArchSift generates workspace boilerplate and decision-record reports in, defaulting to en. Authored dossier prose is expected to conform as a documented convention; conformance is never validated as truth.",
+      "type": "string",
+      "pattern": "^[a-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$"
+    },
+    "task": {
+      "description": "Operational task and action boundary under architecture review.",
+      "$ref": "#/$defs/taskBoundary"
+    },
+    "problem_value": {
+      "description": "Business-value prerequisites for later architecture assessment.",
+      "$ref": "#/$defs/problemValue"
+    },
+    "agency_necessity": {
+      "description": "Evidence-backed facts needed to judge runtime model-directed control.",
+      "$ref": "#/$defs/agencyNecessity"
+    },
+    "autonomy_permission": {
+      "description": "Evidence-backed facts and boundaries needed to judge permissible autonomy.",
+      "$ref": "#/$defs/autonomyPermission"
+    },
+    "candidate_comparison": {
+      "description": "Evidence-backed candidate roles, tests, and directional trade-offs.",
+      "$ref": "#/$defs/candidateComparison"
+    },
+    "decision_conditions": {
+      "description": "Evidence-linked obligations evaluated only after the minimum-sufficient class is determined.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/decisionCondition" }
+    },
+    "evidence": {
+      "description": "Material claims classified by evidence state.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceEntry"
+      }
+    }
+  },
+  "$defs": {
+    "taskBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "starts_when",
+        "completes_when",
+        "accountable_owner",
+        "actors",
+        "systems_and_tools",
+        "information_read",
+        "actions",
+        "exclusions"
+      ],
+      "properties": {
+        "operation": {
+          "description": "One bounded operational task, phrased as an action.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "starts_when": {
+          "description": "Observable condition that starts this task.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "completes_when": {
+          "description": "Observable condition that completes this task.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "accountable_owner": {
+          "description": "Person or role accountable for the task outcome.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "actors": {
+          "description": "People, roles, or systems participating in the task.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "systems_and_tools": {
+          "description": "Systems and tools involved; an empty array explicitly records none.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "information_read": {
+          "description": "Information consumed; an empty array explicitly records none.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "actions": {
+          "description": "Outputs or effects produced by the task.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/taskAction"
+          }
+        },
+        "exclusions": {
+          "description": "Related work explicitly outside this decision boundary.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      }
+    },
+    "taskAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "consequential",
+        "approval_boundary"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable identifier for this produced action.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "description": "Output or effect produced by the task.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "consequential": {
+          "description": "Whether an error could materially affect people, rights, money, safety, or operations.",
+          "type": "boolean"
+        },
+        "approval_boundary": {
+          "description": "Who may approve or release this action, and at what point.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "problemValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcomes",
+        "baselines",
+        "constraints",
+        "affected_volume",
+        "material_pain",
+        "error_cost",
+        "technology_limitation"
+      ],
+      "properties": {
+        "outcomes": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/problemOutcome" }
+        },
+        "baselines": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/problemBaseline" }
+        },
+        "constraints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/problemConstraint" }
+        },
+        "affected_volume": { "$ref": "#/$defs/evidencedStatement" },
+        "material_pain": { "$ref": "#/$defs/evidencedStatement" },
+        "error_cost": { "$ref": "#/$defs/evidencedStatement" },
+        "technology_limitation": { "$ref": "#/$defs/evidencedStatement" }
+      }
+    },
+    "problemOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "measure",
+        "target",
+        "baseline_id",
+        "binding",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "measure": { "$ref": "#/$defs/nonBlankString" },
+        "target": { "$ref": "#/$defs/nonBlankString" },
+        "baseline_id": { "$ref": "#/$defs/nonBlankString" },
+        "binding": { "type": "boolean" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "problemBaseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "measure", "value", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "measure": { "$ref": "#/$defs/nonBlankString" },
+        "value": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "problemConstraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "test",
+        "required_result",
+        "binding",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "test": { "$ref": "#/$defs/nonBlankString" },
+        "required_result": { "$ref": "#/$defs/nonBlankString" },
+        "binding": { "type": "boolean" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "evidencedStatement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["statement", "evidence_ids"],
+      "properties": {
+        "statement": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "evidenceIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonBlankString" }
+    },
+    "nonBlankString": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    },
+    "agencyNecessity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "execution_steps_predefinable",
+        "step_count_or_order_predictable",
+        "runtime_tool_choice_required",
+        "runtime_replanning_required",
+        "environmental_feedback_available",
+        "completion_independently_verifiable",
+        "effects_independently_verifiable",
+        "fixed_workflow_sufficient",
+        "residual_cases"
+      ],
+      "properties": {
+        "execution_steps_predefinable": { "$ref": "#/$defs/agencyQuestion" },
+        "step_count_or_order_predictable": { "$ref": "#/$defs/agencyQuestion" },
+        "runtime_tool_choice_required": { "$ref": "#/$defs/agencyQuestion" },
+        "runtime_replanning_required": { "$ref": "#/$defs/agencyQuestion" },
+        "environmental_feedback_available": { "$ref": "#/$defs/agencyQuestion" },
+        "completion_independently_verifiable": { "$ref": "#/$defs/agencyQuestion" },
+        "effects_independently_verifiable": { "$ref": "#/$defs/agencyQuestion" },
+        "fixed_workflow_sufficient": { "$ref": "#/$defs/agencyQuestion" },
+        "residual_cases": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/residualCase" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "fixed_workflow_sufficient": {
+                "properties": { "answer": { "const": "no" } },
+                "required": ["answer"]
+              }
+            },
+            "required": ["fixed_workflow_sufficient"]
+          },
+          "then": {
+            "properties": { "residual_cases": { "minItems": 1 } }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "fixed_workflow_sufficient": {
+                "properties": { "answer": { "const": "yes" } },
+                "required": ["answer"]
+              }
+            },
+            "required": ["fixed_workflow_sufficient"]
+          },
+          "then": {
+            "properties": { "residual_cases": { "maxItems": 0 } }
+          }
+        }
+      ]
+    },
+    "agencyQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "rationale", "evidence_ids"],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "enum": ["yes", "no", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "residualCase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "fixed_workflow_failure", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "fixed_workflow_failure": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "autonomyPermission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actions_reversible",
+        "failure_blast_radius_bounded",
+        "regulatory_automation_permitted",
+        "data_confidence_sufficient",
+        "accountable_owner_assigned",
+        "decision_path_auditable",
+        "timely_human_intervention_available",
+        "safe_degradation_available",
+        "hard_vetoes",
+        "mandatory_human_controls"
+      ],
+      "properties": {
+        "actions_reversible": { "$ref": "#/$defs/autonomyQuestion" },
+        "failure_blast_radius_bounded": { "$ref": "#/$defs/autonomyQuestion" },
+        "regulatory_automation_permitted": { "$ref": "#/$defs/autonomyQuestion" },
+        "data_confidence_sufficient": { "$ref": "#/$defs/autonomyQuestion" },
+        "accountable_owner_assigned": { "$ref": "#/$defs/autonomyQuestion" },
+        "decision_path_auditable": { "$ref": "#/$defs/autonomyQuestion" },
+        "timely_human_intervention_available": { "$ref": "#/$defs/autonomyQuestion" },
+        "safe_degradation_available": { "$ref": "#/$defs/autonomyQuestion" },
+        "hard_vetoes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hardVeto" }
+        },
+        "mandatory_human_controls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/mandatoryHumanControl" }
+        }
+      }
+    },
+    "autonomyQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["answer", "rationale", "evidence_ids"],
+      "properties": {
+        "answer": {
+          "type": "string",
+          "enum": ["yes", "no", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "hardVeto": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "condition", "consequence", "action_ids", "evidence_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive", "unknown"]
+        },
+        "condition": { "$ref": "#/$defs/nonBlankString" },
+        "consequence": { "$ref": "#/$defs/nonBlankString" },
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" },
+        "prohibited_control_classes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "human-owned-work",
+              "process-redesign",
+              "deterministic-automation",
+              "fixed-ai-workflow",
+              "agentic-control"
+            ]
+          }
+        }
+      }
+    },
+    "mandatoryHumanControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "control_point",
+        "responsible_role",
+        "action_ids",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "control_point": { "$ref": "#/$defs/nonBlankString" },
+        "responsible_role": { "$ref": "#/$defs/nonBlankString" },
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "actionIds": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonBlankString" }
+    },
+    "candidateComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidates", "comparisons"],
+      "properties": {
+        "candidates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/candidate" }
+        },
+        "comparisons": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/candidatePairComparison" }
+        },
+        "strongest_simpler_boundary": {
+          "$ref": "#/$defs/strongestSimplerBoundary"
+        },
+        "baseline_retention": {
+          "$ref": "#/$defs/baselineRetention"
+        }
+      }
+    },
+    "strongestSimplerBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strongest_candidate_id",
+        "scope",
+        "rationale",
+        "considered_candidate_ids",
+        "evidence_ids"
+      ],
+      "properties": {
+        "strongest_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "scope": { "$ref": "#/$defs/nonBlankString" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "considered_candidate_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "baselineRetention": {
+      "type": "object",
+      "description": "Authored decision that retaining the current baseline is the intended result. It satisfies only the non-discriminating-binding-set prerequisite and never eliminates, supports, or promotes a candidate.",
+      "additionalProperties": false,
+      "required": [
+        "declared_by",
+        "rationale",
+        "evidence_ids"
+      ],
+      "properties": {
+        "declared_by": { "$ref": "#/$defs/nonBlankString" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "decisionCondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target_control_class",
+        "decision_area",
+        "statement",
+        "status",
+        "resolved_by",
+        "evidence_ids"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "target_control_class": {
+          "type": "string",
+          "enum": [
+            "human-owned-work",
+            "process-redesign",
+            "deterministic-automation",
+            "fixed-ai-workflow",
+            "agentic-control"
+          ]
+        },
+        "decision_area": { "$ref": "#/$defs/decisionArea" },
+        "statement": { "$ref": "#/$defs/nonBlankString" },
+        "status": {
+          "type": "string",
+          "enum": ["met", "unmet"]
+        },
+        "resolved_by": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "control_class",
+        "roles",
+        "material_deviations",
+        "outcome_tests",
+        "constraint_tests"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "name": { "$ref": "#/$defs/nonBlankString" },
+        "description": { "$ref": "#/$defs/nonBlankString" },
+        "control_class": {
+          "type": "string",
+          "enum": [
+            "human-owned-work",
+            "process-redesign",
+            "deterministic-automation",
+            "fixed-ai-workflow",
+            "agentic-control"
+          ]
+        },
+        "roles": {
+          "description": "Named decision-boundary roles; auxiliary candidates use an explicit empty array.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "current-baseline",
+              "proposed",
+              "strongest-simpler",
+              "agentic-comparator"
+            ]
+          }
+        },
+        "material_deviations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "outcome_tests": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidateOutcomeTest" }
+        },
+        "constraint_tests": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/candidateConstraintTest" }
+        },
+        "authority": { "$ref": "#/$defs/candidateAuthority" }
+      }
+    },
+    "candidateAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action_ids", "retained_human_control_ids", "evidence_ids"],
+      "properties": {
+        "action_ids": { "$ref": "#/$defs/actionIds" },
+        "retained_human_control_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonBlankString" }
+        },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidateOutcomeTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome_id", "result", "rationale", "evidence_ids"],
+      "properties": {
+        "outcome_id": { "$ref": "#/$defs/nonBlankString" },
+        "result": { "$ref": "#/$defs/candidateTestResult" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidateConstraintTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["constraint_id", "result", "rationale", "evidence_ids"],
+      "properties": {
+        "constraint_id": { "$ref": "#/$defs/nonBlankString" },
+        "result": { "$ref": "#/$defs/candidateTestResult" },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "candidateTestResult": {
+      "type": "string",
+      "enum": ["meets", "fails", "unknown"]
+    },
+    "candidatePairComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_candidate_id",
+        "comparator_candidate_id",
+        "dimensions"
+      ],
+      "properties": {
+        "subject_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "comparator_candidate_id": { "$ref": "#/$defs/nonBlankString" },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "outcome_quality",
+            "difficult_case_performance",
+            "cost",
+            "latency",
+            "human_effort",
+            "integration_burden",
+            "security_exposure",
+            "failure_impact",
+            "operability",
+            "evaluation_burden",
+            "maintainability"
+          ],
+          "properties": {
+            "outcome_quality": { "$ref": "#/$defs/comparisonDimension" },
+            "difficult_case_performance": { "$ref": "#/$defs/comparisonDimension" },
+            "cost": { "$ref": "#/$defs/comparisonDimension" },
+            "latency": { "$ref": "#/$defs/comparisonDimension" },
+            "human_effort": { "$ref": "#/$defs/comparisonDimension" },
+            "integration_burden": { "$ref": "#/$defs/comparisonDimension" },
+            "security_exposure": { "$ref": "#/$defs/comparisonDimension" },
+            "failure_impact": { "$ref": "#/$defs/comparisonDimension" },
+            "operability": { "$ref": "#/$defs/comparisonDimension" },
+            "evaluation_burden": { "$ref": "#/$defs/comparisonDimension" },
+            "maintainability": { "$ref": "#/$defs/comparisonDimension" }
+          }
+        }
+      }
+    },
+    "comparisonDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "rationale", "evidence_ids"],
+      "properties": {
+        "result": {
+          "type": "string",
+          "enum": ["better", "equivalent", "worse", "unknown"]
+        },
+        "rationale": { "$ref": "#/$defs/nonBlankString" },
+        "evidence_ids": { "$ref": "#/$defs/evidenceIds" }
+      }
+    },
+    "decisionArea": {
+      "type": "string",
+      "enum": [
+        "problem-value",
+        "agency-necessity",
+        "autonomy-permission",
+        "comparative-fit"
+      ]
+    },
+    "evidenceArtefactReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "root", "path"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlankString" },
+        "root": {
+          "type": "string",
+          "enum": ["workspace", "external"]
+        },
+        "path": { "$ref": "#/$defs/nonBlankString" },
+        "registration_id": {
+          "description": "Immutable inert material registration that owns the stored artefact bytes.",
+          "type": ["string", "null"],
+          "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$"
+        },
+        "registration_logical_path": {
+          "description": "Caller-supplied repository-relative path for this registered file, or null for document material.",
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      }
+    },
+    "evidenceAuthorship": {
+      "description": "Explicit evidence author class and accountable-person attestation. Omission is exactly equivalent to accountable-person authorship with attestation.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["authored_by", "attested_by_accountable_person"],
+      "properties": {
+        "authored_by": {
+          "type": "string",
+          "enum": ["accountable-person", "assistant"]
+        },
+        "attested_by_accountable_person": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "authored_by": { "const": "accountable-person" }
+            },
+            "required": ["authored_by"]
+          },
+          "then": {
+            "properties": {
+              "attested_by_accountable_person": { "const": true }
+            }
+          }
+        }
+      ]
+    },
+    "evidenceEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "claim",
+        "owner",
+        "affects"
+      ],
+      "properties": {
+        "id": {
+          "description": "Stable identifier used by decision findings.",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "assumption",
+            "estimate",
+            "missing"
+          ]
+        },
+        "claim": {
+          "description": "The material fact, belief, forecast, or known gap.",
+          "type": "string",
+          "minLength": 1
+        },
+        "owner": {
+          "description": "Person or role accountable for this entry.",
+          "type": "string",
+          "minLength": 1
+        },
+        "affects": {
+          "description": "Decision areas affected by this entry.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/decisionArea"
+          }
+        },
+        "authorship": {
+          "$ref": "#/$defs/evidenceAuthorship"
+        },
+        "artefacts": {
+          "description": "Explicit relative references to evidence bytes; validation keeps them inert.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidenceArtefactReference" }
+        },
+        "provenance": {
+          "description": "Named artefact or measurement supporting an observation.",
+          "type": "string",
+          "minLength": 1
+        },
+        "observed_at": {
+          "description": "Observation or retrieval date.",
+          "type": "string",
+          "format": "date"
+        },
+        "falsified_by": {
+          "description": "Observation that would disprove the assumption.",
+          "type": "string",
+          "minLength": 1
+        },
+        "method": {
+          "description": "Method used to produce the estimate.",
+          "type": "string",
+          "minLength": 1
+        },
+        "resolved_by": {
+          "description": "Observation that would resolve the evidence gap.",
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "observed"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "provenance",
+              "observed_at"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["falsified_by"] },
+                { "required": ["method"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "assumption"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "falsified_by"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["method"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "estimate"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "method"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["falsified_by"] },
+                { "required": ["resolved_by"] }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "missing"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "resolved_by"
+            ],
+            "not": {
+              "anyOf": [
+                { "required": ["provenance"] },
+                { "required": ["observed_at"] },
+                { "required": ["falsified_by"] },
+                { "required": ["method"] }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

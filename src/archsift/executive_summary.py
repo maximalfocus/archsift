@@ -215,9 +215,9 @@ def _decision_space_section(dossier: JsonObject) -> SummarySection:
         )
         for candidate in candidates
     ]
-    boundary = require_object(comparison, "$.dossier.candidate_comparison")[
+    boundary = require_object(comparison, "$.dossier.candidate_comparison").get(
         "strongest_simpler_boundary"
-    ]
+    )
     if boundary is None:
         points.append(SummaryPoint("Strongest Simpler Alternative", (ABSENT,), derived=True))
     else:
@@ -228,6 +228,20 @@ def _decision_space_section(dossier: JsonObject) -> SummarySection:
                 (
                     _text(strongest["strongest_candidate_id"], "$.boundary.strongest_candidate_id"),
                     _text(strongest["scope"], "$.boundary.scope"),
+                ),
+            )
+        )
+    retention = require_object(comparison, "$.dossier.candidate_comparison").get(
+        "baseline_retention"
+    )
+    if retention is not None:
+        declared = require_object(retention, "$.dossier.candidate_comparison.baseline_retention")
+        points.append(
+            SummaryPoint(
+                "Baseline Retention (Authored Decision)",
+                (
+                    _text(declared["declared_by"], "$.baseline_retention.declared_by"),
+                    _text(declared["rationale"], "$.baseline_retention.rationale"),
                 ),
             )
         )

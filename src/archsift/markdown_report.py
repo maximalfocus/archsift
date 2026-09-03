@@ -252,10 +252,12 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "authority",
     ),
     v.CandidateAuthority: ("action_ids", "retained_human_control_ids", "evidence_ids"),
+    v.BaselineRetention: ("declared_by", "rationale", "evidence_ids"),
     v.CandidateComparison: (
         "candidates",
         "comparisons",
         "strongest_simpler_boundary",
+        "baseline_retention",
     ),
     v.CandidateConstraintTest: ("constraint_id", "result", "rationale", "evidence_ids"),
     v.CandidateOutcomeTest: ("outcome_id", "result", "rationale", "evidence_ids"),

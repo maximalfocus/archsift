@@ -19,7 +19,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.11.0"
+RULESET_VERSION = "1.12.0"
 
 
 class RuleEffect(StrEnum):
@@ -191,6 +191,14 @@ PREREQUISITE_RULES = tuple(
                 "FR-005",
                 "Require every binding outcome to reference an existing baseline.",
                 "A measurable outcome needs a resolvable current-state comparator.",
+            ),
+            _rule(
+                "baseline-retention-contradiction",
+                "FR-008",
+                "Diagnose a declared baseline retention while the current baseline credibly "
+                "fails a binding outcome.",
+                "An authored decision to retain the current baseline cannot stand beside "
+                "credible evidence that the baseline fails a required outcome.",
             ),
             _rule(
                 "binding-outcome-missing",
@@ -766,6 +774,8 @@ def _non_discriminating_binding_finding(
     comparison = dossier.candidate_comparison
     if problem is None or comparison is None or not comparison.candidates:
         return None
+    if comparison.baseline_retention is not None:
+        return None
 
     binding_outcomes = tuple(sorted(item.id for item in problem.outcomes if item.binding))
     binding_constraints = tuple(sorted(item.id for item in problem.constraints if item.binding))
@@ -851,9 +861,11 @@ def _non_discriminating_binding_finding(
         message="The binding set cannot distinguish a selection: " + "; ".join(reasons) + ".",
         consequence=rule.consequence,
         remediation=(
-            "Record a credible binding outcome that the current baseline fails, or promote a "
+            "Record a credible binding outcome that the current baseline fails, promote a "
             f"decision-bearing requirement from non-binding outcomes [{promotion_candidates}] "
-            "or the recorded material pain at $.problem_value.material_pain."
+            "or the recorded material pain at $.problem_value.material_pain, or declare at "
+            "$.candidate_comparison.baseline_retention that retaining the current baseline is "
+            "the intended result."
         ),
         evidence_ids=evidence_ids,
         counterpart=(

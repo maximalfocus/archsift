@@ -685,7 +685,7 @@ def _validate_record(record: dict[str, object]) -> None:
         raise ValueError("record schema version is missing or unsupported")
     record_identity = _require_identity(record["record_content_identity"], "record identity")
     dossier_schema = record["dossier_schema_version"]
-    supported_dossiers = {1, 2} if record_schema == 1 else {1, 2, 3}
+    supported_dossiers = {1, 2} if record_schema == 1 else {1, 2, 3, 4}
     if type(dossier_schema) is not int or dossier_schema not in supported_dossiers:
         raise ValueError("dossier schema version is unsupported")
     ruleset_version = cast(str, _require_text(record["ruleset_version"], "ruleset version"))
@@ -698,7 +698,7 @@ def _validate_record(record: dict[str, object]) -> None:
     if next(_dossier_validator(dossier_schema).iter_errors(schema_view), None) is not None:
         raise ValueError(f"embedded dossier does not satisfy schema version {dossier_schema}")
     evidence = _require_list(dossier.get("evidence"), "$.dossier.evidence")
-    if dossier_schema in {2, 3} and any(
+    if dossier_schema in {2, 3, 4} and any(
         type(entry) is not dict or "authorship" not in entry for entry in evidence
     ):
         raise ValueError("canonical schema-version-2 record evidence lacks effective authorship")

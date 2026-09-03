@@ -507,7 +507,7 @@ def test_full_dossier_matches_exact_golden_bytes_and_identities() -> None:
         ),
     )
     assert dossier_content_identity(changed_dossier) != identity
-    assert RULESET_VERSION == "1.11.0"
+    assert RULESET_VERSION == "1.12.0"
 
 
 def test_minimal_dossier_emits_explicit_nulls_and_json_booleans_remain_boolean() -> None:
@@ -790,7 +790,7 @@ def test_evolved_or_unsupported_typed_shapes_fail_exhaustiveness_guards() -> Non
 def test_unsupported_schema_and_wrong_enum_type_fail_closed() -> None:
     dossier = full_dossier()
     with pytest.raises(CanonicalizationError, match="schema version"):
-        canonical_dossier_dict(replace(dossier, schema_version=4))
+        canonical_dossier_dict(replace(dossier, schema_version=5))
     assert dossier.agency_necessity is not None
     wrong_question = AgencyQuestion(
         AutonomyAnswer.YES,  # type: ignore[arg-type]

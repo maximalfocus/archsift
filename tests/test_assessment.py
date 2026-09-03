@@ -26,6 +26,7 @@ from archsift.validation import (
     AutonomyAnswer,
     AutonomyPermission,
     AutonomyQuestion,
+    BaselineRetention,
     Candidate,
     CandidateAuthority,
     CandidateComparison,
@@ -439,7 +440,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.11.0"
+    assert RULESET_VERSION == "1.12.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -1881,3 +1882,106 @@ def test_no_dossier_level_findings_when_agentic_candidate_represented() -> None:
         and f.candidate_id is None
         for f in findings
     )
+
+
+def _retained(dossier: Dossier) -> Dossier:
+    assert dossier.candidate_comparison is not None
+    return replace(
+        dossier,
+        candidate_comparison=replace(
+            dossier.candidate_comparison,
+            baseline_retention=BaselineRetention(
+                declared_by="Synthetic accountable owner",
+                rationale="Synthetic decision to keep the current process.",
+                evidence_ids=("decision-observed",),
+            ),
+        ),
+    )
+
+
+def test_declared_baseline_retention_satisfies_the_non_discriminating_prerequisite() -> None:
+    dossier = _retained(
+        _ready_dossier(
+            _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
+            _candidate("process", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS),
+            current_id="human",
+            proposed_id="human",
+            strongest_id=None,
+        )
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.prerequisite_evaluation.ready is True
+    assert not any(
+        finding.rule_id in {"non-discriminating-binding-set", "baseline-retention-contradiction"}
+        for finding in evaluation.prerequisite_evaluation.findings
+    )
+    assert evaluation.verdict is ArchitectureVerdict.NO_TECHNOLOGY_CHANGE
+    assert evaluation.recommended_class is ControlClass.HUMAN_OWNED_WORK
+    assert evaluation.surviving_candidate_ids == ("human",)
+
+
+def test_declared_baseline_retention_never_promotes_or_supports_a_candidate() -> None:
+    dossier = _retained(
+        _ready_dossier(
+            _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
+            _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+            current_id="human",
+            proposed_id="fixed",
+            strongest_id="human",
+        )
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.NO_TECHNOLOGY_CHANGE
+    assert evaluation.recommended_class is ControlClass.HUMAN_OWNED_WORK
+    assert all(
+        "retention" not in finding.rule_id
+        for finding in evaluation.ordered_elimination_evaluation.findings
+    )
+    assert "human" in evaluation.surviving_candidate_ids
+
+
+def test_declared_baseline_retention_beside_a_failing_baseline_is_a_contradiction() -> None:
+    dossier = _retained(
+        _ready_dossier(
+            _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+            _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+            current_id="human",
+            proposed_id="fixed",
+            strongest_id="human",
+        )
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert evaluation.recommended_class is None
+    finding = next(
+        finding
+        for finding in evaluation.prerequisite_evaluation.findings
+        if finding.rule_id == "baseline-retention-contradiction"
+    )
+    assert finding.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert finding.field == "$.candidate_comparison.baseline_retention"
+    assert finding.counterpart == "$.candidate_comparison.candidates[0].outcome_tests[0].result"
+    assert finding.evidence_ids == ("decision-observed",)
+    assert "credibly fails binding outcome 'required-quality'" in finding.message
+
+
+def test_non_discriminating_remediation_names_the_declaration_route() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
+        _candidate("process", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="human",
+        strongest_id=None,
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    finding = evaluation.prerequisite_evaluation.findings[-1]
+    assert finding.rule_id == "non-discriminating-binding-set"
+    assert "$.candidate_comparison.baseline_retention" in finding.remediation
