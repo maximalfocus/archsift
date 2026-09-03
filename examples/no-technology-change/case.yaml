@@ -1,11 +1,11 @@
 schema_version: 1
 case:
   id: no-technology-change
-  title: Fictional review that needs no technology change
+  title: Fictional review resolved by process redesign, not technology
 language: en
 evidence:
 - id: decision-observed
-  claim: Fictional review observations meet the binding target without a technology change.
+  claim: Fictional review observations show the current procedure misses the binding target and a reorganised intake meets it without a technology change.
   owner: Fictional evaluation team
   affects:
   - problem-value
@@ -218,12 +218,12 @@ candidate_comparison:
     control_class: human-owned-work
     roles:
     - current-baseline
-    - proposed
+    - strongest-simpler
     material_deviations: []
     outcome_tests:
     - outcome_id: required-quality
-      result: meets
-      rationale: Synthetic outcome result.
+      result: fails
+      rationale: Synthetic outcome result; the current procedure records 90 percent accepted cases against a 95 percent target.
       evidence_ids:
       - decision-observed
     constraint_tests:
@@ -236,12 +236,13 @@ candidate_comparison:
     name: Fictional process redesign
     description: The intake is reorganised but remains human executed.
     control_class: process-redesign
-    roles: []
+    roles:
+    - proposed
     material_deviations: []
     outcome_tests:
     - outcome_id: required-quality
       result: meets
-      rationale: Synthetic outcome result.
+      rationale: Synthetic outcome result; the reorganised intake meets the 95 percent target with the same people and register.
       evidence_ids:
       - decision-observed
     constraint_tests:
@@ -255,8 +256,8 @@ candidate_comparison:
     comparator_candidate_id: human-review
     dimensions:
       outcome_quality:
-        result: equivalent
-        rationale: The fictional observation establishes no material difference on this dimension.
+        result: better
+        rationale: The fictional observation records the reorganised intake meeting the target the current procedure misses.
         evidence_ids:
         - decision-observed
       difficult_case_performance:
@@ -309,4 +310,12 @@ candidate_comparison:
         rationale: Synthetic directional comparison.
         evidence_ids:
         - decision-observed
+  strongest_simpler_boundary:
+    strongest_candidate_id: human-review
+    scope: All represented synthetic candidates below the proposal.
+    rationale: The current procedure is the only represented candidate below process redesign.
+    considered_candidate_ids:
+    - human-review
+    evidence_ids:
+    - decision-observed
 decision_conditions: []

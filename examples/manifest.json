@@ -29,7 +29,7 @@
     {
       "path": "no-technology-change",
       "verdict": "no-technology-change",
-      "recommended_class": "human-owned-work",
+      "recommended_class": "process-redesign",
       "evidence_state": "evidence-complete",
       "representative_rule_id": "binding-outcome-met",
       "representative_evidence_id": "decision-observed"
