@@ -129,8 +129,8 @@ def test_undeclared_set_names_the_declaration_route_and_is_resolved_by_it(
     assert new_record["assessment"]["verdict"] == "no-technology-change"
 
     # compare consumes the exact canonical bytes assess emitted, never a re-serialization.
-    (tmp_path / "old.json").write_text(old_bytes, encoding="utf-8")
-    (tmp_path / "new.json").write_text(new_bytes, encoding="utf-8")
+    (tmp_path / "old.json").write_bytes(old_bytes.encode("utf-8"))
+    (tmp_path / "new.json").write_bytes(new_bytes.encode("utf-8"))
     monkeypatch.chdir(tmp_path)
     assert main(["compare", "old.json", "new.json", "--json"]) == ExitCode.SUCCESS
     delta = _json(capsys)
