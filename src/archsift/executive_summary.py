@@ -295,6 +295,74 @@ def _control_section(dossier: JsonObject) -> SummarySection:
     return SummarySection("Vetoes and Mandatory Human Controls", tuple(points))
 
 
+def _envelope_sections(record: JsonObject) -> tuple[SummarySection, ...]:
+    """Render the FR-019 assistance envelope where the record carries one."""
+    if "assistance_envelope" not in record:
+        return ()
+    envelope = require_object(record["assistance_envelope"], "$.assistance_envelope")
+    points: list[SummaryPoint] = []
+    for entry in _list_of_objects(envelope["entries"], "$.assistance_envelope.entries"):
+        action = _text(entry["action_id"], "$.assistance_envelope.entries[].action_id")
+        values = [
+            "consequential" if entry["consequential"] else "not consequential",
+            "a person must perform or approve it"
+            if entry["person_required"]
+            else "no recorded control or veto binds it",
+        ]
+        controls = _strings(
+            entry["mandatory_human_control_ids"],
+            "$.assistance_envelope.entries[].mandatory_human_control_ids",
+        )
+        vetoes = _strings(
+            entry["active_hard_veto_ids"], "$.assistance_envelope.entries[].active_hard_veto_ids"
+        )
+        if controls:
+            values.append("mandatory human controls: " + ", ".join(controls))
+        if vetoes:
+            values.append("active hard vetoes: " + ", ".join(vetoes))
+        authorities = _list_of_objects(
+            entry["declared_authorities"], "$.assistance_envelope.entries[].declared_authorities"
+        )
+        if not authorities:
+            values.append("no represented candidate declares authority over it")
+        for authority in authorities:
+            candidate = _text(
+                authority["candidate_id"], "$.assistance_envelope.entries[].declared_authorities[]"
+            )
+            control_class = _text(
+                authority["control_class"],
+                "$.assistance_envelope.entries[].declared_authorities[].control_class",
+            )
+            retained = _strings(
+                authority["retained_human_control_ids"], "$.assistance_envelope.retained"
+            )
+            omitted = _strings(
+                authority["omitted_human_control_ids"], "$.assistance_envelope.omitted"
+            )
+            statement = f"{candidate} ({control_class}) declares authority"
+            if retained:
+                statement += "; retains " + ", ".join(retained)
+            if omitted:
+                statement += "; does not retain " + ", ".join(omitted)
+            values.append(statement)
+        points.append(SummaryPoint(action, tuple(values)))
+    retained_decision = envelope["human_decision_retained"] is True
+    points.append(
+        SummaryPoint(
+            "Human Decision Retained",
+            (
+                "yes: no candidate proposes to replace human decision-making"
+                if retained_decision
+                else "no: at least one candidate proposes to act on a consequential action "
+                "without a retained human control, or a consequential action has no "
+                "evidenced control",
+            ),
+            derived=True,
+        )
+    )
+    return (SummarySection("Assistance Envelope", tuple(points)),)
+
+
 def _evidence_section(record: JsonObject, dossier: JsonObject) -> SummarySection:
     evidence = _list_of_objects(dossier["evidence"], "$.dossier.evidence")
     counts = {kind: 0 for kind in _EVIDENCE_KINDS}
@@ -446,6 +514,7 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
             _verdict_section(assessment),
             _decision_space_section(dossier),
             _control_section(dossier),
+            *_envelope_sections(masked),
             _evidence_section(masked, dossier),
             _trade_off_section(dossier, assessment),
         ),

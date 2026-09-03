@@ -47,10 +47,12 @@ from archsift.validation import (
     Dossier,
     EvidenceArtefactRoot,
     EvidenceKind,
+    HardVetoStatus,
     MissingEvidence,
+    is_credible_support,
 )
 
-RECORD_SCHEMA_VERSION = 3
+RECORD_SCHEMA_VERSION = 4
 CONFIGURATION_SCHEMA_VERSION = 1
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
@@ -169,6 +171,53 @@ class ReassessmentTrigger:
 
 
 @dataclass(frozen=True, slots=True)
+class EnvelopeAuthority:
+    """One represented candidate's declared authority over one task action (FR-019)."""
+
+    candidate_id: str
+    control_class: ControlClass
+    retained_human_control_ids: tuple[str, ...]
+    omitted_human_control_ids: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EnvelopeEntry:
+    """The recorded assistance boundary for one task action (FR-019)."""
+
+    action_id: str
+    consequential: bool
+    person_required: bool
+    mandatory_human_control_ids: tuple[str, ...]
+    active_hard_veto_ids: tuple[str, ...]
+    declared_authorities: tuple[EnvelopeAuthority, ...]
+    evidence_ids: tuple[str, ...]
+    rule_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ReplacedControl:
+    """A consequential action a candidate proposes to act on without a retained control."""
+
+    candidate_id: str
+    action_id: str
+    human_control_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AssistanceEnvelope:
+    """Per-action boundary statement derived only from recorded facts (FR-019).
+
+    The envelope reports declared authority; it never invents permitted
+    activity, selects a class, satisfies a prerequisite, or promotes a class.
+    """
+
+    entries: tuple[EnvelopeEntry, ...]
+    human_decision_retained: bool
+    replaced_controls: tuple[ReplacedControl, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class DecisionRecord:
     """Immutable content-addressed record for the current typed inputs."""
 
@@ -187,6 +236,7 @@ class DecisionRecord:
     unresolved_gaps: tuple[UnresolvedGap, ...]
     reassessment_triggers: tuple[ReassessmentTrigger, ...]
     graph_use: GraphUse | None = None
+    assistance_envelope: AssistanceEnvelope | None = None
 
 
 def _checked_dataclass(
@@ -1135,6 +1185,213 @@ def _validated_artefact_links(
     return typed
 
 
+_CONTROL_RULE_IDS = ("mandatory-human-control-omitted", "mandatory-human-control-retained")
+_VETO_RULE_IDS = ("active-veto-blocks-candidate",)
+
+
+def derive_assistance_envelope(dossier: Dossier) -> AssistanceEnvelope | None:
+    """Derive the FR-019 per-action assistance envelope, or None where it does not apply.
+
+    Inputs are only the recorded task boundary, consequentiality, active hard
+    vetoes, mandatory human controls, and declared candidate authority. Nothing
+    here reads a verdict or changes one.
+    """
+    task = dossier.task
+    autonomy = dossier.autonomy_permission
+    if task is None or autonomy is None:
+        return None
+    if not autonomy.hard_vetoes and not autonomy.mandatory_human_controls:
+        return None
+    evidence = {entry.id: entry for entry in dossier.evidence}
+    controls = sorted(autonomy.mandatory_human_controls, key=lambda item: item.id)
+    active_vetoes = sorted(
+        (veto for veto in autonomy.hard_vetoes if veto.status is HardVetoStatus.ACTIVE),
+        key=lambda item: item.id,
+    )
+    candidates = (
+        sorted(dossier.candidate_comparison.candidates, key=lambda item: item.id)
+        if dossier.candidate_comparison is not None
+        else []
+    )
+    entries: list[EnvelopeEntry] = []
+    replaced: list[ReplacedControl] = []
+    retained_everywhere = True
+    for action in task.actions:
+        bound_controls = [control for control in controls if action.id in control.action_ids]
+        bound_vetoes = [veto for veto in active_vetoes if action.id in veto.action_ids]
+        evidenced_control = any(
+            any(
+                is_credible_support(evidence.get(identifier)) for identifier in control.evidence_ids
+            )
+            for control in bound_controls
+        )
+        authorities: list[EnvelopeAuthority] = []
+        for candidate in candidates:
+            authority = candidate.authority
+            if authority is None or action.id not in authority.action_ids:
+                continue
+            retained = tuple(
+                control.id
+                for control in bound_controls
+                if control.id in authority.retained_human_control_ids
+            )
+            omitted = tuple(
+                control.id
+                for control in bound_controls
+                if control.id not in authority.retained_human_control_ids
+            )
+            authorities.append(
+                EnvelopeAuthority(
+                    candidate_id=candidate.id,
+                    control_class=candidate.control_class,
+                    retained_human_control_ids=retained,
+                    omitted_human_control_ids=omitted,
+                    evidence_ids=tuple(sorted(set(authority.evidence_ids))),
+                )
+            )
+            if action.consequential and (omitted or not bound_controls):
+                replaced.append(
+                    ReplacedControl(
+                        candidate_id=candidate.id, action_id=action.id, human_control_ids=omitted
+                    )
+                )
+        if action.consequential and not evidenced_control:
+            retained_everywhere = False
+        rule_ids = (
+            *(_CONTROL_RULE_IDS if bound_controls else ()),
+            *(_VETO_RULE_IDS if bound_vetoes else ()),
+        )
+        entries.append(
+            EnvelopeEntry(
+                action_id=action.id,
+                consequential=action.consequential,
+                person_required=bool(bound_controls or bound_vetoes),
+                mandatory_human_control_ids=tuple(control.id for control in bound_controls),
+                active_hard_veto_ids=tuple(veto.id for veto in bound_vetoes),
+                declared_authorities=tuple(authorities),
+                evidence_ids=tuple(
+                    sorted(
+                        {
+                            identifier
+                            for control in bound_controls
+                            for identifier in control.evidence_ids
+                        }
+                        | {identifier for veto in bound_vetoes for identifier in veto.evidence_ids}
+                    )
+                ),
+                rule_ids=rule_ids,
+            )
+        )
+    return AssistanceEnvelope(
+        entries=tuple(entries),
+        human_decision_retained=retained_everywhere and not replaced,
+        replaced_controls=tuple(replaced),
+    )
+
+
+def _envelope_authority_dict(value: EnvelopeAuthority) -> JsonObject:
+    _checked_dataclass(
+        value,
+        EnvelopeAuthority,
+        (
+            "candidate_id",
+            "control_class",
+            "retained_human_control_ids",
+            "omitted_human_control_ids",
+            "evidence_ids",
+        ),
+    )
+    _require_non_empty_string(value.candidate_id, "Envelope authority candidate_id")
+    return {
+        "candidate_id": value.candidate_id,
+        "control_class": _enum_value(
+            value.control_class,
+            ControlClass,
+            (
+                "human-owned-work",
+                "process-redesign",
+                "deterministic-automation",
+                "fixed-ai-workflow",
+                "agentic-control",
+            ),
+        ),
+        "evidence_ids": list(
+            _require_string_tuple(value.evidence_ids, "Envelope authority evidence IDs")
+        ),
+        "omitted_human_control_ids": list(
+            _require_string_tuple(value.omitted_human_control_ids, "Envelope omitted controls")
+        ),
+        "retained_human_control_ids": list(
+            _require_string_tuple(value.retained_human_control_ids, "Envelope retained controls")
+        ),
+    }
+
+
+def _envelope_entry_dict(value: EnvelopeEntry) -> JsonObject:
+    _checked_dataclass(
+        value,
+        EnvelopeEntry,
+        (
+            "action_id",
+            "consequential",
+            "person_required",
+            "mandatory_human_control_ids",
+            "active_hard_veto_ids",
+            "declared_authorities",
+            "evidence_ids",
+            "rule_ids",
+        ),
+    )
+    _require_non_empty_string(value.action_id, "Envelope entry action_id")
+    if type(value.consequential) is not bool or type(value.person_required) is not bool:
+        raise DecisionRecordError("Envelope entry flags must be booleans.")
+    return {
+        "action_id": value.action_id,
+        "active_hard_veto_ids": list(
+            _require_string_tuple(value.active_hard_veto_ids, "Envelope veto IDs")
+        ),
+        "consequential": value.consequential,
+        "declared_authorities": [
+            _envelope_authority_dict(item) for item in value.declared_authorities
+        ],
+        "evidence_ids": list(_require_string_tuple(value.evidence_ids, "Envelope evidence IDs")),
+        "mandatory_human_control_ids": list(
+            _require_string_tuple(value.mandatory_human_control_ids, "Envelope control IDs")
+        ),
+        "person_required": value.person_required,
+        "rule_ids": list(_require_string_tuple(value.rule_ids, "Envelope rule IDs")),
+    }
+
+
+def _assistance_envelope_dict(value: AssistanceEnvelope) -> JsonObject:
+    _checked_dataclass(
+        value, AssistanceEnvelope, ("entries", "human_decision_retained", "replaced_controls")
+    )
+    if type(value.human_decision_retained) is not bool:
+        raise DecisionRecordError("Envelope human_decision_retained must be a boolean.")
+    replaced: list[JsonValue] = []
+    for item in value.replaced_controls:
+        _checked_dataclass(
+            item, ReplacedControl, ("candidate_id", "action_id", "human_control_ids")
+        )
+        replaced.append(
+            {
+                "action_id": _require_non_empty_string(item.action_id, "Replaced control action"),
+                "candidate_id": _require_non_empty_string(
+                    item.candidate_id, "Replaced control candidate"
+                ),
+                "human_control_ids": list(
+                    _require_string_tuple(item.human_control_ids, "Replaced control IDs")
+                ),
+            }
+        )
+    return {
+        "entries": [_envelope_entry_dict(item) for item in value.entries],
+        "human_decision_retained": value.human_decision_retained,
+        "replaced_controls": replaced,
+    }
+
+
 def _identity_payload(
     record: DecisionRecord,
     dossier_payload: JsonObject,
@@ -1164,6 +1421,8 @@ def _identity_payload(
     }
     if record.graph_use is not None:
         payload["graph_use"] = _graph_use_dict(record.graph_use, record.assessment)
+    if record.assistance_envelope is not None:
+        payload["assistance_envelope"] = _assistance_envelope_dict(record.assistance_envelope)
     return payload
 
 
@@ -1188,6 +1447,7 @@ def _validate_record(
         "unresolved_gaps",
         "reassessment_triggers",
         "graph_use",
+        "assistance_envelope",
     )
     _checked_dataclass(record, DecisionRecord, expected_fields)
     if (
@@ -1247,6 +1507,8 @@ def _validate_record(
         raise DecisionRecordError("Decision-record unresolved gaps are inconsistent.")
     if record.reassessment_triggers != _reassessment_triggers(record.dossier):
         raise DecisionRecordError("Decision-record reassessment triggers are inconsistent.")
+    if record.assistance_envelope != derive_assistance_envelope(record.dossier):
+        raise DecisionRecordError("Decision-record assistance envelope is inconsistent.")
     for link in record.evidence_links:
         _evidence_link_dict(link)
     for gap in record.unresolved_gaps:
@@ -1304,6 +1566,7 @@ def compose_decision_record(
         unresolved_gaps=_unresolved_gaps(assessment),
         reassessment_triggers=_reassessment_triggers(dossier),
         graph_use=graph_use,
+        assistance_envelope=derive_assistance_envelope(dossier),
     )
     payload = _validate_record(draft, verify_record_identity=False)
     record = replace(

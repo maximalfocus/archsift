@@ -171,8 +171,28 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "unresolved_gaps",
         "reassessment_triggers",
         "graph_use",
+        "assistance_envelope",
+    ),
+    dr.AssistanceEnvelope: ("entries", "human_decision_retained", "replaced_controls"),
+    dr.EnvelopeAuthority: (
+        "candidate_id",
+        "control_class",
+        "retained_human_control_ids",
+        "omitted_human_control_ids",
+        "evidence_ids",
+    ),
+    dr.EnvelopeEntry: (
+        "action_id",
+        "consequential",
+        "person_required",
+        "mandatory_human_control_ids",
+        "active_hard_veto_ids",
+        "declared_authorities",
+        "evidence_ids",
+        "rule_ids",
     ),
     dr.EvidenceLink: ("evidence_id", "kind", "content_identity", "decision_bearing"),
+    dr.ReplacedControl: ("candidate_id", "action_id", "human_control_ids"),
     dr.GraphEntryReference: ("id", "content_identity"),
     dr.GraphUse: (
         "graph_schema_version",
@@ -545,6 +565,8 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     )
     if record.graph_use is not None:
         _section(lines, "Graph Use", "Graph Use", record.graph_use)
+    if record.assistance_envelope is not None:
+        _section(lines, "Assistance Envelope", "Assistance Envelope", record.assistance_envelope)
 
     _section(lines, "Case Identity", "Case", record.dossier.case)
     _section(lines, "Task Boundary", "Task", record.dossier.task)

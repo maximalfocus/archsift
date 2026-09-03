@@ -21,7 +21,7 @@ from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
 COMPARISON_SCHEMA_VERSION = 4
-_SUPPORTED_RECORD_SCHEMAS = {1, 2, RECORD_SCHEMA_VERSION}
+_SUPPORTED_RECORD_SCHEMAS = {1, 2, 3, RECORD_SCHEMA_VERSION}
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -613,6 +613,70 @@ def _validate_masking_declaration(value: object) -> None:
     _require_text(declaration["warning"], "$.masking.warning")
 
 
+def _validate_assistance_envelope(value: object) -> None:
+    envelope = _require_object(value, "$.assistance_envelope")
+    _require_keys(
+        envelope, {"entries", "human_decision_retained", "replaced_controls"}, "assistance envelope"
+    )
+    if type(envelope["human_decision_retained"]) is not bool:
+        raise ValueError("assistance envelope human_decision_retained is not boolean")
+    for index, raw in enumerate(
+        _require_list(envelope["entries"], "$.assistance_envelope.entries")
+    ):
+        entry = _require_object(raw, f"$.assistance_envelope.entries[{index}]")
+        _require_keys(
+            entry,
+            {
+                "action_id",
+                "active_hard_veto_ids",
+                "consequential",
+                "declared_authorities",
+                "evidence_ids",
+                "mandatory_human_control_ids",
+                "person_required",
+                "rule_ids",
+            },
+            "assistance envelope entry",
+        )
+        _require_text(entry["action_id"], "envelope action id")
+        if type(entry["consequential"]) is not bool or type(entry["person_required"]) is not bool:
+            raise ValueError("assistance envelope entry flags are not boolean")
+        for name in (
+            "active_hard_veto_ids",
+            "evidence_ids",
+            "mandatory_human_control_ids",
+            "rule_ids",
+        ):
+            _require_string_list(entry[name], f"envelope entry {name}")
+        for position, raw_authority in enumerate(
+            _require_list(entry["declared_authorities"], "envelope declared authorities")
+        ):
+            authority = _require_object(raw_authority, f"envelope authority {position}")
+            _require_keys(
+                authority,
+                {
+                    "candidate_id",
+                    "control_class",
+                    "evidence_ids",
+                    "omitted_human_control_ids",
+                    "retained_human_control_ids",
+                },
+                "envelope authority",
+            )
+            _require_text(authority["candidate_id"], "envelope authority candidate")
+            _require_text(authority["control_class"], "envelope authority class")
+            for name in ("evidence_ids", "omitted_human_control_ids", "retained_human_control_ids"):
+                _require_string_list(authority[name], f"envelope authority {name}")
+    for index, raw in enumerate(
+        _require_list(envelope["replaced_controls"], "$.assistance_envelope.replaced_controls")
+    ):
+        item = _require_object(raw, f"$.assistance_envelope.replaced_controls[{index}]")
+        _require_keys(item, {"action_id", "candidate_id", "human_control_ids"}, "replaced control")
+        _require_text(item["action_id"], "replaced control action")
+        _require_text(item["candidate_id"], "replaced control candidate")
+        _require_string_list(item["human_control_ids"], "replaced control ids")
+
+
 def _validate_graph_use(value: object, assessment: dict[str, object]) -> None:
     graph_use = _require_object(value, "$.graph_use")
     _require_keys(
@@ -691,13 +755,19 @@ def _validate_record(record: dict[str, object]) -> None:
     masked = record.get("masking") is not None
     if masked:
         _validate_masking_declaration(record["masking"])
-    optional = ({"masking"} if masked else set()) | (
-        {"graph_use"} if "graph_use" in record else set()
+    optional = (
+        ({"masking"} if masked else set())
+        | ({"graph_use"} if "graph_use" in record else set())
+        | ({"assistance_envelope"} if "assistance_envelope" in record else set())
     )
     _require_keys(record, _RECORD_KEYS | optional, "$")
     record_schema = record["record_schema_version"]
     if type(record_schema) is not int or record_schema not in _SUPPORTED_RECORD_SCHEMAS:
         raise ValueError("record schema version is missing or unsupported")
+    if "assistance_envelope" in record:
+        if record_schema < 4:
+            raise ValueError("assistance envelope requires record schema 4")
+        _validate_assistance_envelope(record["assistance_envelope"])
     record_identity = _require_identity(record["record_content_identity"], "record identity")
     dossier_schema = record["dossier_schema_version"]
     supported_dossiers = {1, 2} if record_schema == 1 else {1, 2, 3, 4, 5}
