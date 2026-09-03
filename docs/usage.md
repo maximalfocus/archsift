@@ -303,7 +303,15 @@ nothing.
 Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
-method specification reference.
+method specification reference and the versioned
+[plain-language vocabulary](vocabulary-v1.0.0.md) under `vocabulary`: the
+flag each finding effect renders as (stop, gap, condition, fit, noted), the
+reader-facing phrase for every verdict, evidence state, option, evidence kind,
+and decision question, the reader-facing message template, consequence, and
+remediation of every rule, and the excluded words no phrase may contain. Human
+mode prints each rule's flag and reader-facing consequence beside its
+identifier. The vocabulary is a rendering input: it never changes a record or
+its identity, and an unmapped term or an excluded word fails closed.
 
 ### `archsift graph-corpus`
 

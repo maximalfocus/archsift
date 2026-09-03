@@ -81,6 +81,13 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
     validate_workspace,
 )
+from archsift.vocabulary import (
+    VOCABULARY_SPECIFICATION,
+    VOCABULARY_VERSION,
+    VocabularyError,
+    rule_phrases,
+    vocabulary_payload,
+)
 from archsift.workspace import InitResult, initialize_workspace
 
 
@@ -1302,6 +1309,10 @@ def _run_graph_corpus(*, json_output: bool, quiet: bool) -> int:
 
 def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
+    try:
+        vocabulary = vocabulary_payload()
+    except VocabularyError as error:  # a packaging defect, never a case defect
+        return _internal_error(error, json_output=json_output, quiet=quiet)
     if quiet:
         return int(ExitCode.SUCCESS)
     if json_output:
@@ -1313,6 +1324,7 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
                 method=method_metadata(),
                 rules=[rule.to_dict() for rule in rules],
                 ruleset_version=RULESET_VERSION,
+                vocabulary=vocabulary,
             ),
             stream=sys.stdout,
         )
@@ -1321,11 +1333,18 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
         f"ArchSift ruleset {RULESET_VERSION} (method {METHOD_VERSION}; {METHOD_SPECIFICATION})",
         stream=sys.stdout,
     )
+    _print(
+        f"Plain-language vocabulary {VOCABULARY_VERSION} ({VOCABULARY_SPECIFICATION}); "
+        "findings read as flags: stop, gap, condition, fit, noted",
+        stream=sys.stdout,
+    )
     for rule in rules:
+        phrases = rule_phrases(rule.id)
         _print(
             f"{rule.id} [{rule.effect.value}; {rule.requirement}] {rule.description} "
             f"Consequence: {rule.consequence} Rationale: {rule.source_rationale} "
-            f"Method: {rule.rationale_id} Sources: {','.join(rule.source_ids)}",
+            f"Method: {rule.rationale_id} Sources: {','.join(rule.source_ids)} "
+            f"Flag: {phrases.flag}. Reads: {phrases.consequence}",
             stream=sys.stdout,
         )
     return int(ExitCode.SUCCESS)
