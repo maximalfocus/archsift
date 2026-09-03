@@ -957,7 +957,7 @@ jobs:
               env=offline_environment,
           )
           emitted_schema = json.loads(schema_output.stdout)
-          assert emitted_schema["properties"]["schema_version"]["const"] == 3
+          assert emitted_schema["properties"]["schema_version"]["const"] == 4
           complete_prerequisites = subprocess.run(
               [
                   archsift,
