@@ -78,6 +78,7 @@ _EXPECTED_ENUM_VALUES: Final[dict[type[Enum], tuple[str, ...]]] = {
     v.EvidenceAuthor: ("accountable-person", "assistant"),
     v.EvidenceArtefactRoot: ("workspace", "external"),
     v.EvidenceKind: ("observed", "assumption", "estimate", "missing"),
+    dr.RemainingChoice: ("assist-or-not", "autonomy-unresolved"),
     v.ElicitationScale: ("ordinal", "categorical"),
     v.TargetKind: ("quantified", "directional", "no-regression"),
     v.HardVetoStatus: ("active", "inactive", "unknown"),
@@ -172,8 +173,19 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "reassessment_triggers",
         "graph_use",
         "assistance_envelope",
+        "abstention_scope",
+    ),
+    dr.AbstentionScope: (
+        "eliminated_classes",
+        "undetermined_classes",
+        "surviving_classes",
+        "assistance_envelope_present",
+        "human_decision_retained",
+        "remaining_choice",
+        "outstanding_gap_rule_ids",
     ),
     dr.AssistanceEnvelope: ("entries", "human_decision_retained", "replaced_controls"),
+    dr.ClassDetermination: ("control_class", "candidate_ids", "rule_ids"),
     dr.EnvelopeAuthority: (
         "candidate_id",
         "control_class",
@@ -567,6 +579,8 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
         _section(lines, "Graph Use", "Graph Use", record.graph_use)
     if record.assistance_envelope is not None:
         _section(lines, "Assistance Envelope", "Assistance Envelope", record.assistance_envelope)
+    if record.abstention_scope is not None:
+        _section(lines, "Abstention Scope", "Abstention Scope", record.abstention_scope)
 
     _section(lines, "Case Identity", "Case", record.dossier.case)
     _section(lines, "Task Boundary", "Task", record.dossier.task)

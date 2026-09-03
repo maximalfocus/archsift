@@ -69,7 +69,7 @@ def test_envelope_states_the_boundary_for_every_task_action(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     workspace, record = _assess(tmp_path, capsys, _load_example(), "retained")
-    assert record["record_schema_version"] == 4
+    assert record["record_schema_version"] == 5
     assert record["assessment"]["verdict"] == "supported"
     envelope = record["assistance_envelope"]
     entries = _entries(record)
@@ -189,7 +189,7 @@ def test_envelope_is_absent_without_bound_controls_or_vetoes(
     _, record = _assess(tmp_path, capsys, dossier, "absent")
 
     assert "assistance_envelope" not in record
-    assert record["record_schema_version"] == 4
+    assert record["record_schema_version"] == 5
     assert build_executive_summary(record).sections[3].title != "Assistance Envelope"
 
 

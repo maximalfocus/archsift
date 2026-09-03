@@ -197,6 +197,8 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
         _section(lines, "Graph Use", "Graph Use", masked["graph_use"])
     if "assistance_envelope" in masked:
         _section(lines, "Assistance Envelope", "Assistance Envelope", masked["assistance_envelope"])
+    if "abstention_scope" in masked:
+        _section(lines, "Abstention Scope", "Abstention Scope", masked["abstention_scope"])
 
     _section(lines, "Case Identity", "Case", dossier["case"])
     _section(lines, "Task Boundary", "Task", dossier["task"])

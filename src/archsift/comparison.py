@@ -21,7 +21,7 @@ from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
 COMPARISON_SCHEMA_VERSION = 4
-_SUPPORTED_RECORD_SCHEMAS = {1, 2, 3, RECORD_SCHEMA_VERSION}
+_SUPPORTED_RECORD_SCHEMAS = {1, 2, 3, 4, RECORD_SCHEMA_VERSION}
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -613,6 +613,41 @@ def _validate_masking_declaration(value: object) -> None:
     _require_text(declaration["warning"], "$.masking.warning")
 
 
+def _validate_abstention_scope(value: object) -> None:
+    scope = _require_object(value, "$.abstention_scope")
+    _require_keys(
+        scope,
+        {
+            "assistance_envelope_present",
+            "eliminated_classes",
+            "human_decision_retained",
+            "outstanding_gap_rule_ids",
+            "remaining_choice",
+            "surviving_classes",
+            "undetermined_classes",
+        },
+        "abstention scope",
+    )
+    if type(scope["assistance_envelope_present"]) is not bool:
+        raise ValueError("abstention scope envelope presence is not boolean")
+    retained = scope["human_decision_retained"]
+    if retained is not None and type(retained) is not bool:
+        raise ValueError("abstention scope human_decision_retained is not boolean or null")
+    if scope["remaining_choice"] not in {"assist-or-not", "autonomy-unresolved"}:
+        raise ValueError("abstention scope remaining_choice is unsupported")
+    _require_string_list(scope["outstanding_gap_rule_ids"], "abstention scope gap rule ids")
+    _require_string_list(scope["surviving_classes"], "abstention scope surviving classes")
+    for name in ("eliminated_classes", "undetermined_classes"):
+        for index, raw in enumerate(_require_list(scope[name], f"$.abstention_scope.{name}")):
+            item = _require_object(raw, f"$.abstention_scope.{name}[{index}]")
+            _require_keys(
+                item, {"candidate_ids", "control_class", "rule_ids"}, "class determination"
+            )
+            _require_text(item["control_class"], "class determination control class")
+            _require_string_list(item["candidate_ids"], "class determination candidate ids")
+            _require_string_list(item["rule_ids"], "class determination rule ids")
+
+
 def _validate_assistance_envelope(value: object) -> None:
     envelope = _require_object(value, "$.assistance_envelope")
     _require_keys(
@@ -759,6 +794,7 @@ def _validate_record(record: dict[str, object]) -> None:
         ({"masking"} if masked else set())
         | ({"graph_use"} if "graph_use" in record else set())
         | ({"assistance_envelope"} if "assistance_envelope" in record else set())
+        | ({"abstention_scope"} if "abstention_scope" in record else set())
     )
     _require_keys(record, _RECORD_KEYS | optional, "$")
     record_schema = record["record_schema_version"]
@@ -768,6 +804,10 @@ def _validate_record(record: dict[str, object]) -> None:
         if record_schema < 4:
             raise ValueError("assistance envelope requires record schema 4")
         _validate_assistance_envelope(record["assistance_envelope"])
+    if "abstention_scope" in record:
+        if record_schema < 5:
+            raise ValueError("abstention scope requires record schema 5")
+        _validate_abstention_scope(record["abstention_scope"])
     record_identity = _require_identity(record["record_content_identity"], "record identity")
     dossier_schema = record["dossier_schema_version"]
     supported_dossiers = {1, 2} if record_schema == 1 else {1, 2, 3, 4, 5}

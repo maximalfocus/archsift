@@ -52,7 +52,7 @@ from archsift.validation import (
     TaskBoundary,
 )
 
-_INCOMPLETE_GOLDEN = Path(__file__).parent / "golden" / "decision-report-incomplete-v4.md"
+_INCOMPLETE_GOLDEN = Path(__file__).parent / "golden" / "decision-report-incomplete-v5.md"
 
 
 def _question(answer: AgencyAnswer = AgencyAnswer.YES) -> AgencyQuestion:
