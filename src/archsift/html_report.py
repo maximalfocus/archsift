@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import re
 from html import escape
-from typing import Final
+from typing import Final, cast
 
 from archsift.canonical import JsonObject, JsonValue
 from archsift.executive_summary import (
@@ -160,6 +160,16 @@ def _section(lines: list[str], title: str, label: str, value: JsonValue) -> None
     _emit_field(lines, label, value)
 
 
+def _recorded_context_ids(masked: JsonObject) -> list[JsonValue]:
+    """Return the evidence IDs the record marks as recorded context (schema 3+)."""
+    links = cast(dict[str, JsonValue], masked["evidence_links"])
+    return [
+        identifier
+        for identifier, link in sorted(links.items())
+        if cast(dict[str, JsonValue], link).get("decision_bearing") is False
+    ]
+
+
 def render_detailed_html_report(record: JsonObject) -> bytes:
     """Return one deterministic self-contained detailed HTML report.
 
@@ -223,6 +233,9 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     )
 
     _section(lines, "Evidence Identities", "Evidence Links", masked["evidence_links"])
+    if cast(int, masked["record_schema_version"]) >= 3:
+        lines.append("<h2>Recorded Context</h2>")
+        _emit_field(lines, "Recorded Context Evidence IDs", _recorded_context_ids(masked))
     _section(lines, "Artefact Identities", "Artefact Links", masked["artefact_links"])
     _section(lines, "Unresolved Gaps", "Unresolved Gaps", masked["unresolved_gaps"])
     _section(

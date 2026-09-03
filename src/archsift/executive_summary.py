@@ -306,8 +306,25 @@ def _evidence_section(record: JsonObject, dossier: JsonObject) -> SummarySection
     points = [
         SummaryPoint(kind.title(), (str(counts[kind]),), derived=True) for kind in _EVIDENCE_KINDS
     ]
+    links = require_object(record["evidence_links"], "$.evidence_links")
     gaps = 0
     for entry in evidence:
+        identifier = _text(entry["id"], "$.dossier.evidence[].id")
+        link = links.get(identifier)
+        # Records before schema 3 carry no citation marker; every entry counted then.
+        bearing = (
+            require_object(link, f"$.evidence_links.{identifier}").get("decision_bearing", True)
+            if link is not None
+            else True
+        )
+        if bearing is not True:
+            points.append(
+                SummaryPoint(
+                    "Recorded Context",
+                    (identifier, _text(entry["claim"], "$.dossier.evidence[].claim")),
+                )
+            )
+            continue
         if entry["kind"] != "missing":
             continue
         gaps += 1
@@ -315,7 +332,7 @@ def _evidence_section(record: JsonObject, dossier: JsonObject) -> SummarySection
             SummaryPoint(
                 "Material Gap",
                 (
-                    _text(entry["id"], "$.dossier.evidence[].id"),
+                    identifier,
                     _text(entry["claim"], "$.dossier.evidence[].claim"),
                     _text(entry["resolved_by"], "$.dossier.evidence[].resolved_by"),
                 ),

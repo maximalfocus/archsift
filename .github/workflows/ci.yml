@@ -1058,7 +1058,7 @@ jobs:
               env=offline_environment,
           )
           registered_record = json.loads(registered_assessment.stdout)
-          assert registered_record["record_schema_version"] == 2
+          assert registered_record["record_schema_version"] == 3
           assert registered_record["dossier_schema_version"] == 3
           assert registered_record["artefact_links"][0]["registration_id"] == (
               "installed-document"

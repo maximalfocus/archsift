@@ -170,7 +170,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "reassessment_triggers",
         "graph_use",
     ),
-    dr.EvidenceLink: ("evidence_id", "kind", "content_identity"),
+    dr.EvidenceLink: ("evidence_id", "kind", "content_identity", "decision_bearing"),
     dr.GraphEntryReference: ("id", "content_identity"),
     dr.GraphUse: (
         "graph_schema_version",
@@ -193,7 +193,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "evidence_ids",
         "counterpart",
     ),
-    dr.ReassessmentTrigger: ("evidence_id", "kind", "observation"),
+    dr.ReassessmentTrigger: ("evidence_id", "kind", "observation", "decision_bearing"),
     r.AssessmentPrerequisiteEvaluation: ("ruleset_version", "ready", "findings"),
     r.AssessmentPrerequisiteFinding: (
         "rule_id",
@@ -611,6 +611,12 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     )
 
     _section(lines, "Evidence Identities", "Evidence Links", record.evidence_links)
+    lines.extend(("## Recorded Context", ""))
+    _emit_value(
+        lines,
+        "Recorded Context Evidence IDs",
+        tuple(link.evidence_id for link in record.evidence_links if not link.decision_bearing),
+    )
     _section(lines, "Artefact Identities", "Artefact Links", record.artefact_links)
     _section(lines, "Unresolved Gaps", "Unresolved Gaps", record.unresolved_gaps)
     _section(

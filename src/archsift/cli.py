@@ -324,6 +324,7 @@ def _emit(
     quiet: bool,
     success_message: str,
     details: dict[str, object],
+    advisories: tuple[Diagnostic, ...] = (),
 ) -> None:
     if quiet:
         return
@@ -335,6 +336,10 @@ def _emit(
             _print(diagnostic.render(), stream=sys.stderr)
     else:
         _print(success_message, stream=sys.stdout)
+        # Advisories are distinct from failures: they follow the success line
+        # on stdout and never change the exit status (FR-012).
+        for advisory in advisories:
+            _print(f"advisory: {advisory.render()}", stream=sys.stdout)
 
 
 def _internal_error(error: Exception, *, json_output: bool, quiet: bool) -> int:
@@ -433,6 +438,7 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details["ruleset_version"] = prerequisites.ruleset_version
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None
+    details["advisories"] = [advisory.to_dict() for advisory in result.advisories]
     _emit(
         status=status,
         exit_code=result.exit_code,
@@ -441,6 +447,7 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         quiet=quiet,
         success_message="Valid ArchSift dossier: case.yaml (schema 1)",
         details=details,
+        advisories=result.advisories,
     )
     return int(result.exit_code)
 

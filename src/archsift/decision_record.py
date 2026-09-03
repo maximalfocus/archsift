@@ -50,7 +50,7 @@ from archsift.validation import (
     MissingEvidence,
 )
 
-RECORD_SCHEMA_VERSION = 2
+RECORD_SCHEMA_VERSION = 3
 CONFIGURATION_SCHEMA_VERSION = 1
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
@@ -93,6 +93,7 @@ class EvidenceLink:
     evidence_id: str
     kind: EvidenceKind
     content_identity: str
+    decision_bearing: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,11 +156,16 @@ UnresolvedGap: TypeAlias = PrerequisiteGap | DecisionGap
 
 @dataclass(frozen=True, slots=True)
 class ReassessmentTrigger:
-    """One authored schema-v1 observation that can trigger reassessment."""
+    """One authored observation that can trigger reassessment.
+
+    A trigger for recorded context (an entry no decision field cites) is kept
+    visible but is not presented as blocking (FR-004).
+    """
 
     evidence_id: str
     kind: EvidenceKind
     observation: str
+    decision_bearing: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -549,11 +555,16 @@ def assessment_configuration_content_identity(value: AssessmentConfiguration) ->
 
 
 def _evidence_link_dict(value: EvidenceLink) -> JsonObject:
-    _checked_dataclass(value, EvidenceLink, ("evidence_id", "kind", "content_identity"))
+    _checked_dataclass(
+        value, EvidenceLink, ("evidence_id", "kind", "content_identity", "decision_bearing")
+    )
     _require_non_empty_string(value.evidence_id, "Evidence-link evidence_id")
     _require_content_identity(value.content_identity, "Evidence-link content_identity")
+    if type(value.decision_bearing) is not bool:
+        raise DecisionRecordError("Evidence-link decision_bearing must be a boolean.")
     return {
         "content_identity": value.content_identity,
+        "decision_bearing": value.decision_bearing,
         "evidence_id": value.evidence_id,
         "kind": _enum_value(
             value.kind,
@@ -907,10 +918,12 @@ def _trigger_dict(value: ReassessmentTrigger) -> JsonObject:
     _checked_dataclass(
         value,
         ReassessmentTrigger,
-        ("evidence_id", "kind", "observation"),
+        ("evidence_id", "kind", "observation", "decision_bearing"),
     )
     _require_string(value.evidence_id, "Reassessment-trigger evidence_id")
     _require_string(value.observation, "Reassessment-trigger observation")
+    if type(value.decision_bearing) is not bool:
+        raise DecisionRecordError("Reassessment-trigger decision_bearing must be a boolean.")
     kind = _enum_value(
         value.kind,
         EvidenceKind,
@@ -919,6 +932,7 @@ def _trigger_dict(value: ReassessmentTrigger) -> JsonObject:
     if value.kind not in {EvidenceKind.ASSUMPTION, EvidenceKind.MISSING}:
         raise DecisionRecordError("Unsupported evidence kind for a reassessment trigger.")
     return {
+        "decision_bearing": value.decision_bearing,
         "evidence_id": value.evidence_id,
         "kind": kind,
         "observation": value.observation,
@@ -964,7 +978,20 @@ def _unresolved_gaps(assessment: AssessmentEvaluation) -> tuple[UnresolvedGap, .
     return (*prerequisite_gaps, *decision_gaps)
 
 
+def decision_bearing_evidence_ids(dossier: Dossier) -> frozenset[str]:
+    """Return the evidence IDs that at least one decision field cites (FR-004).
+
+    Citations are collected from every dossier field outside the ledger itself,
+    so the set is exhaustive over the schema by construction.
+    """
+    payload = {
+        key: value for key, value in canonical_dossier_dict(dossier).items() if key != "evidence"
+    }
+    return frozenset(_collect_evidence_citations(payload))
+
+
 def _reassessment_triggers(dossier: Dossier) -> tuple[ReassessmentTrigger, ...]:
+    cited = decision_bearing_evidence_ids(dossier)
     triggers: list[ReassessmentTrigger] = []
     for entry in sorted(dossier.evidence, key=lambda item: item.id):
         if type(entry) is AssumptionEvidence:
@@ -973,6 +1000,7 @@ def _reassessment_triggers(dossier: Dossier) -> tuple[ReassessmentTrigger, ...]:
                     evidence_id=entry.id,
                     kind=EvidenceKind.ASSUMPTION,
                     observation=entry.falsified_by,
+                    decision_bearing=entry.id in cited,
                 )
             )
         elif type(entry) is MissingEvidence:
@@ -981,6 +1009,7 @@ def _reassessment_triggers(dossier: Dossier) -> tuple[ReassessmentTrigger, ...]:
                     evidence_id=entry.id,
                     kind=EvidenceKind.MISSING,
                     observation=entry.resolved_by,
+                    decision_bearing=entry.id in cited,
                 )
             )
     return tuple(triggers)
@@ -1020,11 +1049,13 @@ def _validate_resolved_citations(
 def _expected_evidence_links(dossier: Dossier) -> tuple[EvidenceLink, ...]:
     identities = evidence_content_identities(dossier)
     entries = {entry.id: entry for entry in dossier.evidence}
+    cited = decision_bearing_evidence_ids(dossier)
     return tuple(
         EvidenceLink(
             evidence_id=identifier,
             kind=entries[identifier].kind,
             content_identity=identity,
+            decision_bearing=identifier in cited,
         )
         for identifier, identity in identities.items()
     )

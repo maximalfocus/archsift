@@ -173,7 +173,7 @@ agency_necessity:
     - id: evidence-dependent-follow-up
       description: A submitted record introduces an unanticipated evidence gap.
       fixed_workflow_failure: The next approved retrieval step cannot be selected in advance.
-      evidence_ids: [workflow-estimate]
+      evidence_ids: [workflow-estimate, exception-gap]
 ```
 
 An `agentic-control` candidate survives the agency rules only when credible structured evidence says a fixed workflow is insufficient, at least one residual case demonstrates that insufficiency, runtime tool choice or runtime replanning is required, and environmental feedback is available. A sufficient fixed workflow, no need for either runtime adaptation, or unavailable feedback blocks agentic control. Unknown or assumption-only required facts leave it undetermined.
@@ -356,7 +356,7 @@ agency_necessity:
     - id: evidence-dependent-follow-up
       description: A submitted record introduces an unanticipated evidence gap.
       fixed_workflow_failure: The next approved retrieval step cannot be selected in advance.
-      evidence_ids: [workflow-estimate]
+      evidence_ids: [workflow-estimate, exception-gap]
 ```
 
 The sanitised agency block above is coherent: `fixed_workflow_sufficient` is `no` and the residual case records the failure. Recording `fixed_workflow_sufficient: yes` together with `runtime_tool_choice_required: yes` or with this residual case would be a contradiction. Likewise, give `authority` only to deterministic-automation, fixed-AI-workflow, or agentic-control candidates, and keep both directions of every pairwise dimension reciprocal. ArchSift checks only these enumerated structured invariants; it does not prove external truth or arbitrary prose consistency.
