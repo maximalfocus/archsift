@@ -12,7 +12,7 @@
 
 **Record Content Identity**
 
-    sha256:bf1c9811b516f0bdc94b1b0cdd8c456ca2f44ecb29c7eec111f0f21cfeb7228a
+    sha256:25551422fd9a664342a859837f5eb9fc5d0d31baa2c5be218fc7bfa6968dfc65
 
 **Dossier Schema Version**
 
@@ -28,7 +28,7 @@
 
 **Ruleset Version**
 
-    1.10.0
+    1.11.0
 
 **Tool Version**
 
@@ -112,7 +112,7 @@
 
 **Assessment Ruleset Version**
 
-    1.10.0
+    1.11.0
 
 **Verdict**
 
@@ -152,7 +152,7 @@
 
 **Ruleset Version**
 
-    1.10.0
+    1.11.0
 
 **Ready**
 
@@ -354,7 +354,7 @@
 
 **Ruleset Version**
 
-    1.10.0
+    1.11.0
 
 **Candidates**
 

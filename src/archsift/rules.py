@@ -7,6 +7,9 @@ from enum import StrEnum
 
 from archsift.method import get_method_reference, validate_method_catalog
 from archsift.validation import (
+    Candidate,
+    CandidateRole,
+    CandidateTestResult,
     Dossier,
     PrerequisiteFinding,
     evaluate_agency_necessity_readiness,
@@ -16,7 +19,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.10.0"
+RULESET_VERSION = "1.11.0"
 
 
 class RuleEffect(StrEnum):
@@ -325,6 +328,15 @@ PREREQUISITE_RULES = tuple(
                 "FR-008",
                 "Require a known result for every pairwise trade-off dimension.",
                 "An unknown trade-off leaves comparative fit undetermined.",
+            ),
+            _rule(
+                "non-discriminating-binding-set",
+                "FR-008/FR-010",
+                "Require the binding set to distinguish represented candidates or establish "
+                "why the current baseline should change.",
+                "Candidate ordering cannot substitute for a decision-bearing difference, and "
+                "retaining the current baseline must be an authored decision rather than a "
+                "default.",
             ),
             _rule(
                 "problem-value-missing",
@@ -747,6 +759,111 @@ def _assessment_finding(
     )
 
 
+def _non_discriminating_binding_finding(
+    dossier: Dossier,
+) -> AssessmentPrerequisiteFinding | None:
+    problem = dossier.problem_value
+    comparison = dossier.candidate_comparison
+    if problem is None or comparison is None or not comparison.candidates:
+        return None
+
+    binding_outcomes = tuple(sorted(item.id for item in problem.outcomes if item.binding))
+    binding_constraints = tuple(sorted(item.id for item in problem.constraints if item.binding))
+    if not binding_outcomes:
+        return None
+
+    current = next(
+        (
+            candidate
+            for candidate in comparison.candidates
+            if CandidateRole.CURRENT_BASELINE in candidate.roles
+        ),
+        None,
+    )
+    if current is None:
+        return None
+
+    def outcome_results(candidate: Candidate) -> dict[str, CandidateTestResult]:
+        return {test.outcome_id: test.result for test in candidate.outcome_tests}
+
+    def constraint_results(candidate: Candidate) -> dict[str, CandidateTestResult]:
+        return {test.constraint_id: test.result for test in candidate.constraint_tests}
+
+    all_candidates_meet = all(
+        all(
+            outcome_results(candidate).get(identifier) is CandidateTestResult.MEETS
+            for identifier in binding_outcomes
+        )
+        and all(
+            constraint_results(candidate).get(identifier) is CandidateTestResult.MEETS
+            for identifier in binding_constraints
+        )
+        for candidate in comparison.candidates
+    )
+    current_outcomes = outcome_results(current)
+    current_baseline_fails = any(
+        current_outcomes.get(identifier) is CandidateTestResult.FAILS
+        for identifier in binding_outcomes
+    )
+    if not all_candidates_meet and current_baseline_fails:
+        return None
+
+    binding_outcome_text = ", ".join(binding_outcomes)
+    binding_constraint_text = ", ".join(binding_constraints) or "none"
+    reasons: list[str] = []
+    if all_candidates_meet:
+        reasons.append(
+            "all represented candidates meet binding outcomes "
+            f"[{binding_outcome_text}] and binding constraints [{binding_constraint_text}]"
+        )
+    if not current_baseline_fails:
+        reasons.append(
+            f"current baseline {current.id!r} fails no binding outcome [{binding_outcome_text}]"
+        )
+
+    non_binding_outcomes = tuple(sorted(item.id for item in problem.outcomes if not item.binding))
+    promotion_candidates = ", ".join(non_binding_outcomes) or "none recorded"
+    evidence_ids = tuple(
+        sorted(
+            {identifier for item in problem.outcomes for identifier in item.evidence_ids}
+            | {identifier for item in problem.constraints for identifier in item.evidence_ids}
+            | set(problem.material_pain.evidence_ids)
+            | {
+                identifier
+                for candidate in comparison.candidates
+                for test in candidate.outcome_tests
+                for identifier in test.evidence_ids
+            }
+            | {
+                identifier
+                for candidate in comparison.candidates
+                for test in candidate.constraint_tests
+                for identifier in test.evidence_ids
+            }
+        )
+    )
+    rule = get_rule_definition("non-discriminating-binding-set")
+    return AssessmentPrerequisiteFinding(
+        rule_id=rule.id,
+        field="$.problem_value.outcomes",
+        requirement=rule.requirement,
+        effect=rule.effect,
+        message="The binding set cannot distinguish a selection: " + "; ".join(reasons) + ".",
+        consequence=rule.consequence,
+        remediation=(
+            "Record a credible binding outcome that the current baseline fails, or promote a "
+            f"decision-bearing requirement from non-binding outcomes [{promotion_candidates}] "
+            "or the recorded material pain at $.problem_value.material_pain."
+        ),
+        evidence_ids=evidence_ids,
+        counterpart=(
+            f"binding outcomes: {binding_outcome_text}; binding constraints: "
+            f"{binding_constraint_text}; non-binding outcomes: {promotion_candidates}; "
+            "material pain: $.problem_value.material_pain"
+        ),
+    )
+
+
 def evaluate_assessment_prerequisites(
     dossier: Dossier,
     comparison_unknown_classifications: tuple[ComparisonUnknownClassification, ...] = (),
@@ -773,6 +890,10 @@ def evaluate_assessment_prerequisites(
         for classification in comparison_unknown_classifications
     }
     findings = tuple(_assessment_finding(source, classifications) for source in source_findings)
+    if all(finding.effect is RuleEffect.NON_DECISIVE for finding in findings):
+        non_discriminating = _non_discriminating_binding_finding(dossier)
+        if non_discriminating is not None:
+            findings = (*findings, non_discriminating)
     return AssessmentPrerequisiteEvaluation(
         ruleset_version=RULESET_VERSION,
         ready=all(finding.effect is RuleEffect.NON_DECISIVE for finding in findings),
