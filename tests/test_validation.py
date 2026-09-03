@@ -1262,16 +1262,26 @@ def test_validate_success_json_reports_evidence_count(
                 "field": "$.evidence[0]",
                 "file": "case.yaml",
                 "id": "uncited-evidence-entry",
-                "message": "Evidence entry 'evidence-1' is recorded context: no decision field cites it.",
-                "remediation": "Cite the entry from the decision field it supports, or remove it; it does not affect the verdict.",
+                "message": (
+                    "Evidence entry 'evidence-1' is recorded context: no decision field cites it."
+                ),
+                "remediation": (
+                    "Cite the entry from the decision field it supports, or remove it; "
+                    "it does not affect the verdict."
+                ),
                 "requirement": "FR-004",
             },
             {
                 "field": "$.evidence[1]",
                 "file": "case.yaml",
                 "id": "uncited-evidence-entry",
-                "message": "Evidence entry 'gap' is recorded context: no decision field cites it.",
-                "remediation": "Cite the entry from the decision field it supports, or remove it; it does not affect the verdict.",
+                "message": (
+                    "Evidence entry 'gap' is recorded context: no decision field cites it."
+                ),
+                "remediation": (
+                    "Cite the entry from the decision field it supports, or remove it; "
+                    "it does not affect the verdict."
+                ),
                 "requirement": "FR-004",
             },
         ],
