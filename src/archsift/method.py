@@ -6,9 +6,9 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from types import MappingProxyType
 
-METHOD_VERSION = "1.6.0"
-METHOD_RULESET_VERSION = "1.12.0"
-METHOD_SPECIFICATION = "docs/method-v1.6.0.md"
+METHOD_VERSION = "1.7.0"
+METHOD_RULESET_VERSION = "1.13.0"
+METHOD_SPECIFICATION = "docs/method-v1.7.0.md"
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +172,7 @@ _RULE_GROUPS: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
             "credible-authority-evidence-missing",
             "credible-autonomy-evidence-missing",
             "credible-baseline-missing",
+            "elicited-baseline-quantified-target",
             "credible-candidate-test-evidence-missing",
             "credible-comparison-evidence-missing",
             "credible-hard-veto-evidence-missing",

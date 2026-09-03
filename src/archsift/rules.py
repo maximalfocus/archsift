@@ -19,7 +19,7 @@ from archsift.validation import (
     evaluate_problem_value_readiness,
 )
 
-RULESET_VERSION = "1.12.0"
+RULESET_VERSION = "1.13.0"
 
 
 class RuleEffect(StrEnum):
@@ -309,6 +309,14 @@ PREREQUISITE_RULES = tuple(
                 "Require eligible credible support for the authored strongest-simpler boundary.",
                 "An assumption, known gap, or unattested assistant claim cannot justify the "
                 "selected simpler alternative.",
+            ),
+            _rule(
+                "elicited-baseline-quantified-target",
+                "FR-005",
+                "Refuse an elicited baseline for an outcome whose target is quantified or "
+                "undeclared.",
+                "An ordinal or categorical elicitation records a judgement, not a measurement, "
+                "and cannot support a numeric claim.",
             ),
             _rule(
                 "fixed-workflow-residual-contradiction",

@@ -10,7 +10,7 @@ This guide covers installation, the complete command surface, the case workspace
 and dossier, decision-record outputs (including report rendering and
 sensitive-value masking), comparison and reassessment, and published knowledge-graph
 corpus inspection, snapshot validation, and governed evolution. The
-[versioned method specification](method-v1.6.0.md)
+[versioned method specification](method-v1.7.0.md)
 defines the decision constitution and rule rationale; the
 [stable exit-code contract](exit-codes.md) defines every command's exit codes.
 
@@ -103,7 +103,7 @@ of a failure a rule requires.
 A valid but incomplete dossier validates successfully; the assessment may then
 abstain with `insufficient-evidence`.
 
-### `archsift dossier-schema` [`--schema-version` 1|2|3|4]
+### `archsift dossier-schema` [`--schema-version` 1|2|3|4|5]
 
 Emits one complete packaged dossier JSON Schema. The default is the latest
 supported version, currently 3; `--schema-version` selects an earlier supported
@@ -291,7 +291,7 @@ method specification reference.
 ### `archsift graph-corpus`
 
 Reports the exact identity and typed inventory of the wheel-packaged
-[current architecture knowledge publication](architecture-knowledge-v4.md).
+[current architecture knowledge publication](architecture-knowledge-v5.md).
 `--json` emits the exact canonical snapshot bytes, suitable for explicit shell
 redirection into a file consumed by `graph-snapshot`, `graph-view`, or paired
 graph-supported assessment. `--quiet` emits nothing. The command validates the

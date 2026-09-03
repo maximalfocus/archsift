@@ -850,7 +850,7 @@ def test_validate_json_reports_consistency_unready_with_a_contradiction(
     assert contradictory["prerequisite_finding_count"] == 5
     assert coherent["consistency_ready"] is True
     assert coherent["prerequisite_finding_count"] == 4
-    assert contradictory["ruleset_version"] == coherent["ruleset_version"] == "1.12.0"
+    assert contradictory["ruleset_version"] == coherent["ruleset_version"] == "1.13.0"
 
 
 def test_contradiction_findings_flow_into_records_reports_and_rule_output() -> None:
