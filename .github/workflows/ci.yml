@@ -252,7 +252,7 @@ jobs:
           assert all(rule["source_ids"] for rule in rules_payload["rules"])
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 8
-          assert effects.count("require-evidence") == 44
+          assert effects.count("require-evidence") == 45
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 3
