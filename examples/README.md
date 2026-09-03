@@ -6,7 +6,7 @@ other workspace.
 
 | Workspace | Expected verdict | Expected class | Evidence state |
 | --- | --- | --- | --- |
-| [No technology change](no-technology-change/) | `no-technology-change` | `human-owned-work` | `evidence-complete` |
+| [No technology change](no-technology-change/) | `no-technology-change` | `process-redesign` | `evidence-complete` |
 | [Fixed workflow](fixed-workflow/) | `supported` | `fixed-ai-workflow` | `evidence-complete` |
 | [Agentic control](agentic-control/) | `supported` | `agentic-control` | `evidence-complete` |
 | [Insufficient evidence](insufficient-evidence/) | `insufficient-evidence` | none | `evidence-incomplete` |

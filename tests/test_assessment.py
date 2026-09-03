@@ -439,7 +439,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.10.0"
+    assert RULESET_VERSION == "1.11.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),
@@ -721,10 +721,100 @@ def test_complete_elimination_is_no_permissible_candidate() -> None:
     assert all(finding.evidence_ids == ("decision-observed",) for finding in blocking)
 
 
+def test_all_candidates_passing_the_binding_set_abstains_before_selection() -> None:
+    problem = replace(
+        _problem(),
+        outcomes=(
+            *_problem().outcomes,
+            ProblemOutcome(
+                "preferred-speed",
+                "Reduce handling time when practical.",
+                "Median minutes",
+                "At most 8",
+                "current-quality",
+                False,
+                ("decision-observed",),
+            ),
+        ),
+        material_pain=EvidencedStatement("Synthetic review delay.", ("decision-observed",)),
+    )
+    human = _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS)
+    process = _candidate("process", ControlClass.PROCESS_REDESIGN, CandidateTestResult.MEETS)
+    non_binding_test = CandidateOutcomeTest(
+        "preferred-speed",
+        CandidateTestResult.MEETS,
+        "Synthetic non-binding context.",
+        ("decision-observed",),
+    )
+    dossier = _ready_dossier(
+        replace(human, outcome_tests=(*human.outcome_tests, non_binding_test)),
+        replace(process, outcome_tests=(*process.outcome_tests, non_binding_test)),
+        current_id="human",
+        proposed_id="human",
+        strongest_id=None,
+    )
+    dossier = replace(dossier, problem_value=problem)
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert evaluation.recommended_class is None
+    assert evaluation.ordered_elimination_evaluation.least_surviving_class is (
+        ControlClass.HUMAN_OWNED_WORK
+    )
+    finding = evaluation.prerequisite_evaluation.findings[-1]
+    assert finding.rule_id == "non-discriminating-binding-set"
+    assert finding.effect is RuleEffect.REQUIRE_EVIDENCE
+    assert finding.field == "$.problem_value.outcomes"
+    assert finding.evidence_ids == ("decision-observed",)
+    assert "all represented candidates meet" in finding.message
+    assert "required-quality" in finding.message
+    assert "approval-required" in finding.message
+    assert "preferred-speed" in finding.remediation
+    assert "$.problem_value.material_pain" in finding.remediation
+
+
+def test_current_baseline_without_a_binding_failure_abstains_even_when_an_option_fails() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.FAILS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    finding = evaluation.prerequisite_evaluation.findings[-1]
+    assert finding.rule_id == "non-discriminating-binding-set"
+    assert "current baseline 'human' fails no binding outcome" in finding.message
+    assert "all represented candidates meet" not in finding.message
+
+
+def test_credible_current_baseline_failure_keeps_a_discriminating_verdict() -> None:
+    dossier = _ready_dossier(
+        _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.FAILS),
+        _candidate("fixed", ControlClass.FIXED_AI_WORKFLOW, CandidateTestResult.MEETS),
+        current_id="human",
+        proposed_id="fixed",
+        strongest_id="human",
+    )
+
+    evaluation = evaluate_assessment(dossier)
+
+    assert evaluation.prerequisite_evaluation.ready is True
+    assert not any(
+        finding.rule_id == "non-discriminating-binding-set"
+        for finding in evaluation.prerequisite_evaluation.findings
+    )
+    assert evaluation.verdict is ArchitectureVerdict.SUPPORTED
+    assert evaluation.recommended_class is ControlClass.FIXED_AI_WORKFLOW
+
+
 @pytest.mark.parametrize(
     ("selected_class", "expected_verdict"),
     [
-        (ControlClass.HUMAN_OWNED_WORK, ArchitectureVerdict.NO_TECHNOLOGY_CHANGE),
         (ControlClass.PROCESS_REDESIGN, ArchitectureVerdict.NO_TECHNOLOGY_CHANGE),
         (ControlClass.DETERMINISTIC_AUTOMATION, ArchitectureVerdict.SUPPORTED),
         (ControlClass.FIXED_AI_WORKFLOW, ArchitectureVerdict.SUPPORTED),
@@ -1169,7 +1259,7 @@ def test_agency_support_cannot_override_binding_candidate_failure() -> None:
     assert evaluation.verdict is ArchitectureVerdict.NO_PERMISSIBLE_CANDIDATE
 
 
-def test_lower_class_survivor_prevents_promotion_to_supported_agentic_control() -> None:
+def test_non_discriminating_lower_class_survivor_abstains_before_agentic_promotion() -> None:
     dossier = _ready_dossier(
         _candidate("human", ControlClass.HUMAN_OWNED_WORK, CandidateTestResult.MEETS),
         _candidate("agentic", ControlClass.AGENTIC_CONTROL, CandidateTestResult.MEETS),
@@ -1181,9 +1271,12 @@ def test_lower_class_survivor_prevents_promotion_to_supported_agentic_control() 
     evaluation = evaluate_assessment(dossier)
 
     assert _agentic_result(evaluation).disposition is CandidateDisposition.SURVIVES
-    assert evaluation.recommended_class is ControlClass.HUMAN_OWNED_WORK
-    assert evaluation.verdict is ArchitectureVerdict.NO_TECHNOLOGY_CHANGE
-    assert evaluation.surviving_candidate_ids == ("human",)
+    assert evaluation.recommended_class is None
+    assert evaluation.verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE
+    assert evaluation.prerequisite_evaluation.findings[-1].rule_id == (
+        "non-discriminating-binding-set"
+    )
+    assert evaluation.surviving_candidate_ids == ()
 
 
 def test_adverse_agency_facts_do_not_apply_to_simpler_candidates() -> None:
@@ -1251,7 +1344,7 @@ def _condition(
 
 @pytest.mark.parametrize(
     "selected_class",
-    [ControlClass.HUMAN_OWNED_WORK, ControlClass.FIXED_AI_WORKFLOW],
+    [ControlClass.FIXED_AI_WORKFLOW],
 )
 def test_matching_unmet_conditions_resolve_conditional_after_class_selection(
     selected_class: ControlClass,

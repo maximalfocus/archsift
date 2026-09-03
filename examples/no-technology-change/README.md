@@ -1,8 +1,12 @@
 # No technology change
 
-This fictional case shows that the human-owned process already meets the binding outcome and
-constraint. The expected result is `no-technology-change`, class `human-owned-work`, with
-`evidence-complete`. In the trace, `binding-outcome-met` cites `decision-observed`.
+This fictional case shows a current human procedure that misses the binding quality outcome and a
+reorganised intake, still human executed, that meets it. The expected result is
+`no-technology-change`, class `process-redesign`, with `evidence-complete`. In the trace,
+`binding-outcome-met` cites `decision-observed` for the redesigned intake, and `binding-outcome-failed`
+cites it for the current procedure. Because the current baseline credibly fails a binding outcome, the
+binding set discriminates between the candidates and the `non-discriminating-binding-set` prerequisite
+does not apply.
 
 From the repository root:
 
