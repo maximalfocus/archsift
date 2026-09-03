@@ -45,7 +45,7 @@ def test_dossier_schema_defaults_latest_and_supports_human_and_quiet_modes(
 ) -> None:
     assert main(["dossier-schema"]) == 0
     human = capsys.readouterr().out
-    assert human.startswith("Dossier schema 4: sha256:")
+    assert human.startswith("Dossier schema 5: sha256:")
     assert "top-level properties" in human and "definitions" in human
 
     assert main(["dossier-schema", "--quiet"]) == 0

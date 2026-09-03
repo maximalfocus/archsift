@@ -164,6 +164,7 @@ jobs:
           assert "archsift/docs/architecture-knowledge-v2.md" in names
           assert "archsift/docs/architecture-knowledge-v3.md" in names
           assert "archsift/docs/architecture-knowledge-v4.md" in names
+          assert "archsift/docs/architecture-knowledge-v5.md" in names
           assert "archsift/docs/authoring-check-v1.md" in names
           assert "archsift/docs/authoring-check-v1.0.1.md" in names
           assert "archsift/docs/graph-change-v1.md" in names
@@ -173,8 +174,9 @@ jobs:
           assert "archsift/docs/method-v1.2.0.md" in names
           assert "archsift/docs/method-v1.3.0.md" in names
           assert "archsift/docs/method-v1.4.0.md" in names
+          assert "archsift/docs/method-v1.5.0.md" in names
           assert "archsift/docs/method-v1.6.0.md" in names
-          assert "archsift/docs/method-v1.6.0.md" in names
+          assert "archsift/docs/method-v1.7.0.md" in names
           assert "archsift/docs/method-review-v1.md" in names
           assert "archsift/docs/usability-check-v1.md" in names
           assert "archsift/docs/usage.md" in names
@@ -182,6 +184,7 @@ jobs:
           assert "archsift/schemas/dossier-v2.schema.json" in names
           assert "archsift/schemas/dossier-v3.schema.json" in names
           assert "archsift/schemas/dossier-v4.schema.json" in names
+          assert "archsift/schemas/dossier-v5.schema.json" in names
           assert "archsift/schemas/authoring-results-v1.schema.json" in names
           assert "archsift/schemas/graph-change-v1.schema.json" in names
           assert "archsift/schemas/graph-snapshot-v1.schema.json" in names
@@ -245,17 +248,17 @@ jobs:
           )
           assert first_rules.stdout == second_rules.stdout
           rules_payload = json.loads(first_rules.stdout)
-          assert rules_payload["ruleset_version"] == "1.12.0"
-          assert rules_payload["method"]["version"] == "1.6.0"
-          assert rules_payload["method"]["ruleset_version"] == "1.12.0"
-          assert rules_payload["method"]["specification"] == "docs/method-v1.6.0.md"
+          assert rules_payload["ruleset_version"] == "1.13.0"
+          assert rules_payload["method"]["version"] == "1.7.0"
+          assert rules_payload["method"]["ruleset_version"] == "1.13.0"
+          assert rules_payload["method"]["specification"] == "docs/method-v1.7.0.md"
           assert len(rules_payload["method"]["sources"]) == 6
-          assert len(rules_payload["rules"]) == 68
-          assert all(rule["rationale_id"].startswith("method-v1.6.0#") for rule in rules_payload["rules"])
+          assert len(rules_payload["rules"]) == 69
+          assert all(rule["rationale_id"].startswith("method-v1.7.0#") for rule in rules_payload["rules"])
           assert all(rule["source_ids"] for rule in rules_payload["rules"])
           effects = [rule["effect"] for rule in rules_payload["rules"]]
           assert effects.count("block") == 8
-          assert effects.count("require-evidence") == 46
+          assert effects.count("require-evidence") == 47
           assert effects.count("support-candidate") == 10
           assert effects.count("constrain-autonomy") == 1
           assert effects.count("non-decisive") == 3
@@ -266,21 +269,21 @@ jobs:
           )
           corpus_payload = json.loads(corpus.stdout)
           assert corpus_payload["graph_version"] == (
-              "gv1:6b07fdbdc861049ea35c23c4e40f145e6b3cde1f0df1b37ec655d5e2bc5eb063"
+              "gv1:973af320bc977a08da84c3c645a83baf7266c2e6112648d217c623fe11c2b657"
           )
           assert corpus_payload["snapshot_content_identity"] == (
-              "sha256:f87a3b9366d9a786f4e16ab6b57e88d4b06b2e6ee38cbb8d014d509741c23aa7"
+              "sha256:65d5c9f1d5fb14f7e2278d9ff77313f7b3f07dd88b90afeb6c3e57e9c2020f09"
           )
-          assert len(corpus_payload["nodes"]) == 116
-          assert len(corpus_payload["relations"]) == 91
+          assert len(corpus_payload["nodes"]) == 117
+          assert len(corpus_payload["relations"]) == 92
           human_rules = subprocess.run(
               [archsift, "rules"],
               check=True,
               capture_output=True,
               text=True,
           )
-          assert "method 1.6.0; docs/method-v1.6.0.md" in human_rules.stdout
-          assert "Method: method-v1.6.0#" in human_rules.stdout
+          assert "method 1.7.0; docs/method-v1.7.0.md" in human_rules.stdout
+          assert "Method: method-v1.7.0#" in human_rules.stdout
           assert " Sources: " in human_rules.stdout
           method_probe = subprocess.run(
               [
@@ -304,7 +307,7 @@ jobs:
               capture_output=True,
               text=True,
           )
-          assert method_probe.stdout.strip() == "1.6.0 docs/method-v1.6.0.md 68"
+          assert method_probe.stdout.strip() == "1.7.0 docs/method-v1.7.0.md 69"
           sessions = []
           for index in range(1, 6):
               passed = index <= 4
@@ -394,8 +397,8 @@ jobs:
               "schema_version": 1,
               "protocol_version": "1.0.0",
               "archsift_version_or_commit": package_version(),
-              "method_version": "1.6.0",
-              "ruleset_version": "1.12.0",
+              "method_version": "1.7.0",
+              "ruleset_version": "1.13.0",
               "corpus_version": "1.0.0",
               "reviewer": {
                   "reviewer_id": "reviewer-01",
@@ -445,7 +448,7 @@ jobs:
           initialized_payload = json.loads(initialized.stdout)
           assert initialized_payload["assessment_prerequisites_ready"] is False
           assert initialized_payload["prerequisite_finding_count"] == 5
-          assert initialized_payload["ruleset_version"] == "1.12.0"
+          assert initialized_payload["ruleset_version"] == "1.13.0"
           agency_yes = {
               "answer": "yes",
               "rationale": "A sanitised evidence-backed answer.",
@@ -673,7 +676,7 @@ jobs:
           assert payload["comparison_count"] == 1
           assert payload["assessment_prerequisites_ready"] is True
           assert payload["prerequisite_finding_count"] == 0
-          assert payload["ruleset_version"] == "1.12.0"
+          assert payload["ruleset_version"] == "1.13.0"
           source_result = validate_workspace(case)
           assert source_result.dossier is not None
           source_dossier = source_result.dossier
@@ -957,7 +960,7 @@ jobs:
               env=offline_environment,
           )
           emitted_schema = json.loads(schema_output.stdout)
-          assert emitted_schema["properties"]["schema_version"]["const"] == 4
+          assert emitted_schema["properties"]["schema_version"]["const"] == 5
           complete_prerequisites = subprocess.run(
               [
                   archsift,

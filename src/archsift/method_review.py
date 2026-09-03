@@ -80,6 +80,11 @@ CURRENT_BINDING = MethodReviewBinding(
 # unrecognised version is never inferred to be merely older.
 SUPERSEDED_BINDINGS = (
     MethodReviewBinding(
+        method_version="1.6.0",
+        ruleset_version="1.12.0",
+        corpus_version="1.0.0",
+    ),
+    MethodReviewBinding(
         method_version="1.5.0",
         ruleset_version="1.11.0",
         corpus_version="1.0.0",

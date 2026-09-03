@@ -69,6 +69,14 @@ class EvidencedStatement:
     evidence_ids: tuple[str, ...]
 
 
+class TargetKind(StrEnum):
+    """Declared shape of an outcome target (FR-005)."""
+
+    QUANTIFIED = "quantified"
+    DIRECTIONAL = "directional"
+    NO_REGRESSION = "no-regression"
+
+
 @dataclass(frozen=True, slots=True)
 class ProblemOutcome:
     """A measurable desired outcome and the baseline it changes."""
@@ -80,6 +88,7 @@ class ProblemOutcome:
     baseline_id: str
     binding: bool
     evidence_ids: tuple[str, ...]
+    target_kind: TargetKind | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,12 +490,29 @@ class AssumptionEvidence(EvidenceEntry):
     kind: ClassVar[EvidenceKind] = EvidenceKind.ASSUMPTION
 
 
+class ElicitationScale(StrEnum):
+    """Scale on which an elicited baseline was judged (FR-005)."""
+
+    ORDINAL = "ordinal"
+    CATEGORICAL = "categorical"
+
+
+@dataclass(frozen=True, slots=True)
+class Elicitation:
+    """Structured elicitation behind an estimate standing in for an unmeasured baseline."""
+
+    roles: tuple[str, ...]
+    coverage: str
+    scale: ElicitationScale
+
+
 @dataclass(frozen=True, slots=True)
 class EstimateEvidence(EvidenceEntry):
-    """A forecast with a recorded method."""
+    """A forecast with a recorded method, optionally elicited rather than measured."""
 
     method: str
     artefacts: tuple[EvidenceArtefactReference, ...] = ()
+    elicitation: Elicitation | None = None
     kind: ClassVar[EvidenceKind] = EvidenceKind.ESTIMATE
 
 
@@ -609,6 +635,7 @@ _SCHEMA_RESOURCES = {
     2: "schemas/dossier-v2.schema.json",
     3: "schemas/dossier-v3.schema.json",
     4: "schemas/dossier-v4.schema.json",
+    5: "schemas/dossier-v5.schema.json",
 }
 SUPPORTED_DOSSIER_SCHEMA_VERSIONS = tuple(sorted(_SCHEMA_RESOURCES))
 LATEST_DOSSIER_SCHEMA_VERSION = SUPPORTED_DOSSIER_SCHEMA_VERSIONS[-1]
@@ -1735,6 +1762,9 @@ def _typed_problem_value(problem: Mapping[str, Any] | None) -> ProblemValue | No
             baseline_id=cast(str, raw["baseline_id"]),
             binding=cast(bool, raw["binding"]),
             evidence_ids=tuple(cast(Sequence[str], raw["evidence_ids"])),
+            target_kind=(
+                TargetKind(cast(str, raw["target_kind"])) if "target_kind" in raw else None
+            ),
         )
         for raw in cast(Sequence[Mapping[str, Any]], problem["outcomes"])
     )
@@ -2033,6 +2063,15 @@ def _typed_evidence(entries: Sequence[Mapping[str, Any]]) -> tuple[Evidence, ...
                     method=cast(str, entry["method"]),
                     artefacts=artefacts(entry),
                     authorship=authorship,
+                    elicitation=(
+                        Elicitation(
+                            roles=tuple(cast(Sequence[str], entry["elicitation"]["roles"])),
+                            coverage=cast(str, entry["elicitation"]["coverage"]),
+                            scale=ElicitationScale(cast(str, entry["elicitation"]["scale"])),
+                        )
+                        if "elicitation" in entry
+                        else None
+                    ),
                 )
             )
         else:
@@ -2132,10 +2171,27 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
                 )
             )
             continue
-        credible = any(
-            is_credible_support(evidence.get(identifier)) for identifier in baseline.evidence_ids
-        )
-        if not credible:
+        credible_entries: list[Evidence] = []
+        for identifier in baseline.evidence_ids:
+            cited_entry = evidence.get(identifier)
+            if cited_entry is not None and is_credible_support(cited_entry):
+                credible_entries.append(cited_entry)
+        if not credible_entries:
+            only_gaps = bool(baseline.evidence_ids) and all(
+                isinstance(evidence.get(identifier), MissingEvidence)
+                for identifier in baseline.evidence_ids
+            )
+            remediation = _credible_support_remediation(
+                evidence,
+                baseline.evidence_ids,
+                "Cite at least one observed entry or method-backed estimate from that baseline.",
+            )
+            if only_gaps:
+                remediation += (
+                    " Where measurement is unavailable, an elicited estimate (an estimate "
+                    "entry carrying `elicitation`, dossier schema 5) may support a "
+                    "directional or no-regression outcome."
+                )
             findings.append(
                 PrerequisiteFinding(
                     "credible-baseline-missing",
@@ -2143,13 +2199,32 @@ def evaluate_problem_value_readiness(dossier: Dossier) -> ProblemValueReadiness:
                     "FR-005",
                     f"Binding outcome {outcome.id!r} uses baseline {baseline.id!r} without "
                     "observed or estimated support.",
-                    _credible_support_remediation(
-                        evidence,
-                        baseline.evidence_ids,
-                        "Cite at least one observed entry or method-backed estimate from that "
-                        "baseline.",
-                    ),
+                    remediation,
                     baseline.evidence_ids,
+                )
+            )
+            continue
+        elicited_only = all(
+            isinstance(entry, EstimateEvidence) and entry.elicitation is not None
+            for entry in credible_entries
+        )
+        if elicited_only and outcome.target_kind not in {
+            TargetKind.DIRECTIONAL,
+            TargetKind.NO_REGRESSION,
+        }:
+            declared = outcome.target_kind.value if outcome.target_kind else "undeclared"
+            findings.append(
+                PrerequisiteFinding(
+                    "elicited-baseline-quantified-target",
+                    f"$.problem_value.outcomes[{index}].baseline_id",
+                    "FR-005",
+                    f"Binding outcome {outcome.id!r} (target kind {declared}) relies on "
+                    f"baseline {baseline.id!r} that is elicited rather than measured; an "
+                    "ordinal or categorical elicitation cannot support a quantified target.",
+                    "Measure the baseline, or declare target_kind as directional or "
+                    "no-regression where the outcome is not a quantified claim.",
+                    tuple(sorted(entry.id for entry in credible_entries)),
+                    f"$.problem_value.outcomes[{index}].target_kind",
                 )
             )
     return ProblemValueReadiness(not findings, tuple(findings))

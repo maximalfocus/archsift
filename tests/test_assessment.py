@@ -440,7 +440,7 @@ def test_verdict_values_and_rules_are_complete_versioned_and_non_scoring() -> No
         "no-permissible-candidate",
         "no-technology-change",
     }
-    assert RULESET_VERSION == "1.12.0"
+    assert RULESET_VERSION == "1.13.0"
     rules = [rule for rule in list_rules() if rule.requirement == "FR-010"]
     assert [(rule.id, rule.effect) for rule in rules] == [
         ("verdict-conditional", RuleEffect.SUPPORT_CANDIDATE),

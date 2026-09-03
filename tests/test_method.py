@@ -26,11 +26,11 @@ def test_public_method_mapping_is_complete_canonical_and_version_matched() -> No
 
     validate_method_catalog(RULESET_VERSION, rule_ids)
 
-    assert RULESET_VERSION == METHOD_RULESET_VERSION == "1.12.0"
-    assert METHOD_VERSION == "1.6.0"
-    assert METHOD_SPECIFICATION == "docs/method-v1.6.0.md"
+    assert RULESET_VERSION == METHOD_RULESET_VERSION == "1.13.0"
+    assert METHOD_VERSION == "1.7.0"
+    assert METHOD_SPECIFICATION == "docs/method-v1.7.0.md"
     assert tuple(RULE_METHOD_REFERENCES) == rule_ids
-    assert len(rule_ids) == len(RULE_METHOD_REFERENCES) == 68
+    assert len(rule_ids) == len(RULE_METHOD_REFERENCES) == 69
     assert all(rule.rationale_id == RULE_METHOD_REFERENCES[rule.id].rationale_id for rule in rules)
     assert all(rule.source_ids == RULE_METHOD_REFERENCES[rule.id].source_ids for rule in rules)
 
@@ -111,7 +111,7 @@ def test_versioned_method_document_matches_packaged_metadata() -> None:
         document,
         flags=re.MULTILINE,
     )
-    assert len(index_rows) == len(rules) == 68
+    assert len(index_rows) == len(rules) == 69
     assert [row[0] for row in index_rows] == [rule.id for rule in rules]
     for rule, (_, rationale_id, sources) in zip(rules, index_rows, strict=True):
         assert rationale_id == rule.rationale_id

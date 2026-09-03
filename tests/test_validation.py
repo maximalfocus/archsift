@@ -909,7 +909,7 @@ def test_missing_schema_version_is_structural_failure(tmp_path: Path) -> None:
     assert result.diagnostics[0].field == "$.schema_version"
 
 
-@pytest.mark.parametrize("version", [0, 5, "1", True, None])
+@pytest.mark.parametrize("version", [0, 6, "1", True, None])
 def test_unsupported_schema_version_has_distinct_exit(tmp_path: Path, version: object) -> None:
     workspace = _workspace(tmp_path)
     _write_case(workspace, {"schema_version": version, "case": {"id": "x", "title": "X"}})
@@ -1307,7 +1307,7 @@ def test_validate_success_json_reports_evidence_count(
         "problem_value_defined": False,
         "problem_value_ready": False,
         "residual_case_count": 0,
-        "ruleset_version": "1.12.0",
+        "ruleset_version": "1.13.0",
         "schema_version": 1,
         "status": "valid",
         "task_defined": False,
@@ -1355,7 +1355,7 @@ def test_validate_success_json_reports_task_boundary_counts(
         "problem_value_defined": False,
         "problem_value_ready": False,
         "residual_case_count": 0,
-        "ruleset_version": "1.12.0",
+        "ruleset_version": "1.13.0",
         "schema_version": 1,
         "status": "valid",
         "task_defined": True,

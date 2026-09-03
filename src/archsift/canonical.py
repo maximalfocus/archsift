@@ -38,6 +38,8 @@ from archsift.validation import (
     DecisionCondition,
     DecisionConditionStatus,
     Dossier,
+    Elicitation,
+    ElicitationScale,
     EstimateEvidence,
     Evidence,
     EvidenceArtefactReference,
@@ -57,6 +59,7 @@ from archsift.validation import (
     ProblemValue,
     ResidualCase,
     StrongestSimplerBoundary,
+    TargetKind,
     TaskAction,
     TaskBoundary,
 )
@@ -331,20 +334,27 @@ def _problem_outcome(value: ProblemOutcome) -> JsonObject:
         "baseline_id",
         "binding",
         "evidence_ids",
+        "target_kind",
     )
+    values: JsonObject = {
+        "id": value.id,
+        "description": value.description,
+        "measure": value.measure,
+        "target": value.target,
+        "baseline_id": value.baseline_id,
+        "binding": value.binding,
+        "evidence_ids": list(value.evidence_ids),
+    }
+    if value.target_kind is not None:
+        values["target_kind"] = _enum_value(
+            value.target_kind, TargetKind, ("quantified", "directional", "no-regression")
+        )
     return _checked_object(
         value,
         ProblemOutcome,
         expected,
-        {
-            "id": value.id,
-            "description": value.description,
-            "measure": value.measure,
-            "target": value.target,
-            "baseline_id": value.baseline_id,
-            "binding": value.binding,
-            "evidence_ids": list(value.evidence_ids),
-        },
+        values,
+        omitted_keys=("target_kind",) if value.target_kind is None else (),
     )
 
 
@@ -828,7 +838,7 @@ def _evidence_artefact(
         ),
         "path": value.path,
     }
-    if schema_version in {3, 4}:
+    if schema_version in {3, 4, 5}:
         rendered["registration_id"] = value.registration_id
         rendered["registration_logical_path"] = value.registration_logical_path
     return _checked_object(
@@ -858,9 +868,23 @@ def _evidence_authorship(value: EvidenceAuthorship) -> JsonObject:
     )
 
 
+def _elicitation(value: Elicitation) -> JsonObject:
+    expected = ("roles", "coverage", "scale")
+    return _checked_object(
+        value,
+        Elicitation,
+        expected,
+        {
+            "roles": list(value.roles),
+            "coverage": value.coverage,
+            "scale": _enum_value(value.scale, ElicitationScale, ("ordinal", "categorical")),
+        },
+    )
+
+
 def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> JsonObject:
     """Return one complete versioned evidence entry as canonical JSON data."""
-    if schema_version not in {1, 2, 3, 4}:
+    if schema_version not in {1, 2, 3, 4, 5}:
         raise CanonicalizationError("Unsupported evidence schema version for canonicalization.")
     _check_typed_value(entry, Evidence)
     common: JsonObject = {
@@ -885,7 +909,7 @@ def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> Json
             for artefact in entry.artefacts
         ],
     }
-    if schema_version in {2, 3, 4}:
+    if schema_version in {2, 3, 4, 5}:
         common["authorship"] = _evidence_authorship(entry.authorship)
     omitted = ("authorship",) if schema_version == 1 else ()
     evidence_kind_values = ("observed", "assumption", "estimate", "missing")
@@ -938,13 +962,15 @@ def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> Json
             "kind": _enum_value(estimate.kind, EvidenceKind, evidence_kind_values),
             "method": estimate.method,
         }
+        if estimate.elicitation is not None:
+            values["elicitation"] = _elicitation(estimate.elicitation)
         return _checked_object(
             estimate,
             EstimateEvidence,
-            ("id", "claim", "owner", "affects", "authorship", "method", "artefacts"),
+            ("id", "claim", "owner", "affects", "authorship", "method", "artefacts", "elicitation"),
             values,
             extra_keys=("kind",),
-            omitted_keys=omitted,
+            omitted_keys=(*omitted, *(("elicitation",) if estimate.elicitation is None else ())),
         )
     if type(entry) is MissingEvidence:
         missing = entry
@@ -991,7 +1017,7 @@ def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
 def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
     """Return the complete normalized versioned dossier as canonical JSON data."""
     _check_typed_value(dossier, Dossier)
-    if dossier.schema_version not in {1, 2, 3, 4}:
+    if dossier.schema_version not in {1, 2, 3, 4, 5}:
         raise CanonicalizationError("Unsupported dossier schema version for canonicalization.")
     expected = (
         "schema_version",

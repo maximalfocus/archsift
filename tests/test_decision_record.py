@@ -467,7 +467,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
     assert record.artefact_links == ()
     assert record.dossier_schema_version == dossier.schema_version
     assert record.dossier_content_identity == dossier_content_identity(dossier)
-    assert record.ruleset_version == RULESET_VERSION == "1.12.0"
+    assert record.ruleset_version == RULESET_VERSION == "1.13.0"
     assert record.assessment == evaluate_assessment(dossier)
     assert payload["assessment"] == record.assessment.to_dict()
     assert record.assessment.verdict is ArchitectureVerdict.CONDITIONAL

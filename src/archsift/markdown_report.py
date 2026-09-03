@@ -78,6 +78,8 @@ _EXPECTED_ENUM_VALUES: Final[dict[type[Enum], tuple[str, ...]]] = {
     v.EvidenceAuthor: ("accountable-person", "assistant"),
     v.EvidenceArtefactRoot: ("workspace", "external"),
     v.EvidenceKind: ("observed", "assumption", "estimate", "missing"),
+    v.ElicitationScale: ("ordinal", "categorical"),
+    v.TargetKind: ("quantified", "directional", "no-regression"),
     v.HardVetoStatus: ("active", "inactive", "unknown"),
 }
 
@@ -306,6 +308,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "authorship",
         "method",
         "artefacts",
+        "elicitation",
     ),
     v.EvidenceAuthorship: ("authored_by", "attested_by_accountable_person"),
     v.EvidenceArtefactReference: (
@@ -352,6 +355,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "observed_at",
         "artefacts",
     ),
+    v.Elicitation: ("roles", "coverage", "scale"),
     v.ProblemBaseline: ("id", "description", "measure", "value", "evidence_ids"),
     v.ProblemConstraint: (
         "id",
@@ -369,6 +373,7 @@ _EXPECTED_FIELDS: Final[dict[type[object], tuple[str, ...]]] = {
         "baseline_id",
         "binding",
         "evidence_ids",
+        "target_kind",
     ),
     v.ProblemValue: (
         "outcomes",
