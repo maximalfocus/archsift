@@ -353,12 +353,22 @@ class StrongestSimplerBoundary:
 
 
 @dataclass(frozen=True, slots=True)
+class BaselineRetention:
+    """Authored decision that retaining the current baseline is the intended result (FR-008)."""
+
+    declared_by: str
+    rationale: str
+    evidence_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class CandidateComparison:
     """Candidate roles, tests, pairwise trade-offs, and the simpler boundary for FR-008."""
 
     candidates: tuple[Candidate, ...]
     comparisons: tuple[CandidatePairComparison, ...]
     strongest_simpler_boundary: StrongestSimplerBoundary | None = None
+    baseline_retention: BaselineRetention | None = None
 
 
 class EvidenceKind(StrEnum):
@@ -574,6 +584,7 @@ _SCHEMA_RESOURCES = {
     1: "schemas/dossier-v1.schema.json",
     2: "schemas/dossier-v2.schema.json",
     3: "schemas/dossier-v3.schema.json",
+    4: "schemas/dossier-v4.schema.json",
 }
 SUPPORTED_DOSSIER_SCHEMA_VERSIONS = tuple(sorted(_SCHEMA_RESOURCES))
 LATEST_DOSSIER_SCHEMA_VERSION = SUPPORTED_DOSSIER_SCHEMA_VERSIONS[-1]
@@ -1469,6 +1480,15 @@ def _candidate_comparison_semantic_diagnostics(
             evidence_references.append(
                 (f"{boundary_path}.evidence_ids[{evidence_index}]", evidence_id)
             )
+    retention = cast(Mapping[str, Any] | None, comparison.get("baseline_retention"))
+    if retention is not None:
+        retention_path = "$.candidate_comparison.baseline_retention"
+        for evidence_index, evidence_id in enumerate(
+            cast(Sequence[str], retention["evidence_ids"])
+        ):
+            evidence_references.append(
+                (f"{retention_path}.evidence_ids[{evidence_index}]", evidence_id)
+            )
 
     first_pair: dict[tuple[str, str], int] = {}
     for comparison_index, pair in enumerate(comparisons):
@@ -1902,10 +1922,21 @@ def _typed_candidate_comparison(
         if raw_boundary is not None
         else None
     )
+    raw_retention = cast(Mapping[str, Any] | None, comparison.get("baseline_retention"))
+    retention = (
+        BaselineRetention(
+            declared_by=cast(str, raw_retention["declared_by"]),
+            rationale=cast(str, raw_retention["rationale"]),
+            evidence_ids=tuple(cast(Sequence[str], raw_retention["evidence_ids"])),
+        )
+        if raw_retention is not None
+        else None
+    )
     return CandidateComparison(
         candidates=candidates,
         comparisons=comparisons,
         strongest_simpler_boundary=boundary,
+        baseline_retention=retention,
     )
 
 
@@ -2772,6 +2803,36 @@ def evaluate_consistency_readiness(dossier: Dossier) -> ConsistencyReadiness:
                         f"dimensions.{dimension_name}.result",
                     )
                 )
+
+    comparison = dossier.candidate_comparison
+    problem = dossier.problem_value
+    if comparison is not None and comparison.baseline_retention is not None and problem is not None:
+        retention = comparison.baseline_retention
+        binding_outcome_ids = {item.id for item in problem.outcomes if item.binding}
+        for candidate_index, candidate in enumerate(comparison.candidates):
+            if CandidateRole.CURRENT_BASELINE not in candidate.roles:
+                continue
+            for test_index, test in enumerate(candidate.outcome_tests):
+                if (
+                    test.outcome_id in binding_outcome_ids
+                    and test.result is CandidateTestResult.FAILS
+                    and credible(test.evidence_ids)
+                ):
+                    findings.append(
+                        PrerequisiteFinding(
+                            "baseline-retention-contradiction",
+                            "$.candidate_comparison.baseline_retention",
+                            "FR-008",
+                            f"Baseline retention is declared while current baseline "
+                            f"{candidate.id!r} credibly fails binding outcome "
+                            f"{test.outcome_id!r}.",
+                            "Remove the baseline-retention declaration, or correct the "
+                            "failing outcome test when evidence supports it.",
+                            _canonical_evidence_union(retention.evidence_ids, test.evidence_ids),
+                            f"$.candidate_comparison.candidates[{candidate_index}]"
+                            f".outcome_tests[{test_index}].result",
+                        )
+                    )
 
     return ConsistencyReadiness(not findings, tuple(findings))
 

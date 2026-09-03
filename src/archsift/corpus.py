@@ -8,9 +8,9 @@ from importlib.resources import files
 from archsift.graph_change import load_graph_change_proposal, validate_graph_change
 from archsift.knowledge_graph import Snapshot, load_snapshot
 
-CORPUS_BASE_SNAPSHOT_RESOURCE = "knowledge/architecture-v2.json"
-CORPUS_SNAPSHOT_RESOURCE = "knowledge/architecture-v3.json"
-CORPUS_PROPOSAL_RESOURCE = "knowledge/architecture-v3.change.json"
+CORPUS_BASE_SNAPSHOT_RESOURCE = "knowledge/architecture-v3.json"
+CORPUS_SNAPSHOT_RESOURCE = "knowledge/architecture-v4.json"
+CORPUS_PROPOSAL_RESOURCE = "knowledge/architecture-v4.change.json"
 
 
 @cache

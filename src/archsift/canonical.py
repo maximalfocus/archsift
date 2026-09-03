@@ -20,6 +20,7 @@ from archsift.validation import (
     AutonomyAnswer,
     AutonomyPermission,
     AutonomyQuestion,
+    BaselineRetention,
     Candidate,
     CandidateAuthority,
     CandidateComparison,
@@ -720,8 +721,22 @@ def _strongest_simpler_boundary(value: StrongestSimplerBoundary) -> JsonObject:
     )
 
 
+def _baseline_retention(value: BaselineRetention) -> JsonObject:
+    expected = ("declared_by", "rationale", "evidence_ids")
+    return _checked_object(
+        value,
+        BaselineRetention,
+        expected,
+        {
+            "declared_by": value.declared_by,
+            "rationale": value.rationale,
+            "evidence_ids": list(value.evidence_ids),
+        },
+    )
+
+
 def _candidate_comparison(value: CandidateComparison) -> JsonObject:
-    expected = ("candidates", "comparisons", "strongest_simpler_boundary")
+    expected = ("candidates", "comparisons", "strongest_simpler_boundary", "baseline_retention")
     values: JsonObject = {
         "candidates": [_candidate(item) for item in value.candidates],
         "comparisons": [_candidate_pair(item) for item in value.comparisons],
@@ -730,15 +745,17 @@ def _candidate_comparison(value: CandidateComparison) -> JsonObject:
         values["strongest_simpler_boundary"] = _strongest_simpler_boundary(
             value.strongest_simpler_boundary
         )
-    return _checked_object(
-        value,
-        CandidateComparison,
-        expected,
-        values,
-        omitted_keys=("strongest_simpler_boundary",)
-        if value.strongest_simpler_boundary is None
-        else (),
+    if value.baseline_retention is not None:
+        values["baseline_retention"] = _baseline_retention(value.baseline_retention)
+    omitted = tuple(
+        key
+        for key, present in (
+            ("strongest_simpler_boundary", value.strongest_simpler_boundary),
+            ("baseline_retention", value.baseline_retention),
+        )
+        if present is None
     )
+    return _checked_object(value, CandidateComparison, expected, values, omitted_keys=omitted)
 
 
 def _decision_condition(value: DecisionCondition) -> JsonObject:
@@ -811,7 +828,7 @@ def _evidence_artefact(
         ),
         "path": value.path,
     }
-    if schema_version == 3:
+    if schema_version in {3, 4}:
         rendered["registration_id"] = value.registration_id
         rendered["registration_logical_path"] = value.registration_logical_path
     return _checked_object(
@@ -843,7 +860,7 @@ def _evidence_authorship(value: EvidenceAuthorship) -> JsonObject:
 
 def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> JsonObject:
     """Return one complete versioned evidence entry as canonical JSON data."""
-    if schema_version not in {1, 2, 3}:
+    if schema_version not in {1, 2, 3, 4}:
         raise CanonicalizationError("Unsupported evidence schema version for canonicalization.")
     _check_typed_value(entry, Evidence)
     common: JsonObject = {
@@ -868,7 +885,7 @@ def canonical_evidence_dict(entry: Evidence, *, schema_version: int = 1) -> Json
             for artefact in entry.artefacts
         ],
     }
-    if schema_version in {2, 3}:
+    if schema_version in {2, 3, 4}:
         common["authorship"] = _evidence_authorship(entry.authorship)
     omitted = ("authorship",) if schema_version == 1 else ()
     evidence_kind_values = ("observed", "assumption", "estimate", "missing")
@@ -974,7 +991,7 @@ def evidence_content_identities(dossier: Dossier) -> dict[str, str]:
 def canonical_dossier_dict(dossier: Dossier) -> JsonObject:
     """Return the complete normalized versioned dossier as canonical JSON data."""
     _check_typed_value(dossier, Dossier)
-    if dossier.schema_version not in {1, 2, 3}:
+    if dossier.schema_version not in {1, 2, 3, 4}:
         raise CanonicalizationError("Unsupported dossier schema version for canonicalization.")
     expected = (
         "schema_version",

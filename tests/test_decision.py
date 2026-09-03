@@ -219,7 +219,7 @@ def test_decision_rules_are_versioned_canonical_and_non_scoring() -> None:
     rules = list_rules()
     decision_rules = [rule for rule in rules if rule.requirement == "FR-009"]
 
-    assert RULESET_VERSION == "1.11.0"
+    assert RULESET_VERSION == "1.12.0"
     assert [rule.id for rule in rules] == sorted(rule.id for rule in rules)
     assert [(rule.id, rule.effect) for rule in decision_rules] == [
         ("binding-constraint-failed", RuleEffect.BLOCK),

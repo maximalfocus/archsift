@@ -285,6 +285,15 @@ candidate_comparison:
     rationale: Current human review is the strongest represented simpler option for this case.
     considered_candidate_ids: [current-review]
     evidence_ids: [workflow-estimate]
+  # Declare this only when keeping the current way of working is the intended result and no
+  # binding outcome separates the represented candidates. It satisfies exactly one prerequisite
+  # (non-discriminating-binding-set) and never eliminates, supports, or promotes a candidate.
+  # It requires schema_version 4, and a declaration beside a credibly failing current baseline
+  # is diagnosed as a contradiction.
+  # baseline_retention:
+  #   declared_by: Accountable operations owner
+  #   rationale: The current process meets every binding outcome; no change is sought.
+  #   evidence_ids: [workflow-estimate]
   comparisons:
     - subject_candidate_id: fixed-review-workflow
       comparator_candidate_id: current-review

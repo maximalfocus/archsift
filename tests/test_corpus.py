@@ -32,9 +32,9 @@ def test_packaged_corpus_is_the_exact_governed_evolution() -> None:
     content = packaged_corpus_bytes()
     snapshot = packaged_corpus_snapshot()
     proposal_content = (
-        files("archsift").joinpath("knowledge/architecture-v3.change.json").read_bytes()
+        files("archsift").joinpath("knowledge/architecture-v4.change.json").read_bytes()
     )
-    base = load_snapshot(files("archsift").joinpath("knowledge/architecture-v2.json").read_bytes())
+    base = load_snapshot(files("archsift").joinpath("knowledge/architecture-v3.json").read_bytes())
     proposal = load_graph_change_proposal(proposal_content)
 
     assert load_snapshot(content) == snapshot
@@ -42,11 +42,11 @@ def test_packaged_corpus_is_the_exact_governed_evolution() -> None:
     assert proposal["change_kind"] == "evolution"
     assert proposal["base_snapshot"] is not None
     assert proposal["behavior_change"] is True
-    assert proposal["public_issue"] == "https://github.com/maximalfocus/archsift/issues/125"
+    assert proposal["public_issue"] == "https://github.com/maximalfocus/archsift/issues/129"
     summary = validate_graph_change(proposal, snapshot, base)
     assert summary["changed_entry_count"] == 2
-    assert len(snapshot.nodes) == 115
-    assert len(snapshot.relations) == 90
+    assert len(snapshot.nodes) == 116
+    assert len(snapshot.relations) == 91
     assert "src/archsift/knowledge/*.json text eol=lf" in (
         _REPOSITORY / ".gitattributes"
     ).read_text(encoding="utf-8")
@@ -167,7 +167,7 @@ def test_graph_corpus_cli_human_json_quiet_and_no_writes(
     human = capsys.readouterr().out
     assert packaged_corpus_snapshot().graph_version in human
     assert packaged_corpus_snapshot().snapshot_content_identity in human
-    assert "115 nodes across 9 kinds; 90 relations across 7 kinds" in human
+    assert "116 nodes across 9 kinds; 91 relations across 7 kinds" in human
 
     assert main(["graph-corpus", "--json"]) == ExitCode.SUCCESS
     assert capsys.readouterr().out.encode("ascii") == packaged_corpus_bytes()
