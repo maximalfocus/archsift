@@ -538,7 +538,7 @@ def test_compare_classifies_unsupported_record_schema(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     old = _record()
-    old["record_schema_version"] = 3
+    old["record_schema_version"] = 4
     _write(tmp_path / "old.json", old)
     _write(tmp_path / "new.json", _record())
     monkeypatch.chdir(tmp_path)

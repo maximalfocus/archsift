@@ -578,7 +578,31 @@ class ValidationResult:
     exit_code: ExitCode
     dossier: Dossier | None = None
     diagnostics: tuple[Diagnostic, ...] = ()
+    # Advisory diagnostics never change the exit status (FR-012).
+    advisories: tuple[Diagnostic, ...] = ()
 
+
+# Every packaged schema definition that carries evidence references. An evidence
+# entry is decision-bearing exactly when one of these locations cites it (FR-004);
+# the enumeration is proved exhaustive over the packaged schemas by the test suite.
+DECISION_BEARING_CITATION_LOCATIONS: tuple[str, ...] = (
+    "agencyQuestion",
+    "autonomyQuestion",
+    "baselineRetention",
+    "candidateAuthority",
+    "candidateConstraintTest",
+    "candidateOutcomeTest",
+    "comparisonDimension",
+    "decisionCondition",
+    "evidencedStatement",
+    "hardVeto",
+    "mandatoryHumanControl",
+    "problemBaseline",
+    "problemConstraint",
+    "problemOutcome",
+    "residualCase",
+    "strongestSimplerBoundary",
+)
 
 _SCHEMA_RESOURCES = {
     1: "schemas/dossier-v1.schema.json",
@@ -3103,4 +3127,42 @@ def validate_workspace(workspace: Path) -> ValidationResult:
         candidate_comparison=_typed_candidate_comparison(raw_candidate_comparison),
         decision_conditions=_typed_decision_conditions(raw_decision_conditions),
     )
-    return ValidationResult(ExitCode.SUCCESS, dossier=dossier)
+    return ValidationResult(
+        ExitCode.SUCCESS,
+        dossier=dossier,
+        advisories=_uncited_evidence_advisories(loaded, raw_evidence),
+    )
+
+
+def _cited_evidence_ids(value: object) -> set[str]:
+    """Collect every evidence ID cited through an `evidence_ids` list beneath value."""
+    cited: set[str] = set()
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if key == "evidence_ids" and isinstance(item, Sequence) and not isinstance(item, str):
+                cited.update(str(identifier) for identifier in item)
+            else:
+                cited.update(_cited_evidence_ids(item))
+    elif isinstance(value, Sequence) and not isinstance(value, str):
+        for item in value:
+            cited.update(_cited_evidence_ids(item))
+    return cited
+
+
+def _uncited_evidence_advisories(
+    loaded: Mapping[str, Any], raw_evidence: Sequence[Mapping[str, Any]]
+) -> tuple[Diagnostic, ...]:
+    """Name every ledger entry that no decision field cites (FR-004 recorded context)."""
+    cited = _cited_evidence_ids({key: value for key, value in loaded.items() if key != "evidence"})
+    return tuple(
+        _diagnostic(
+            "uncited-evidence-entry",
+            f"Evidence entry {entry['id']!r} is recorded context: no decision field cites it.",
+            f"$.evidence[{index}]",
+            "FR-004",
+            "Cite the entry from the decision field it supports, or remove it; it does not "
+            "affect the verdict.",
+        )
+        for index, entry in enumerate(raw_evidence)
+        if str(entry["id"]) not in cited
+    )

@@ -21,7 +21,7 @@ from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
 
 COMPARISON_SCHEMA_VERSION = 4
-_SUPPORTED_RECORD_SCHEMAS = {1, RECORD_SCHEMA_VERSION}
+_SUPPORTED_RECORD_SCHEMAS = {1, 2, RECORD_SCHEMA_VERSION}
 
 _RECORD_KEYS = {
     "artefact_links",
@@ -672,6 +672,21 @@ def _validate_graph_use(value: object, assessment: dict[str, object]) -> None:
             raise ValueError(f"graph use {name} require canonical unique order")
 
 
+def _cited_evidence_ids(value: object) -> set[str]:
+    """Collect every evidence ID cited through an `evidence_ids` list beneath value."""
+    cited: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key == "evidence_ids" and isinstance(item, list):
+                cited.update(str(identifier) for identifier in item)
+            else:
+                cited.update(_cited_evidence_ids(item))
+    elif isinstance(value, list):
+        for item in value:
+            cited.update(_cited_evidence_ids(item))
+    return cited
+
+
 def _validate_record(record: dict[str, object]) -> None:
     masked = record.get("masking") is not None
     if masked:
@@ -741,7 +756,12 @@ def _validate_record(record: dict[str, object]) -> None:
         raise ValueError("evidence links do not match the dossier evidence ledger")
     for identifier, raw in evidence_links.items():
         link = _require_object(raw, f"$.evidence_links.{identifier}")
-        _require_keys(link, {"content_identity", "evidence_id", "kind"}, "evidence link")
+        link_keys = {"content_identity", "evidence_id", "kind"}
+        if record_schema >= 3:
+            link_keys.add("decision_bearing")
+        _require_keys(link, link_keys, "evidence link")
+        if record_schema >= 3 and type(link["decision_bearing"]) is not bool:
+            raise ValueError("evidence link decision_bearing is not boolean")
         if link["evidence_id"] != identifier or link["kind"] != evidence_by_id[identifier].get(
             "kind"
         ):
@@ -766,7 +786,7 @@ def _validate_record(record: dict[str, object]) -> None:
             "path",
             "root",
         }
-        if record_schema == 2:
+        if record_schema >= 2:
             link_keys |= {
                 "declared_material_type",
                 "registration_content_identity",
@@ -787,7 +807,7 @@ def _validate_record(record: dict[str, object]) -> None:
         if type(link["byte_length"]) is not int or link["byte_length"] < 0:
             raise ValueError("artefact byte length is invalid")
         _require_identity(link["content_identity"], "artefact content identity")
-        if record_schema == 2:
+        if record_schema >= 2:
             registration_id = _require_text(
                 link["registration_id"],
                 "artefact registration ID",
@@ -846,7 +866,7 @@ def _validate_record(record: dict[str, object]) -> None:
     }
     if actual_artefact_contract != expected_artefact_contract:
         raise ValueError("artefact links do not match the dossier artefact contract")
-    if record_schema == 2:
+    if record_schema >= 2:
         dossier_registrations = {
             (
                 identifier,
@@ -891,7 +911,12 @@ def _validate_record(record: dict[str, object]) -> None:
     trigger_ids: list[str] = []
     for index, raw in enumerate(triggers):
         trigger = _require_object(raw, f"$.reassessment_triggers[{index}]")
-        _require_keys(trigger, {"evidence_id", "kind", "observation"}, "reassessment trigger")
+        trigger_keys = {"evidence_id", "kind", "observation"}
+        if record_schema >= 3:
+            trigger_keys.add("decision_bearing")
+        _require_keys(trigger, trigger_keys, "reassessment trigger")
+        if record_schema >= 3 and type(trigger["decision_bearing"]) is not bool:
+            raise ValueError("reassessment trigger decision_bearing is not boolean")
         trigger_id = cast(str, _require_text(trigger["evidence_id"], "trigger evidence id"))
         trigger_ids.append(trigger_id)
         if trigger_id not in evidence_by_id or trigger["kind"] not in {"assumption", "missing"}:
@@ -929,26 +954,27 @@ def _validate_record(record: dict[str, object]) -> None:
     if gaps != expected_gaps:
         raise ValueError("unresolved gaps are inconsistent with assessment findings")
 
+    cited = _cited_evidence_ids({key: value for key, value in dossier.items() if key != "evidence"})
+    if record_schema >= 3:
+        for identifier, raw_link in evidence_links.items():
+            link = cast(dict[str, object], raw_link)
+            if link["decision_bearing"] is not (identifier in cited):
+                raise ValueError("evidence link decision_bearing is inconsistent with citations")
+
     expected_triggers: list[dict[str, object]] = []
     for identifier in sorted(evidence_by_id):
         entry = evidence_by_id[identifier]
         kind = entry["kind"]
-        if kind == "assumption":
-            expected_triggers.append(
-                {
-                    "evidence_id": identifier,
-                    "kind": kind,
-                    "observation": entry["falsified_by"],
-                }
-            )
-        elif kind == "missing":
-            expected_triggers.append(
-                {
-                    "evidence_id": identifier,
-                    "kind": kind,
-                    "observation": entry["resolved_by"],
-                }
-            )
+        if kind not in {"assumption", "missing"}:
+            continue
+        expected_trigger: dict[str, object] = {
+            "evidence_id": identifier,
+            "kind": kind,
+            "observation": entry["falsified_by"] if kind == "assumption" else entry["resolved_by"],
+        }
+        if record_schema >= 3:
+            expected_trigger["decision_bearing"] = identifier in cited
+        expected_triggers.append(expected_trigger)
     if triggers != expected_triggers:
         raise ValueError("reassessment triggers are inconsistent with the dossier")
 

@@ -92,10 +92,18 @@ details (evidence count, defined sections, prerequisite readiness, veto and
 control counts, and consistency readiness) and every diagnostic with its file,
 field, governing requirement, and remediation.
 
+Advisory diagnostics are distinct from failures and never change the exit
+status. Today there is one: `uncited-evidence-entry` names each ledger entry
+that no decision field cites (FR-004 recorded context), with the same file,
+field, requirement, and remediation shape. `--json` lists them under
+`advisories`; human mode prints them after the success line, prefixed
+`advisory:`; `--quiet` prints nothing. An advisory is never emitted in place
+of a failure a rule requires.
+
 A valid but incomplete dossier validates successfully; the assessment may then
 abstain with `insufficient-evidence`.
 
-### `archsift dossier-schema` [`--schema-version` 1|2|3]
+### `archsift dossier-schema` [`--schema-version` 1|2|3|4]
 
 Emits one complete packaged dossier JSON Schema. The default is the latest
 supported version, currently 3; `--schema-version` selects an earlier supported
@@ -206,7 +214,13 @@ The **detailed** report states the same content as the Markdown review view:
 task boundary, candidate comparison, the four decision areas, vetoes,
 recommendation or abstention, trade-offs, evidence links with their content
 identities, unresolved gaps, the dossier schema, ruleset and tool versions, and
-reassessment triggers.
+reassessment triggers. Every evidence identity and reassessment trigger carries
+a `decision_bearing` marker (record schema 3): an entry is decision-bearing
+exactly when at least one decision field cites it, and every other entry is
+recorded context — kept in the record, listed under **Recorded Context** in the
+Markdown and HTML reports, never a material gap, and never presented as a
+blocking trigger. Records written under earlier record schemas carry no marker
+and remain readable and comparable.
 
 The **executive** summary states the case identity and task boundary in brief,
 the verdict or abstention with its rule ID, the decision space and each

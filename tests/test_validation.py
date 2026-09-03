@@ -1257,6 +1257,34 @@ def test_validate_success_json_reports_evidence_count(
     assert captured.err == ""
     assert json.loads(captured.out) == {
         "action_count": 0,
+        "advisories": [
+            {
+                "field": "$.evidence[0]",
+                "file": "case.yaml",
+                "id": "uncited-evidence-entry",
+                "message": (
+                    "Evidence entry 'evidence-1' is recorded context: no decision field cites it."
+                ),
+                "remediation": (
+                    "Cite the entry from the decision field it supports, or remove it; "
+                    "it does not affect the verdict."
+                ),
+                "requirement": "FR-004",
+            },
+            {
+                "field": "$.evidence[1]",
+                "file": "case.yaml",
+                "id": "uncited-evidence-entry",
+                "message": (
+                    "Evidence entry 'gap' is recorded context: no decision field cites it."
+                ),
+                "remediation": (
+                    "Cite the entry from the decision field it supports, or remove it; "
+                    "it does not affect the verdict."
+                ),
+                "requirement": "FR-004",
+            },
+        ],
         "agency_necessity_defined": False,
         "agency_necessity_ready": False,
         "assessment_prerequisites_ready": False,
@@ -1304,6 +1332,7 @@ def test_validate_success_json_reports_task_boundary_counts(
     assert captured.err == ""
     assert json.loads(captured.out) == {
         "action_count": 2,
+        "advisories": [],
         "agency_necessity_defined": False,
         "agency_necessity_ready": False,
         "assessment_prerequisites_ready": False,
