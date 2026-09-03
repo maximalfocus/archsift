@@ -96,13 +96,15 @@ Adopted 2026-09-03. Cite the rule IDs in issues and review comments.
   only. Evidence, rationale and measurements belong in the body, never the
   subject.
   Types: `feat` `fix` `docs` `test` `refactor` `perf` `chore` `build` `ci`
-- **Squash subjects are a known exception, until landing is changed.** `gh pr
-  merge --squash` without `--subject` derives the commit subject from the
-  untyped N-2 PR title, so N-4 cannot hold for the squash commit today. Until
-  landing builds `<type>: <issue title, initial letter lowercased> (#<PR>)` from
-  a `Delivery-Type:` field in the PR body, set the squash subject by hand at
-  merge time, or accept the untyped one. Do not "fix" it by putting a type
-  prefix on the PR title — that breaks N-2 instead.
+- **Squash subjects are composed at landing.** `gh pr merge --squash` without
+  `--subject` would derive the commit subject from the untyped N-2 PR title, so
+  landing never relies on it: it builds
+  `<type>: <issue title, initial letter lowercased> (#<PR>)` from exactly one
+  `Delivery-Type: <type>` line in the PR body, checks the type against the
+  vocabulary above and the 72-character budget, and stops rather than guessing
+  when the field is absent, repeated, or the subject is over budget. Declare
+  the field in every PR body. Do not put a type prefix on the PR title — that
+  breaks N-2 instead.
 - **Private material.** This repository is public. Never name the private
   companion product-contract repository (this project's `{project}-prd`
   sibling), one of its documents, or one of its sections in a branch, commit,
