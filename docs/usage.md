@@ -220,7 +220,16 @@ exactly when at least one decision field cites it, and every other entry is
 recorded context — kept in the record, listed under **Recorded Context** in the
 Markdown and HTML reports, never a material gap, and never presented as a
 blocking trigger. Records written under earlier record schemas carry no marker
-and remain readable and comparable.
+and remain readable and comparable. Where the dossier binds a mandatory human
+control or a hard veto to a task action, the record (schema 4) also carries an
+**assistance envelope**: one entry per task action stating whether the action
+is consequential, whether a person must perform or approve it and which
+controls or active vetoes establish that, and which represented candidates
+declare authority over it with the controls each retains, plus whether human
+decision-making is retained across every consequential action. The envelope is
+derived only from recorded facts, cites the evidence and rule IDs that
+establish each entry, never selects, satisfies, or promotes anything, and is
+rendered in the Markdown, HTML, and executive reports.
 
 The **executive** summary states the case identity and task boundary in brief,
 the verdict or abstention with its rule ID, the decision space and each

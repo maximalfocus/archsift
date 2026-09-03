@@ -88,8 +88,8 @@ from archsift.validation import (
     TaskBoundary,
 )
 
-_POSITIVE_GOLDEN = Path(__file__).parent / "golden" / "decision-record-positive-v3.json"
-_INCOMPLETE_GOLDEN = Path(__file__).parent / "golden" / "decision-record-incomplete-v3.json"
+_POSITIVE_GOLDEN = Path(__file__).parent / "golden" / "decision-record-positive-v4.json"
+_INCOMPLETE_GOLDEN = Path(__file__).parent / "golden" / "decision-record-incomplete-v4.json"
 _TOOL_VERSION = "0.1.0-test"
 
 
@@ -454,7 +454,7 @@ def test_positive_record_matches_exact_golden_and_existing_evaluation() -> None:
 
     assert content == _POSITIVE_GOLDEN.read_bytes()
     assert json.loads(content) == payload
-    assert record.record_schema_version == RECORD_SCHEMA_VERSION == 3
+    assert record.record_schema_version == RECORD_SCHEMA_VERSION == 4
     assert record.record_content_identity == decision_record_content_identity(record)
     assert record.record_content_identity == (
         "sha256:" + sha256(canonical_decision_record_identity_payload_bytes(record)).hexdigest()
@@ -740,7 +740,7 @@ def test_stale_or_mutated_record_components_fail_consistency_checks() -> None:
         ruleset_version="stale",
     )
     mutations = (
-        (replace(record, record_schema_version=4), "record schema version"),
+        (replace(record, record_schema_version=5), "record schema version"),
         (
             replace(record, record_content_identity="sha256:" + "0" * 64),
             "record content identity",

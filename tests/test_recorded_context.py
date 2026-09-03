@@ -157,7 +157,7 @@ def test_record_separates_decision_bearing_evidence_from_recorded_context(
 
     assert main(["assess", str(workspace), "--json"]) == ExitCode.SUCCESS
     record = _json(capsys)
-    assert record["record_schema_version"] == 3
+    assert record["record_schema_version"] == 4
     assert record["assessment"]["verdict"] == "supported"
     links = record["evidence_links"]
     assert links["context-observed"]["decision_bearing"] is False
@@ -225,24 +225,29 @@ def test_cited_missing_entry_keeps_its_blocking_treatment(
 
 @pytest.mark.parametrize(
     "golden",
-    ["decision-record-positive-v1.json", "decision-record-positive-v2.json"],
+    [
+        "decision-record-positive-v1.json",
+        "decision-record-positive-v2.json",
+        "decision-record-positive-v3.json",
+    ],
 )
 def test_earlier_record_schemas_remain_readable_and_comparable(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, golden: str
 ) -> None:
     old = json.loads((GOLDEN / golden).read_bytes())
-    assert old["record_schema_version"] in {1, 2}
-    assert all("decision_bearing" not in link for link in old["evidence_links"].values())
+    assert old["record_schema_version"] in {1, 2, 3}
+    assert "assistance_envelope" not in old
     # Rendering treats every pre-schema-3 entry as decision-bearing, as before.
     assert render_detailed_html_report(old)
     summary = build_executive_summary(old)
-    assert "Recorded Context" not in [
-        point.label for section in summary.sections for point in section.points
-    ]
+    if old["record_schema_version"] < 3:
+        assert "Recorded Context" not in [
+            point.label for section in summary.sections for point in section.points
+        ]
 
-    new = json.loads((GOLDEN / "decision-record-positive-v3.json").read_bytes())
+    new = json.loads((GOLDEN / "decision-record-positive-v4.json").read_bytes())
     (tmp_path / "old.json").write_bytes((GOLDEN / golden).read_bytes())
-    (tmp_path / "new.json").write_bytes((GOLDEN / "decision-record-positive-v3.json").read_bytes())
+    (tmp_path / "new.json").write_bytes((GOLDEN / "decision-record-positive-v4.json").read_bytes())
     monkeypatch.chdir(tmp_path)
     assert main(["compare", "old.json", "new.json", "--json"]) == ExitCode.SUCCESS
     delta = _json(capsys)

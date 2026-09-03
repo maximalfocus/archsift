@@ -265,7 +265,7 @@ def test_schema_v3_assessment_binds_verified_registration_provenance(
 
     record = _assess_json(workspace, capsys)
 
-    assert record["record_schema_version"] == 3
+    assert record["record_schema_version"] == 4
     assert record["dossier_schema_version"] == 3
     link = record["artefact_links"][0]
     assert link["registration_id"] == "repo-material"
