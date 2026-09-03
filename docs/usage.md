@@ -229,7 +229,15 @@ declare authority over it with the controls each retains, plus whether human
 decision-making is retained across every consequential action. The envelope is
 derived only from recorded facts, cites the evidence and rule IDs that
 establish each entry, never selects, satisfies, or promotes anything, and is
-rendered in the Markdown, HTML, and executive reports.
+rendered in the Markdown, HTML, and executive reports. Where the verdict is `insufficient-evidence`, the record
+(schema 5) also carries an **abstention scope**: the classes already eliminated
+by blocking findings and the rules that eliminated them, the classes still
+undetermined, the surviving classes, whether an assistance envelope is present
+and human decision-making retained, the outstanding gap rules, and whether the
+remaining choice is framed as assisting or not assisting (every consequential
+action keeps an evidenced human control and no candidate proposes to replace
+it) or as an unresolved autonomy question. The scope restates facts already in
+the record and never changes the verdict; a determined verdict carries none.
 
 The **executive** summary states the case identity and task boundary in brief,
 the verdict or abstention with its rule ID, the decision space and each

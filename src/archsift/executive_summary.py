@@ -295,6 +295,66 @@ def _control_section(dossier: JsonObject) -> SummarySection:
     return SummarySection("Vetoes and Mandatory Human Controls", tuple(points))
 
 
+def _scope_sections(record: JsonObject) -> tuple[SummarySection, ...]:
+    """Render what an abstention already determines before what it still lacks (FR-019)."""
+    if "abstention_scope" not in record:
+        return ()
+    scope = require_object(record["abstention_scope"], "$.abstention_scope")
+    points: list[SummaryPoint] = []
+
+    def determinations(name: str, label: str) -> None:
+        for item in _list_of_objects(scope[name], f"$.abstention_scope.{name}"):
+            control_class = _text(item["control_class"], f"$.abstention_scope.{name}[].class")
+            rules = _strings(item["rule_ids"], f"$.abstention_scope.{name}[].rule_ids")
+            candidates = _strings(item["candidate_ids"], f"$.abstention_scope.{name}[].candidates")
+            points.append(
+                SummaryPoint(
+                    label,
+                    (
+                        control_class,
+                        ("candidates: " + ", ".join(candidates)) if candidates else EMPTY,
+                        ("rules: " + ", ".join(rules)) if rules else EMPTY,
+                    ),
+                )
+            )
+
+    determinations("eliminated_classes", "Already Eliminated")
+    determinations("undetermined_classes", "Still Undetermined")
+    surviving = _strings(scope["surviving_classes"], "$.abstention_scope.surviving_classes")
+    points.append(
+        SummaryPoint("Surviving Classes", tuple(surviving) if surviving else (EMPTY,), derived=True)
+    )
+    retained = scope["human_decision_retained"]
+    points.append(
+        SummaryPoint(
+            "Human Decision Retained",
+            (
+                "no assistance envelope is recorded"
+                if retained is None
+                else ("yes" if retained is True else "no"),
+            ),
+            derived=True,
+        )
+    )
+    choice = _text(scope["remaining_choice"], "$.abstention_scope.remaining_choice")
+    points.append(
+        SummaryPoint(
+            "Remaining Choice",
+            (
+                "whether to assist at all; no candidate proposes to replace human decision-making"
+                if choice == "assist-or-not"
+                else "an unresolved autonomy question",
+            ),
+            derived=True,
+        )
+    )
+    gaps = _strings(
+        scope["outstanding_gap_rule_ids"], "$.abstention_scope.outstanding_gap_rule_ids"
+    )
+    points.append(SummaryPoint("Outstanding Gaps", tuple(gaps) if gaps else (EMPTY,), derived=True))
+    return (SummarySection("Abstention Scope", tuple(points)),)
+
+
 def _envelope_sections(record: JsonObject) -> tuple[SummarySection, ...]:
     """Render the FR-019 assistance envelope where the record carries one."""
     if "assistance_envelope" not in record:
@@ -512,6 +572,7 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
         sections=(
             _case_section(dossier),
             _verdict_section(assessment),
+            *_scope_sections(masked),
             _decision_space_section(dossier),
             _control_section(dossier),
             *_envelope_sections(masked),

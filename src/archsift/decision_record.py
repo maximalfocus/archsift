@@ -52,7 +52,7 @@ from archsift.validation import (
     is_credible_support,
 )
 
-RECORD_SCHEMA_VERSION = 4
+RECORD_SCHEMA_VERSION = 5
 CONFIGURATION_SCHEMA_VERSION = 1
 
 _EnumT = TypeVar("_EnumT", bound=Enum)
@@ -217,6 +217,39 @@ class AssistanceEnvelope:
     replaced_controls: tuple[ReplacedControl, ...]
 
 
+class RemainingChoice(StrEnum):
+    """How the outstanding gaps of an abstention are framed (FR-019)."""
+
+    ASSIST_OR_NOT = "assist-or-not"
+    AUTONOMY_UNRESOLVED = "autonomy-unresolved"
+
+
+@dataclass(frozen=True, slots=True)
+class ClassDetermination:
+    """One control class whose disposition the evidence already determines."""
+
+    control_class: ControlClass
+    candidate_ids: tuple[str, ...]
+    rule_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class AbstentionScope:
+    """What an insufficient-evidence verdict already determines (FR-010, FR-019).
+
+    Derived only from the assessment, the unresolved gaps, and the assistance
+    envelope already in the record; it never changes the verdict.
+    """
+
+    eliminated_classes: tuple[ClassDetermination, ...]
+    undetermined_classes: tuple[ClassDetermination, ...]
+    surviving_classes: tuple[ControlClass, ...]
+    assistance_envelope_present: bool
+    human_decision_retained: bool | None
+    remaining_choice: RemainingChoice
+    outstanding_gap_rule_ids: tuple[str, ...]
+
+
 @dataclass(frozen=True, slots=True)
 class DecisionRecord:
     """Immutable content-addressed record for the current typed inputs."""
@@ -237,6 +270,7 @@ class DecisionRecord:
     reassessment_triggers: tuple[ReassessmentTrigger, ...]
     graph_use: GraphUse | None = None
     assistance_envelope: AssistanceEnvelope | None = None
+    abstention_scope: AbstentionScope | None = None
 
 
 def _checked_dataclass(
@@ -1392,6 +1426,131 @@ def _assistance_envelope_dict(value: AssistanceEnvelope) -> JsonObject:
     }
 
 
+_CONTROL_CLASS_VALUES = (
+    "human-owned-work",
+    "process-redesign",
+    "deterministic-automation",
+    "fixed-ai-workflow",
+    "agentic-control",
+)
+
+
+def derive_abstention_scope(
+    assessment: AssessmentEvaluation,
+    unresolved_gaps: tuple[UnresolvedGap, ...],
+    envelope: AssistanceEnvelope | None,
+) -> AbstentionScope | None:
+    """Scope an insufficient-evidence verdict to what the evidence already determines."""
+    if assessment.verdict is not ArchitectureVerdict.INSUFFICIENT_EVIDENCE:
+        return None
+    elimination = assessment.ordered_elimination_evaluation
+
+    def determinations(
+        disposition: ControlClassDisposition, effect: RuleEffect
+    ) -> tuple[ClassDetermination, ...]:
+        return tuple(
+            ClassDetermination(
+                control_class=result.control_class,
+                candidate_ids=tuple(sorted(result.candidate_ids)),
+                rule_ids=tuple(
+                    sorted(
+                        {
+                            finding.rule_id
+                            for finding in elimination.findings
+                            if finding.control_class is result.control_class
+                            and finding.effect is effect
+                        }
+                    )
+                ),
+            )
+            for result in elimination.control_classes
+            if result.disposition is disposition
+        )
+
+    retained = envelope.human_decision_retained if envelope is not None else None
+    return AbstentionScope(
+        eliminated_classes=determinations(ControlClassDisposition.ELIMINATED, RuleEffect.BLOCK),
+        undetermined_classes=determinations(
+            ControlClassDisposition.UNDETERMINED, RuleEffect.REQUIRE_EVIDENCE
+        ),
+        surviving_classes=tuple(
+            result.control_class
+            for result in elimination.control_classes
+            if result.disposition is ControlClassDisposition.SURVIVES
+        ),
+        assistance_envelope_present=envelope is not None,
+        human_decision_retained=retained,
+        remaining_choice=(
+            RemainingChoice.ASSIST_OR_NOT
+            if retained is True
+            else RemainingChoice.AUTONOMY_UNRESOLVED
+        ),
+        outstanding_gap_rule_ids=tuple(
+            sorted(
+                {
+                    gap.rule_id
+                    for gap in unresolved_gaps
+                    if gap.effect is RuleEffect.REQUIRE_EVIDENCE
+                }
+            )
+        ),
+    )
+
+
+def _class_determination_dict(value: ClassDetermination) -> JsonObject:
+    _checked_dataclass(value, ClassDetermination, ("control_class", "candidate_ids", "rule_ids"))
+    return {
+        "candidate_ids": list(_require_string_tuple(value.candidate_ids, "Scope candidate IDs")),
+        "control_class": _enum_value(value.control_class, ControlClass, _CONTROL_CLASS_VALUES),
+        "rule_ids": list(_require_string_tuple(value.rule_ids, "Scope rule IDs")),
+    }
+
+
+def _abstention_scope_dict(value: AbstentionScope) -> JsonObject:
+    _checked_dataclass(
+        value,
+        AbstentionScope,
+        (
+            "eliminated_classes",
+            "undetermined_classes",
+            "surviving_classes",
+            "assistance_envelope_present",
+            "human_decision_retained",
+            "remaining_choice",
+            "outstanding_gap_rule_ids",
+        ),
+    )
+    if type(value.assistance_envelope_present) is not bool:
+        raise DecisionRecordError("Abstention scope envelope presence must be a boolean.")
+    if (
+        value.human_decision_retained is not None
+        and type(value.human_decision_retained) is not bool
+    ):
+        raise DecisionRecordError(
+            "Abstention scope human_decision_retained must be a boolean or null."
+        )
+    return {
+        "assistance_envelope_present": value.assistance_envelope_present,
+        "eliminated_classes": [
+            _class_determination_dict(item) for item in value.eliminated_classes
+        ],
+        "human_decision_retained": value.human_decision_retained,
+        "outstanding_gap_rule_ids": list(
+            _require_string_tuple(value.outstanding_gap_rule_ids, "Scope outstanding gap rule IDs")
+        ),
+        "remaining_choice": _enum_value(
+            value.remaining_choice, RemainingChoice, ("assist-or-not", "autonomy-unresolved")
+        ),
+        "surviving_classes": [
+            _enum_value(item, ControlClass, _CONTROL_CLASS_VALUES)
+            for item in value.surviving_classes
+        ],
+        "undetermined_classes": [
+            _class_determination_dict(item) for item in value.undetermined_classes
+        ],
+    }
+
+
 def _identity_payload(
     record: DecisionRecord,
     dossier_payload: JsonObject,
@@ -1423,6 +1582,8 @@ def _identity_payload(
         payload["graph_use"] = _graph_use_dict(record.graph_use, record.assessment)
     if record.assistance_envelope is not None:
         payload["assistance_envelope"] = _assistance_envelope_dict(record.assistance_envelope)
+    if record.abstention_scope is not None:
+        payload["abstention_scope"] = _abstention_scope_dict(record.abstention_scope)
     return payload
 
 
@@ -1448,6 +1609,7 @@ def _validate_record(
         "reassessment_triggers",
         "graph_use",
         "assistance_envelope",
+        "abstention_scope",
     )
     _checked_dataclass(record, DecisionRecord, expected_fields)
     if (
@@ -1509,6 +1671,10 @@ def _validate_record(
         raise DecisionRecordError("Decision-record reassessment triggers are inconsistent.")
     if record.assistance_envelope != derive_assistance_envelope(record.dossier):
         raise DecisionRecordError("Decision-record assistance envelope is inconsistent.")
+    if record.abstention_scope != derive_abstention_scope(
+        record.assessment, record.unresolved_gaps, record.assistance_envelope
+    ):
+        raise DecisionRecordError("Decision-record abstention scope is inconsistent.")
     for link in record.evidence_links:
         _evidence_link_dict(link)
     for gap in record.unresolved_gaps:
@@ -1567,6 +1733,12 @@ def compose_decision_record(
         reassessment_triggers=_reassessment_triggers(dossier),
         graph_use=graph_use,
         assistance_envelope=derive_assistance_envelope(dossier),
+    )
+    draft = replace(
+        draft,
+        abstention_scope=derive_abstention_scope(
+            assessment, draft.unresolved_gaps, draft.assistance_envelope
+        ),
     )
     payload = _validate_record(draft, verify_record_identity=False)
     record = replace(
