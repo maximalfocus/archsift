@@ -81,14 +81,14 @@ def test_assess_binds_only_finding_relevant_graph_content_without_changing_verdi
 
     target = workspace / "output" / f"sha256-{graph_record['record_content_identity'][7:]}.json"
     markdown = target.with_suffix(".md").read_text(encoding="utf-8")
-    assert "## Graph Use" in markdown
+    assert "### Graph Use" in markdown
     assert graph_use["graph_version"] in markdown
     assert graph_use["graph_snapshot_content_identity"] in markdown
 
     assert main(["report", str(target), "--format", "html", "--level", "detailed", "--json"]) == 0
     rendered = json.loads(capsys.readouterr().out)["report"]
     html = (tmp_path / rendered).read_text(encoding="utf-8")
-    assert "<h2>Graph Use</h2>" in html
+    assert "<h3>Graph Use</h3>" in html
     assert graph_use["case_view_content_identity"] in html
 
     assert main(command) == ExitCode.SUCCESS

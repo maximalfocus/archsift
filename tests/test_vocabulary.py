@@ -50,7 +50,7 @@ def _all_phrases(payload: dict[str, object]) -> list[str]:
 def test_vocabulary_covers_every_live_enumeration_and_every_packaged_rule() -> None:
     validate_vocabulary()
     payload = vocabulary_payload()
-    assert payload["version"] == VOCABULARY_VERSION == "1.0.0"
+    assert payload["version"] == VOCABULARY_VERSION == "1.1.0"
     assert payload["specification"] == VOCABULARY_SPECIFICATION
     assert (ROOT / VOCABULARY_SPECIFICATION).is_file()
     assert set(payload["verdicts"]) == {item.value for item in ArchitectureVerdict}

@@ -1,10 +1,124 @@
 # ArchSift Decision Report
 
-## Record Metadata
+## The result
+
+**The result**
+
+    More evidence is needed before an option can be indicated.
+
+**Indicated option**
+
+    None yet.
+
+**Evidence state**
+
+    Material evidence is still missing.
+
+**Who decides**
+
+    The decision rests with the accountable owner.
+
+## What is already determined
+
+**Human decision-making**
+
+    No person-required steps or stop conditions are recorded.
+
+## The task
+
+**The task**
+
+    Not yet recorded.
+
+## Is there a problem worth solving?
+
+**Answer**
+
+    Not yet recorded.
+
+## Must a model choose the steps at run time?
+
+**Answer**
+
+    Not yet recorded.
+
+## Which actions may be handed over, and which must a person keep?
+
+**Answer**
+
+    Not yet recorded.
+
+## Which option fits best against the simpler alternatives?
+
+**Options**
+
+    Not yet recorded.
+
+## What the rules found
+
+**gap flag**
+
+    The dossier does not bound the task: what it is, when it starts and ends, who acts, and which actions matter. The result cannot be reached until this is recorded. What would settle it: Record the task boundary.
+
+**gap flag**
+
+    The dossier does not say what problem is worth solving. The result cannot be reached until this is recorded. What would settle it: Record the required outcomes, the current state, the constraints, and the four value statements.
+
+**gap flag**
+
+    The dossier does not answer whether a model must choose the steps at run time. The result cannot be reached until this is recorded. What would settle it: Record the run-time questions with their evidence.
+
+**gap flag**
+
+    The dossier does not answer which actions may be handed over and which a person must keep. The result cannot be reached until this is recorded. What would settle it: Record the hand-over questions, stop conditions, and person-required steps with their evidence.
+
+**gap flag**
+
+    The dossier does not compare the options. The result cannot be reached until this is recorded. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.
+
+**How to read the flags**
+
+    stop: The option cannot be the indicated option under the rules.; gap: Material evidence is missing; the option stays open until it is recorded.; condition: The option stays open only with the named person-required step kept.; fit: The evidence supports the option on this point; it never outweighs a stop or a gap.; noted: Recorded for completeness; it does not change the option's standing.
+
+## The evidence
+
+**Evidence**
+
+    None recorded.
+
+## What is still missing, and what would change the result
+
+**gap flag**
+
+    The dossier does not bound the task: what it is, when it starts and ends, who acts, and which actions matter. The result cannot be reached until this is recorded. What would settle it: Record the task boundary.
+
+**gap flag**
+
+    The dossier does not say what problem is worth solving. The result cannot be reached until this is recorded. What would settle it: Record the required outcomes, the current state, the constraints, and the four value statements.
+
+**gap flag**
+
+    The dossier does not answer whether a model must choose the steps at run time. The result cannot be reached until this is recorded. What would settle it: Record the run-time questions with their evidence.
+
+**gap flag**
+
+    The dossier does not answer which actions may be handed over and which a person must keep. The result cannot be reached until this is recorded. What would settle it: Record the hand-over questions, stop conditions, and person-required steps with their evidence.
+
+**gap flag**
+
+    The dossier does not compare the options. The result cannot be reached until this is recorded. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.
+
+## Traceability Appendix
+
+### Record Metadata
 
 **Report Format Version**
 
-    2
+    3
+
+**Vocabulary Version**
+
+    1.1.0
 
 **Record Schema Version**
 
@@ -48,7 +162,7 @@
 
     sha256:b908f0089fe23bf8f8ec05339261d4bda95251fe99f96d3a9240cc985c48ec8c
 
-## Abstention Scope
+### Abstention Scope
 
 **Abstention Scope**
 
@@ -98,7 +212,7 @@
 
     task-boundary-missing
 
-## Case Identity
+### Case Identity
 
 **Case**
 
@@ -110,51 +224,51 @@
 
     Synthetic incomplete
 
-## Task Boundary
+### Task Boundary
 
 **Task**
 
     (not provided)
 
-## Evidence Ledger
+### Evidence Ledger
 
 **Evidence**
 
     (none)
 
-## Decision Areas
+### Decision Areas
 
-### Problem Value
+#### Problem Value
 
 **Problem Value**
 
     (not provided)
 
-### Agency Necessity
+#### Agency Necessity
 
 **Agency Necessity**
 
     (not provided)
 
-### Autonomy Permission
+#### Autonomy Permission
 
 **Autonomy Permission**
 
     (not provided)
 
-### Comparative Fit
+#### Comparative Fit
 
 **Candidate Comparison and Trade-offs**
 
     (not provided)
 
-## Decision Conditions
+### Decision Conditions
 
 **Decision Conditions**
 
     (none)
 
-## Verdict and Recommendation
+### Verdict and Recommendation
 
 **Assessment Schema Version**
 
@@ -196,7 +310,7 @@
 
     (none)
 
-## Assessment Trace
+### Assessment Trace
 
 **Prerequisite Evaluation**
 
@@ -422,25 +536,25 @@
 
     (not provided)
 
-## Evidence Identities
+### Evidence Identities
 
 **Evidence Links**
 
     (none)
 
-## Recorded Context
+### Recorded Context
 
 **Recorded Context Evidence IDs**
 
     (none)
 
-## Artefact Identities
+### Artefact Identities
 
 **Artefact Links**
 
     (none)
 
-## Unresolved Gaps
+### Unresolved Gaps
 
 **Unresolved Gaps**
 
@@ -654,13 +768,13 @@
 
     (not provided)
 
-## Reassessment Triggers
+### Reassessment Triggers
 
 **Reassessment Triggers**
 
     (none)
 
-## Masking Notice
+### Masking Notice
 
 **Policy Version**
 

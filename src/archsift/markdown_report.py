@@ -13,9 +13,10 @@ from archsift import decision_record as dr
 from archsift import masking as mk
 from archsift import rules as r
 from archsift import validation as v
+from archsift.narrative import Narrative, build_narrative
 from archsift.report_text import visible_text as _visible_text
 
-REPORT_FORMAT_VERSION: Final = 2
+REPORT_FORMAT_VERSION: Final = 3
 
 
 class MarkdownReportError(ValueError):
@@ -481,7 +482,7 @@ def _scalar_text(value: object, *, maskable: bool) -> str:
 
 
 def _label(name: str) -> str:
-    if not name or any(not (character.isalnum() or character in " -/()") for character in name):
+    if not name or any(not (character.isalnum() or character in " -/(),?'") for character in name):
         raise MarkdownReportError("Report labels must be fixed safe text.")
     return name
 
@@ -551,6 +552,25 @@ def _section(
     _emit_value(lines, label, value, omit_evidence_authorship=omit_evidence_authorship)
 
 
+def _demoted(lines: list[str]) -> list[str]:
+    """Push every Markdown heading one level down so the appendix nests under its heading."""
+    return [f"#{line}" if line.startswith("#") else line for line in lines]
+
+
+def _emit_narrative(lines: list[str], narrative: Narrative) -> None:
+    for section in narrative.sections:
+        lines.extend((f"## {_label(section.title)}", ""))
+        for item in section.items:
+            lines.extend(
+                (
+                    f"**{_label(item.label)}**",
+                    "",
+                    f"    {_visible_text(mk.mask_sensitive_text(item.text))}",
+                    "",
+                )
+            )
+
+
 def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     """Return one deterministic Markdown review view without re-evaluating or performing I/O."""
     _assert_contract(record, dr.DecisionRecord)
@@ -558,8 +578,17 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     _assert_contract(record.assessment, d.AssessmentEvaluation)
 
     lines = ["# ArchSift Decision Report", ""]
+    narrative = build_narrative(
+        cast(dict[str, Any], mk.mask_json_value(dr.unvalidated_record_dict(record)))
+    )
+    _emit_narrative(lines, narrative)
+    lines.extend(("## Traceability Appendix", ""))
+    appendix: list[str] = []
+    lines_outer = lines
+    lines = appendix
     lines.extend(("## Record Metadata", ""))
     _emit_scalar(lines, "Report Format Version", REPORT_FORMAT_VERSION, maskable=False)
+    _emit_scalar(lines, "Vocabulary Version", narrative.vocabulary_version, maskable=False)
     _emit_scalar(lines, "Record Schema Version", record.record_schema_version, maskable=False)
     _emit_scalar(lines, "Record Content Identity", record.record_content_identity, maskable=False)
     _emit_scalar(lines, "Dossier Schema Version", record.dossier_schema_version, maskable=False)
@@ -670,5 +699,7 @@ def render_markdown_decision_report(record: dr.DecisionRecord) -> bytes:
     lines.extend(("## Masking Notice", ""))
     _emit_scalar(lines, "Policy Version", mk.MASKING_POLICY_VERSION)
     _emit_scalar(lines, "Warning", mk.MASKING_WARNING)
+    lines_outer.extend(_demoted(appendix))
+    lines = lines_outer
 
     return ("\n".join(lines).rstrip("\n") + "\n").encode("utf-8")

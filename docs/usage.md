@@ -214,7 +214,14 @@ The **detailed** report states the same content as the Markdown review view:
 task boundary, candidate comparison, the four decision areas, vetoes,
 recommendation or abstention, trade-offs, evidence links with their content
 identities, unresolved gaps, the dossier schema, ruleset and tool versions, and
-reassessment triggers. Every evidence identity and reassessment trigger carries
+reassessment triggers. Both the Markdown record and the detailed HTML report open
+with a plain-language narrative rendered through the published vocabulary —
+the result, what is already determined, the task, the four questions, the
+options, what the rules found as flags, who may act, the evidence, and what is
+still missing — naming every authored element by its authored name and every
+concept by its vocabulary phrase, with no internal identifier. The complete
+internal trace follows under **Traceability Appendix**, unchanged in content.
+Every evidence identity and reassessment trigger carries
 a `decision_bearing` marker (record schema 3): an entry is decision-bearing
 exactly when at least one decision field cites it, and every other entry is
 recorded context — kept in the record, listed under **Recorded Context** in the
@@ -304,7 +311,7 @@ Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
 method specification reference and the versioned
-[plain-language vocabulary](vocabulary-v1.0.0.md) under `vocabulary`: the
+[plain-language vocabulary](vocabulary-v1.1.0.md) under `vocabulary`: the
 flag each finding effect renders as (stop, gap, condition, fit, noted), the
 reader-facing phrase for every verdict, evidence state, option, evidence kind,
 and decision question, the reader-facing message template, consequence, and

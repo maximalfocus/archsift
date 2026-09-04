@@ -1749,6 +1749,18 @@ def compose_decision_record(
     return record
 
 
+def unvalidated_record_dict(record: DecisionRecord) -> JsonObject:
+    """Return the record's JSON form without re-evaluating or re-validating it.
+
+    Renderers use this to present an already-composed typed record; it performs
+    no assessment and no I/O, so it is safe inside a pure rendering boundary.
+    """
+    payload = _identity_payload(
+        record, canonical_dossier_dict(record.dossier), _assessment_dict(record.assessment)
+    )
+    return {**payload, "record_content_identity": record.record_content_identity}
+
+
 def canonical_decision_record_identity_payload_bytes(record: DecisionRecord) -> bytes:
     """Return canonical bytes hashed for record identity, excluding only that identity."""
     return canonical_json_bytes(_validate_record(record))

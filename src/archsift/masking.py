@@ -423,6 +423,11 @@ def _mask_json_value(value: JsonValue, *, key: str | None) -> JsonValue:
     return value
 
 
+def mask_json_value(value: JsonValue) -> JsonValue:
+    """Apply the masking policy to one JSON value, leaving structural keys untouched."""
+    return _mask_json_value(value, key=None)
+
+
 def masked_canonical_decision_record_dict(record: DecisionRecord) -> JsonObject:
     """Return the masked presentation of one canonical decision record.
 

@@ -28,11 +28,93 @@ p.empty { opacity: 0.7; }
 </head>
 <body>
 <h1>ArchSift Decision Report</h1>
-<h2>Record Metadata</h2>
+<h2>The result</h2>
+<dl>
+<dt>The result</dt>
+<dd><p class="value">More evidence is needed before an option can be indicated.</p></dd>
+<dt>Indicated option</dt>
+<dd><p class="value">None yet.</p></dd>
+<dt>Evidence state</dt>
+<dd><p class="value">Material evidence is still missing.</p></dd>
+<dt>Who decides</dt>
+<dd><p class="value">The decision rests with the accountable owner.</p></dd>
+</dl>
+<h2>The task</h2>
+<dl>
+<dt>The task</dt>
+<dd><p class="value">Not yet recorded.</p></dd>
+</dl>
+<h2>Is there a problem worth solving?</h2>
+<dl>
+<dt>Answer</dt>
+<dd><p class="value">Not yet recorded.</p></dd>
+</dl>
+<h2>Must a model choose the steps at run time?</h2>
+<dl>
+<dt>Answer</dt>
+<dd><p class="value">Not yet recorded.</p></dd>
+</dl>
+<h2>Which actions may be handed over, and which must a person keep?</h2>
+<dl>
+<dt>Answer</dt>
+<dd><p class="value">Not yet recorded.</p></dd>
+</dl>
+<h2>Which option fits best against the simpler alternatives?</h2>
+<dl>
+<dt>Options</dt>
+<dd><p class="value">Not yet recorded.</p></dd>
+</dl>
+<h2>What the rules found</h2>
+<dl>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not bound the task: what it is, when it starts and ends, who acts, and which actions matter. The result cannot be reached until this is recorded. What would settle it: Record the task boundary.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not say what problem is worth solving. The result cannot be reached until this is recorded. What would settle it: Record the required outcomes, the current state, the constraints, and the four value statements.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not answer whether a model must choose the steps at run time. The result cannot be reached until this is recorded. What would settle it: Record the run-time questions with their evidence.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not answer which actions may be handed over and which a person must keep. The result cannot be reached until this is recorded. What would settle it: Record the hand-over questions, stop conditions, and person-required steps with their evidence.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not compare the options. The result cannot be reached until this is recorded. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.</p></dd>
+<dt>How to read the flags</dt>
+<dd><p class="value">stop: The option cannot be the indicated option under the rules.; gap: Material evidence is missing; the option stays open until it is recorded.; condition: The option stays open only with the named person-required step kept.; fit: The evidence supports the option on this point; it never outweighs a stop or a gap.; noted: Recorded for completeness; it does not change the option&#x27;s standing.</p></dd>
+</dl>
+<h2>The evidence</h2>
+<dl>
+<dt>Evidence the decision rests on</dt>
+<dd><p class="value">A required observation is missing. This is not yet available; recorded by Synthetic reviewer. What would settle it: Run the required synthetic observation.</p></dd>
+<dt>Evidence the decision rests on</dt>
+<dd><p class="value">A synthetic assumption remains untested. This is assumed; recorded by Synthetic reviewer. What would disprove it: A controlled trial disproves the assumption.</p></dd>
+</dl>
+<h2>What is still missing, and what would change the result</h2>
+<dl>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not bound the task: what it is, when it starts and ends, who acts, and which actions matter. The result cannot be reached until this is recorded. What would settle it: Record the task boundary.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not say what problem is worth solving. The result cannot be reached until this is recorded. What would settle it: Record the required outcomes, the current state, the constraints, and the four value statements.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not answer whether a model must choose the steps at run time. The result cannot be reached until this is recorded. What would settle it: Record the run-time questions with their evidence.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not answer which actions may be handed over and which a person must keep. The result cannot be reached until this is recorded. What would settle it: Record the hand-over questions, stop conditions, and person-required steps with their evidence.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">The dossier does not compare the options. The result cannot be reached until this is recorded. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.</p></dd>
+<dt>Would change the result</dt>
+<dd><p class="value">A required observation is missing. (not yet available): Run the required synthetic observation.</p></dd>
+<dt>Would change the result</dt>
+<dd><p class="value">A synthetic assumption remains untested. (assumed): A controlled trial disproves the assumption.</p></dd>
+</dl>
+<h2>Traceability Appendix</h2>
+<h3>Record Metadata</h3>
 <dl>
 <dt>Report Format Version</dt>
 <dd>
-<p class="value">1</p>
+<p class="value">2</p>
+</dd>
+</dl>
+<dl>
+<dt>Vocabulary Version</dt>
+<dd>
+<p class="value">1.1.0</p>
 </dd>
 </dl>
 <dl>
@@ -98,7 +180,7 @@ p.empty { opacity: 0.7; }
 <p class="value">sha256:b908f0089fe23bf8f8ec05339261d4bda95251fe99f96d3a9240cc985c48ec8c</p>
 </dd>
 </dl>
-<h2>Case Identity</h2>
+<h3>Case Identity</h3>
 <dl>
 <dt>Case</dt>
 <dd>
@@ -114,14 +196,14 @@ p.empty { opacity: 0.7; }
 </dl>
 </dd>
 </dl>
-<h2>Task Boundary</h2>
+<h3>Task Boundary</h3>
 <dl>
 <dt>Task</dt>
 <dd>
 <p class="value">(not provided)</p>
 </dd>
 </dl>
-<h2>Evidence Ledger</h2>
+<h3>Evidence Ledger</h3>
 <dl>
 <dt>Evidence</dt>
 <dd>
@@ -201,43 +283,43 @@ p.empty { opacity: 0.7; }
 </ol>
 </dd>
 </dl>
-<h2>Decision Areas</h2>
-<h3>Problem Value</h3>
+<h3>Decision Areas</h3>
+<h4>Problem Value</h4>
 <dl>
 <dt>Problem Value</dt>
 <dd>
 <p class="value">(not provided)</p>
 </dd>
 </dl>
-<h3>Agency Necessity</h3>
+<h4>Agency Necessity</h4>
 <dl>
 <dt>Agency Necessity</dt>
 <dd>
 <p class="value">(not provided)</p>
 </dd>
 </dl>
-<h3>Autonomy Permission</h3>
+<h4>Autonomy Permission</h4>
 <dl>
 <dt>Autonomy Permission</dt>
 <dd>
 <p class="value">(not provided)</p>
 </dd>
 </dl>
-<h3>Comparative Fit</h3>
+<h4>Comparative Fit</h4>
 <dl>
 <dt>Candidate Comparison and Trade-offs</dt>
 <dd>
 <p class="value">(not provided)</p>
 </dd>
 </dl>
-<h2>Decision Conditions</h2>
+<h3>Decision Conditions</h3>
 <dl>
 <dt>Decision Conditions</dt>
 <dd>
 <p class="empty">(none)</p>
 </dd>
 </dl>
-<h2>Verdict and Recommendation</h2>
+<h3>Verdict and Recommendation</h3>
 <dl>
 <dt>Assessment Schema Version</dt>
 <dd>
@@ -298,7 +380,7 @@ p.empty { opacity: 0.7; }
 <p class="empty">(none)</p>
 </dd>
 </dl>
-<h2>Assessment Trace</h2>
+<h3>Assessment Trace</h3>
 <dl>
 <dt>Prerequisite Evaluation</dt>
 <dd>
@@ -546,7 +628,7 @@ p.empty { opacity: 0.7; }
 </dl>
 </dd>
 </dl>
-<h2>Evidence Identities</h2>
+<h3>Evidence Identities</h3>
 <dl>
 <dt>Evidence Links</dt>
 <dd>
@@ -588,14 +670,14 @@ p.empty { opacity: 0.7; }
 </dl>
 </dd>
 </dl>
-<h2>Artefact Identities</h2>
+<h3>Artefact Identities</h3>
 <dl>
 <dt>Artefact Links</dt>
 <dd>
 <p class="empty">(none)</p>
 </dd>
 </dl>
-<h2>Unresolved Gaps</h2>
+<h3>Unresolved Gaps</h3>
 <dl>
 <dt>Unresolved Gaps</dt>
 <dd>
@@ -823,7 +905,7 @@ p.empty { opacity: 0.7; }
 </ol>
 </dd>
 </dl>
-<h2>Reassessment Triggers</h2>
+<h3>Reassessment Triggers</h3>
 <dl>
 <dt>Reassessment Triggers</dt>
 <dd>
@@ -864,7 +946,7 @@ p.empty { opacity: 0.7; }
 </dd>
 </dl>
 <section class="notice">
-<h2>Masking Notice</h2>
+<h3>Masking Notice</h3>
 <dl>
 <dt>Policy Version</dt>
 <dd>

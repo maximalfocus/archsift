@@ -82,10 +82,10 @@ def test_recommending_report_matches_exact_golden_across_all_decision_areas() ->
     assert b"\r" not in content
     text = content.decode("utf-8")
     # All four decision areas, an active veto, and a recommendation path.
-    assert "<h3>Problem Value</h3>" in text
-    assert "<h3>Agency Necessity</h3>" in text
-    assert "<h3>Autonomy Permission</h3>" in text
-    assert "<h3>Comparative Fit</h3>" in text
+    assert "<h4>Problem Value</h4>" in text
+    assert "<h4>Agency Necessity</h4>" in text
+    assert "<h4>Autonomy Permission</h4>" in text
+    assert "<h4>Comparative Fit</h4>" in text
     assert "<dt>Active Hard Veto IDs</dt>" in text
     assert '<p class="value">active</p>' in text
     assert '<p class="value">conditional</p>' in text
@@ -104,23 +104,25 @@ def test_detailed_report_carries_every_required_record_section() -> None:
 
     for heading in (
         "<h1>ArchSift Decision Report</h1>",
-        "<h2>Record Metadata</h2>",
-        "<h2>Case Identity</h2>",
-        "<h2>Task Boundary</h2>",
-        "<h2>Evidence Ledger</h2>",
-        "<h2>Decision Areas</h2>",
-        "<h3>Problem Value</h3>",
-        "<h3>Agency Necessity</h3>",
-        "<h3>Autonomy Permission</h3>",
-        "<h3>Comparative Fit</h3>",
-        "<h2>Decision Conditions</h2>",
-        "<h2>Verdict and Recommendation</h2>",
-        "<h2>Assessment Trace</h2>",
-        "<h2>Evidence Identities</h2>",
-        "<h2>Artefact Identities</h2>",
-        "<h2>Unresolved Gaps</h2>",
-        "<h2>Reassessment Triggers</h2>",
-        "<h2>Masking Notice</h2>",
+        "<h2>The result</h2>",
+        "<h2>Traceability Appendix</h2>",
+        "<h3>Record Metadata</h3>",
+        "<h3>Case Identity</h3>",
+        "<h3>Task Boundary</h3>",
+        "<h3>Evidence Ledger</h3>",
+        "<h3>Decision Areas</h3>",
+        "<h4>Problem Value</h4>",
+        "<h4>Agency Necessity</h4>",
+        "<h4>Autonomy Permission</h4>",
+        "<h4>Comparative Fit</h4>",
+        "<h3>Decision Conditions</h3>",
+        "<h3>Verdict and Recommendation</h3>",
+        "<h3>Assessment Trace</h3>",
+        "<h3>Evidence Identities</h3>",
+        "<h3>Artefact Identities</h3>",
+        "<h3>Unresolved Gaps</h3>",
+        "<h3>Reassessment Triggers</h3>",
+        "<h3>Masking Notice</h3>",
     ):
         assert heading in text, heading
     for label in (
@@ -192,7 +194,8 @@ def test_authored_markup_scripts_and_controls_render_as_inert_text() -> None:
         "name",
     }
     # The payload survives as escaped, visible, inert text.
-    assert text.count(escape(visible_text(_INJECTION_PAYLOAD), quote=True)) == 4
+    # The narrative restates the title, claim, operation, and name once more each.
+    assert text.count(escape(visible_text(_INJECTION_PAYLOAD), quote=True)) == 11
     assert "\x00" not in text and "\x1b" not in text
     assert "\u200b" not in text and "\u2028" not in text and "\u202e" not in text
     assert "\\u0000" in text and "\\u001b" in text
