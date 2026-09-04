@@ -246,16 +246,32 @@ action keeps an evidenced human control and no candidate proposes to replace
 it) or as an unresolved autonomy question. The scope restates facts already in
 the record and never changes the verdict; a determined verdict carries none.
 
-The **executive** summary states the case identity and task boundary in brief,
-the verdict or abstention with its rule ID, the decision space and each
-candidate's role, the active vetoes and mandatory human controls, the evidence
-state with its counts and material gaps, and the trade-offs that most affect
-the verdict — the directional comparison outcomes involving a candidate the
-verdict rests on. The HTML and PPTX forms render one summary, so they cannot
-state different facts about the same record. The summary introduces nothing the
-record does not contain: every value is verbatim record content apart from
-counts and fixed markers for an absent, empty, or abstaining outcome. Nothing
-is truncated; a section longer than one slide continues onto the next.
+The **executive** summary tells the decision in exactly three parts, in
+business language, for a stakeholder without the method in hand:
+
+1. **Summary** — the operational task, the result (the indicated option by its
+   authored name, or the statement that more evidence is needed), what happens
+   next, and that the decision rests with the accountable owner.
+2. **Business analysis** — the affected volume, the material pain, the cost of
+   an error, and the limiting factor, then a process view of the recorded task:
+   when it starts and completes, who takes part, the accountable owner, and the
+   ordered steps with which of them a person must perform or confirm.
+3. **Result and reasoning** — each option considered with the flags it carries
+   (`stop`, `gap`, `condition`, `fit`), the absolute stop conditions and
+   person-required steps that apply, and, where more evidence is needed, what is
+   already determined and the specific information that would settle the rest.
+
+No other part appears. The summary speaks through the published vocabulary
+(`docs/vocabulary-v1.1.0.md`): it names every concept by its phrase and every
+authored element by its authored name or description, and carries no rule
+identifier, evidence identifier, requirement identifier, field path, or internal
+token, and no traceability appendix; the detailed report keeps the full trace.
+The HTML and PPTX forms render one summary, so they cannot state different facts
+about the same record, and the summary introduces nothing the record does not
+contain. A rendering is addressed by the record content identity together with
+the vocabulary version, stated in the HTML footer and on the deck's title slide,
+so a wording change produces a distinct rendering while the record is untouched.
+Nothing is truncated; a part longer than one slide continues onto the next.
 
 Every report is written beside the record it renders and is an output of that
 record rather than a separate authoritative artifact: its name restates the

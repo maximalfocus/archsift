@@ -98,7 +98,7 @@ def test_declaration_resolves_a_non_discriminating_set_as_an_authored_decision(
     assert "**Baseline Retention**" in markdown and "**Declared By**" in markdown
     assert "Fictional operations owner" in markdown
     executive = render_executive_html_report(record).decode("utf-8")
-    assert "Baseline Retention (Authored Decision)" in executive
+    assert "Keeping the current way of working is intended" in executive
     assert "Fictional operations owner" in executive
 
 

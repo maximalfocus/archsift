@@ -37,10 +37,7 @@ from archsift.executive_summary import ExecutiveSummary, build_executive_summary
 from archsift.masking import MASKING_POLICY_VERSION, MASKING_WARNING
 from archsift.report_text import visible_text
 
-PPTX_REPORT_FORMAT_VERSION: Final = 1
-
-#: The fixed text joining one summary point's values on a slide.
-VALUE_SEPARATOR: Final = " — "
+PPTX_REPORT_FORMAT_VERSION: Final = 2
 
 #: A deck never truncates: a section longer than this continues on a new slide.
 POINTS_PER_SLIDE: Final = 8
@@ -332,23 +329,26 @@ def _app_properties(slide_count: int) -> str:
 
 
 def _rendered_lines(summary: ExecutiveSummary) -> list[tuple[str, tuple[str, ...]]]:
-    """Return every slide's title and bullet lines, paginating without truncating."""
+    """Return every slide's title and bullet lines, paginating without truncating.
+
+    The deck is a title slide, the three parts (each continuing onto further
+    slides rather than truncating), and a closing masking notice.
+    """
     slides: list[tuple[str, tuple[str, ...]]] = [
         (
             "ArchSift Executive Summary",
             (
                 summary.case_title,
                 f"Record: {summary.record_content_identity}",
-                f"Ruleset: {summary.ruleset_version}",
-                f"ArchSift: {summary.tool_version}",
+                f"Vocabulary: {summary.vocabulary_version}",
             ),
         )
     ]
-    for section in summary.sections:
-        lines = [f"{point.label}: {VALUE_SEPARATOR.join(point.values)}" for point in section.points]
+    for part in summary.parts:
+        lines = [f"{statement.label}: {statement.text}" for statement in part.statements]
         for start in range(0, max(len(lines), 1), POINTS_PER_SLIDE):
             page = lines[start : start + POINTS_PER_SLIDE]
-            title = section.title if start == 0 else f"{section.title} (continued)"
+            title = part.title if start == 0 else f"{part.title} (continued)"
             slides.append((title, tuple(page)))
     slides.append(
         (

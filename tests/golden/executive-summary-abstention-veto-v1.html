@@ -23,120 +23,88 @@ ol { margin: 0; padding-left: 1.5rem; }
 p { margin: 0.25rem 0; }
 p.value { white-space: pre-wrap; overflow-wrap: anywhere; }
 p.empty { opacity: 0.7; }
+p.case { font-size: 1.15rem; font-weight: 600; }
+.part dd { margin-bottom: 0.5rem; }
 .notice { margin-top: 2.5rem; padding: 0.75rem 1rem; border: 1px solid currentColor; }
 </style>
 </head>
 <body>
 <h1>ArchSift Executive Summary</h1>
-<h2>Summary Metadata</h2>
+<p class="case">Fictional decision with an unresolved comparison</p>
+<section class="part">
+<h2>Summary</h2>
 <dl>
-<dt>Report Format Version</dt>
-<dd>
-<p class="value">1</p>
-</dd>
-</dl>
-<dl>
-<dt>Record Content Identity</dt>
-<dd>
-<p class="value">sha256:8791aeda29e64e088499a7af0d3c53a772432738ae5c5885ebf20dfd284c4bf0</p>
-</dd>
-</dl>
-<dl>
-<dt>Ruleset Version</dt>
-<dd>
-<p class="value">1.8.0</p>
-</dd>
-</dl>
-<dl>
-<dt>Tool Version</dt>
-<dd>
-<p class="value">0.1.0-test</p>
-</dd>
-</dl>
-<h2>Case and Task Boundary</h2>
-<dl>
-<dt>Case ID</dt>
-<dd><p class="value">insufficient-evidence</p></dd>
-<dt>Case</dt>
-<dd><p class="value">Fictional decision with an unresolved comparison</p></dd>
-<dt>Language</dt>
-<dd><p class="value">en</p></dd>
-<dt>Operation</dt>
+<dt>The task</dt>
 <dd><p class="value">Review one bounded synthetic case.</p></dd>
-<dt>Starts When</dt>
-<dd><p class="value">A complete case arrives.</p></dd>
-<dt>Completes When</dt>
-<dd><p class="value">An approved disposition is recorded.</p></dd>
-<dt>Accountable Owner</dt>
-<dd><p class="value">Fictional operations owner</p></dd>
-<dt>Consequential Actions</dt>
-<dd><p class="empty">1 of 2</p></dd>
-</dl>
-<h2>Verdict</h2>
-<dl>
-<dt>Verdict</dt>
-<dd><p class="value">insufficient-evidence</p></dd>
-<dt>Verdict Rule</dt>
-<dd><p class="value">verdict-insufficient-evidence</p></dd>
-<dt>Recommendation</dt>
-<dd><p class="empty">(abstention)</p></dd>
-<dt>Evidence State</dt>
-<dd><p class="value">evidence-incomplete</p></dd>
-<dt>Unmet Conditions</dt>
-<dd><p class="empty">(none)</p></dd>
-</dl>
-<h2>Decision Space</h2>
-<dl>
-<dt>Candidate</dt>
-<dd><p class="value">human-review — Fictional human review — human-owned-work — current-baseline — strongest-simpler</p></dd>
-<dt>Candidate</dt>
-<dd><p class="value">fixed-workflow — Fictional fixed AI workflow — fixed-ai-workflow — proposed</p></dd>
-<dt>Strongest Simpler Alternative</dt>
-<dd><p class="value">human-review — All represented synthetic candidates below the proposal.</p></dd>
-</dl>
-<h2>Vetoes and Mandatory Human Controls</h2>
-<dl>
-<dt>Active Veto</dt>
-<dd><p class="value">human-release-required — The fictional disposition would be released without approval. — Release is prohibited until a fictional approver accepts it.</p></dd>
-<dt>Mandatory Human Control</dt>
-<dd><p class="value">approve-release — Approve the fictional disposition before release. — Immediately before release-disposition. — Fictional approver</p></dd>
-</dl>
-<h2>Evidence State</h2>
-<dl>
-<dt>Observed</dt>
-<dd><p class="empty">3</p></dd>
-<dt>Assumption</dt>
-<dd><p class="empty">0</p></dd>
-<dt>Estimate</dt>
-<dd><p class="empty">0</p></dd>
-<dt>Missing</dt>
-<dd><p class="empty">0</p></dd>
-<dt>Unresolved Gap</dt>
-<dd><p class="value">candidate-test-result-unknown — Candidate &#x27;fixed-workflow&#x27; has an unknown outcome_tests result.</p></dd>
-<dt>Unresolved Gap</dt>
-<dd><p class="value">comparison-result-unknown — Comparison dimension &#x27;outcome_quality&#x27; is unknown for &#x27;fixed-workflow&#x27; versus &#x27;human-review&#x27;.</p></dd>
-<dt>Unresolved Gap</dt>
-<dd><p class="value">candidate-test-result-unknown — Candidate &#x27;fixed-workflow&#x27; has an unknown result for binding outcome &#x27;required-quality&#x27;.</p></dd>
-</dl>
-<h2>Decisive Trade-offs</h2>
-<dl>
-<dt>Directional Trade-offs</dt>
-<dd><p class="empty">(none)</p></dd>
-</dl>
-<section class="notice">
-<h2>Masking Notice</h2>
-<dl>
-<dt>Policy Version</dt>
-<dd>
-<p class="value">1</p>
-</dd>
-</dl>
-<dl>
-<dt>Warning</dt>
-<dd>
-<p class="value">This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.</p>
-</dd>
+<dt>The result</dt>
+<dd><p class="value">More evidence is needed before an option can be indicated.</p></dd>
+<dt>What happens next</dt>
+<dd><p class="value">Record the information listed under Result and reasoning, then run the review again; the result stays open until then.</p></dd>
+<dt>Who decides</dt>
+<dd><p class="value">The decision rests with the accountable owner. The accountable owner is Fictional operations owner.</p></dd>
 </dl>
 </section>
+<section class="part">
+<h2>Business analysis</h2>
+<dl>
+<dt>How much work is affected</dt>
+<dd><p class="value">Material volume.</p></dd>
+<dt>What hurts today</dt>
+<dd><p class="value">Material delay.</p></dd>
+<dt>What an error costs</dt>
+<dd><p class="value">Material rework.</p></dd>
+<dt>Why technology may be the limit</dt>
+<dd><p class="value">Current tooling limits retrieval.</p></dd>
+<dt>How the work runs today</dt>
+<dd><p class="value">It starts when: A complete case arrives. It is complete when: An approved disposition is recorded.</p></dd>
+<dt>Who takes part</dt>
+<dd><p class="value">Reviewer, Approver.</p></dd>
+<dt>Accountable owner</dt>
+<dd><p class="value">Fictional operations owner.</p></dd>
+<dt>Step 1</dt>
+<dd><p class="value">Prepare the bounded disposition. This step is not consequential. No person-required step or absolute stop condition binds this step.</p></dd>
+<dt>Step 2</dt>
+<dd><p class="value">Release the approved disposition. This step is consequential. A person must perform or confirm this step: Approve the fictional disposition before release (Fictional approver). It stops if: The fictional disposition would be released without approval.</p></dd>
+</dl>
+</section>
+<section class="part">
+<h2>Result and reasoning</h2>
+<dl>
+<dt>Option</dt>
+<dd><p class="value">Fictional human review. People follow the bounded review procedure using the existing register. Kind: people do the work. Standing: ruled out. Stop flag: The recorded evidence shows Fictional human review does not reach the required outcome Meet required quality. The option cannot be the indicated option. Fit flag: The recorded evidence shows Fictional human review meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
+<dt>Option</dt>
+<dd><p class="value">Fictional fixed AI workflow. Code fixes the path while a model assists within the bounded preparation action. Kind: AI inside a fixed workflow. Standing: still open. Gap flag: The test of Fictional fixed AI workflow against Meet required quality has no recorded result. The result cannot be reached until this is recorded. Fit flag: The recorded evidence shows Fictional fixed AI workflow meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
+<dt>The options as a whole</dt>
+<dd><p class="value">Gap flag: The comparison of Fictional fixed AI workflow with Fictional human review on quality of the outcome has no recorded result. The result cannot be reached until this is recorded.</p></dd>
+<dt>Strongest simpler alternative</dt>
+<dd><p class="value">Fictional human review. The selected candidate is the strongest represented simpler option.</p></dd>
+<dt>Absolute stop condition</dt>
+<dd><p class="value">The fictional disposition would be released without approval. Then: Release is prohibited until a fictional approver accepts it.</p></dd>
+<dt>Person-required step</dt>
+<dd><p class="value">Approve the fictional disposition before release. When: Immediately before release-disposition. Who: Fictional approver.</p></dd>
+<dt>Already determined</dt>
+<dd><p class="value">Ruled out: people do the work. Still open: AI inside a fixed workflow.</p></dd>
+<dt>What would settle the rest</dt>
+<dd><p class="value">The test of Fictional fixed AI workflow against Meet required quality has no recorded result. Record whether the option meets it, with evidence.</p></dd>
+<dt>What would settle the rest</dt>
+<dd><p class="value">The comparison of Fictional fixed AI workflow with Fictional human review on quality of the outcome has no recorded result. Record whether the option is better, equivalent, or worse on that point, with evidence.</p></dd>
+<dt>How to read the flags</dt>
+<dd><p class="value">Stop flag: The option cannot be the indicated option under the rules. Gap flag: Material evidence is missing; the option stays open until it is recorded. Condition flag: The option stays open only with the named person-required step kept. Fit flag: The evidence supports the option on this point; it never outweighs a stop or a gap. Noted flag: Recorded for completeness; it does not change the option&#x27;s standing.</p></dd>
+</dl>
+</section>
+<footer class="notice">
+<dl>
+<dt>Record</dt>
+<dd><p class="value">sha256:8791aeda29e64e088499a7af0d3c53a772432738ae5c5885ebf20dfd284c4bf0</p></dd>
+<dt>Vocabulary version</dt>
+<dd><p class="value">1.1.0</p></dd>
+<dt>Summary format version</dt>
+<dd><p class="value">2</p></dd>
+<dt>Masking policy version</dt>
+<dd><p class="value">1</p></dd>
+<dt>Masking notice</dt>
+<dd><p class="value">This record was emitted with deterministic sensitive-value masking (policy version 1). It is not guaranteed to be sensitive-data-free and still requires handling appropriate to its source material.</p></dd>
+</dl>
+</footer>
 </body>
 </html>

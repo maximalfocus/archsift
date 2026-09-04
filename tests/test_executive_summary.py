@@ -1,6 +1,9 @@
+"""The three-part executive summary model (FR-017, NFR-011)."""
+
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, cast
 
@@ -8,13 +11,18 @@ import pytest
 
 from archsift.canonical import JsonObject, JsonValue
 from archsift.executive_summary import (
-    DERIVED_MARKERS,
+    PART_TITLES,
     ExecutiveSummary,
     build_executive_summary,
-    is_derived_value,
 )
 from archsift.masking import masked_decision_record_view
 from archsift.record_view import ReportRecordError
+from archsift.vocabulary import (
+    DECISION_OWNER_STATEMENT,
+    FLAG_MEANINGS,
+    VOCABULARY_VERSION,
+    excluded_words_in,
+)
 
 _GOLDEN_DIR = Path(__file__).parent / "golden"
 _POSITIVE_RECORD = _GOLDEN_DIR / "decision-record-positive-v1.json"
@@ -48,72 +56,97 @@ def _record_strings(record: JsonObject) -> set[str]:
     return found
 
 
-def _labels(summary: ExecutiveSummary) -> list[str]:
-    return [point.label for section in summary.sections for point in section.points]
+def _statements(summary: ExecutiveSummary) -> dict[str, list[str]]:
+    grouped: dict[str, list[str]] = {}
+    for part in summary.parts:
+        for statement in part.statements:
+            grouped.setdefault(statement.label, []).append(statement.text)
+    return grouped
+
+
+def _text(summary: ExecutiveSummary) -> str:
+    return "\n".join(
+        f"{statement.label}: {statement.text}"
+        for part in summary.parts
+        for statement in part.statements
+    )
 
 
 @pytest.mark.parametrize("path", _ALL_RECORDS, ids=lambda path: path.stem)
-def test_summary_introduces_no_fact_absent_from_the_record(path: Path) -> None:
-    """FR-017: the summary states nothing the record does not contain."""
-    record = _record(path)
-    summary = build_executive_summary(record)
-    available = _record_strings(masked_decision_record_view(record))
-
-    quoted = 0
-    for section in summary.sections:
-        for point in section.points:
-            assert point.values, point.label
-            for value in point.values:
-                if point.derived:
-                    assert is_derived_value(value), (point.label, value)
-                    continue
-                assert value in available, (point.label, value)
-                quoted += 1
-    assert quoted >= 4
-
-
-@pytest.mark.parametrize("path", _ALL_RECORDS, ids=lambda path: path.stem)
-def test_summary_covers_every_required_element(path: Path) -> None:
+def test_summary_has_exactly_three_parts_in_order(path: Path) -> None:
     summary = build_executive_summary(_record(path))
 
-    assert [section.title for section in summary.sections] == [
-        "Case and Task Boundary",
-        "Verdict",
-        "Decision Space",
-        "Vetoes and Mandatory Human Controls",
-        "Evidence State",
-        "Decisive Trade-offs",
-    ]
-    labels = _labels(summary)
-    for required in (
-        "Case ID",
-        "Case",
-        "Verdict",
-        "Verdict Rule",
-        "Recommendation",
-        "Evidence State",
-        "Observed",
-        "Assumption",
-        "Estimate",
-        "Missing",
-    ):
-        assert required in labels, required
+    assert [part.title for part in summary.parts] == list(PART_TITLES)
+    assert len(summary.parts) == 3
+    for part in summary.parts:
+        assert part.statements, part.title
+        for statement in part.statements:
+            assert statement.label and statement.text, (part.title, statement)
     assert summary.record_content_identity == _record(path)["record_content_identity"]
-    assert summary.ruleset_version == _record(path)["ruleset_version"]
-    assert summary.tool_version == _record(path)["tool_version"]
+    assert summary.vocabulary_version == VOCABULARY_VERSION
 
 
-def test_summary_states_an_abstention_together_with_its_active_veto() -> None:
-    """The acceptance record: an abstaining verdict that still carries a veto."""
+@pytest.mark.parametrize("path", _ALL_RECORDS, ids=lambda path: path.stem)
+def test_summary_part_tells_the_task_the_result_what_is_next_and_who_decides(path: Path) -> None:
+    summary = build_executive_summary(_record(path))
+
+    assert [statement.label for statement in summary.parts[0].statements] == [
+        "The task",
+        "The result",
+        "What happens next",
+        "Who decides",
+    ]
+    assert summary.parts[0].statements[3].text.startswith(DECISION_OWNER_STATEMENT)
+
+
+def test_summary_states_the_indicated_option_by_its_authored_name() -> None:
+    summary = build_executive_summary(_record())
+    statements = _statements(summary)
+
+    assert statements["The task"] == ["Review one bounded synthetic case."]
+    assert statements["The result"] == [
+        "The evidence indicates an option, subject to named conditions. The indicated option "
+        "is AI inside a fixed workflow: Synthetic fixed."
+    ]
+    assert statements["What happens next"][0].startswith(
+        "Before the indicated option can be relied on: Verify production capacity before adoption."
+    )
+    assert statements["What happens next"][0].endswith(
+        "Settled by: Run the named production-capacity test."
+    )
+    assert statements["Who decides"] == [
+        f"{DECISION_OWNER_STATEMENT} The accountable owner is Synthetic owner."
+    ]
+
+
+def test_summary_states_an_abstention_and_what_is_already_determined() -> None:
+    """The acceptance record: an abstaining result that still carries a stop condition."""
     summary = build_executive_summary(_record(_ABSTENTION_RECORD))
-    points = {point.label: point for section in summary.sections for point in section.points}
+    statements = _statements(summary)
 
-    assert points["Verdict"].values == ("insufficient-evidence",)
-    assert points["Recommendation"].values == ("(abstention)",)
-    assert points["Recommendation"].derived is True
-    assert points["Active Veto"].values[0] == "human-release-required"
-    assert points["Mandatory Human Control"].values[0] == "approve-release"
-    assert points["Missing"].derived is True
+    assert statements["The result"] == [
+        "More evidence is needed before an option can be indicated."
+    ]
+    assert statements["What happens next"][0].startswith(
+        "Record the information listed under Result and reasoning"
+    )
+    assert statements["Already determined"] == [
+        "Ruled out: people do the work. Still open: AI inside a fixed workflow."
+    ]
+    assert statements["Absolute stop condition"] == [
+        "The fictional disposition would be released without approval. Then: Release is "
+        "prohibited until a fictional approver accepts it."
+    ]
+    assert statements["Person-required step"] == [
+        "Approve the fictional disposition before release. When: Immediately before "
+        "release-disposition. Who: Fictional approver."
+    ]
+    settling = statements["What would settle the rest"]
+    assert len(settling) == 2
+    assert settling[0].startswith(
+        "The test of Fictional fixed AI workflow against Meet required quality has no "
+        "recorded result."
+    )
 
 
 def test_summary_reports_a_no_permissible_candidate_outcome() -> None:
@@ -121,124 +154,204 @@ def test_summary_reports_a_no_permissible_candidate_outcome() -> None:
     assessment = cast(dict[str, Any], record["assessment"])
     assessment["recommended_class"] = None
     assessment["verdict"] = "no-permissible-candidate"
+    assessment["unmet_conditions"] = []
 
-    summary = build_executive_summary(record)
+    statements = _statements(build_executive_summary(record))
 
-    recommendation = next(
-        point
-        for section in summary.sections
-        for point in section.points
-        if point.label == "Recommendation"
-    )
-    assert recommendation.values == ("(no permissible candidate)",)
-    assert recommendation.derived is True
-    assert set(recommendation.values) <= DERIVED_MARKERS
-
-
-def test_trade_offs_select_only_directional_outcomes_touching_the_deciding_candidates() -> None:
-    record = _record()
-    comparison = cast(dict[str, Any], record["dossier"])["candidate_comparison"]
-    # `fixed` is the sole surviving candidate; `human`/`deterministic` is not.
-    assert cast(dict[str, Any], record["assessment"])["surviving_candidate_ids"] == ["fixed"]
-    deciding = next(
-        pair for pair in comparison["comparisons"] if pair["subject_candidate_id"] == "fixed"
-    )
-    other = next(
-        pair
-        for pair in comparison["comparisons"]
-        if "fixed" not in (pair["subject_candidate_id"], pair["comparator_candidate_id"])
-    )
-    deciding["dimensions"]["cost"]["result"] = "worse"
-    deciding["dimensions"]["latency"]["result"] = "better"
-    deciding["dimensions"]["operability"]["result"] = "unknown"
-    other["dimensions"]["cost"]["result"] = "better"
-
-    summary = build_executive_summary(record)
-    trade_offs = next(
-        section for section in summary.sections if section.title == "Decisive Trade-offs"
-    )
-
-    # Declared FR-008 dimension order (cost before latency), not mapping order.
-    assert [point.label for point in trade_offs.points] == [
-        "Trade-off (Cost)",
-        "Trade-off (Latency)",
+    assert statements["The result"] == [
+        "No represented option meets the required outcomes and constraints."
     ]
-    for point in trade_offs.points:
-        assert point.values[0] == "fixed" or point.values[1] == "fixed"
-        assert point.values[2] in {"better", "worse"}
-    assert all("Operability" not in point.label for point in trade_offs.points)
-
-
-def test_trade_offs_fall_back_to_the_proposed_candidate_when_none_survives() -> None:
-    record = _record()
-    assessment = cast(dict[str, Any], record["assessment"])
-    assessment["surviving_candidate_ids"] = []
-    assessment["recommended_class"] = None
-    assessment["verdict"] = "insufficient-evidence"
-    comparison = cast(dict[str, Any], record["dossier"])["candidate_comparison"]
-    proposed = next(
-        pair for pair in comparison["comparisons"] if pair["subject_candidate_id"] == "fixed"
-    )
-    proposed["dimensions"]["cost"]["result"] = "worse"
-
-    summary = build_executive_summary(record)
-    trade_offs = next(
-        section for section in summary.sections if section.title == "Decisive Trade-offs"
+    assert statements["What happens next"][0].startswith(
+        "No option considered can be indicated under the rules"
     )
 
-    assert [point.label for point in trade_offs.points] == ["Trade-off (Cost)"]
+
+def test_business_analysis_carries_the_four_value_statements_and_the_process_view() -> None:
+    summary = build_executive_summary(_record(_ABSTENTION_RECORD))
+    labels = [statement.label for statement in summary.parts[1].statements]
+
+    assert labels == [
+        "How much work is affected",
+        "What hurts today",
+        "What an error costs",
+        "Why technology may be the limit",
+        "How the work runs today",
+        "Who takes part",
+        "Accountable owner",
+        "Step 1",
+        "Step 2",
+    ]
+    statements = _statements(summary)
+    assert statements["How much work is affected"] == ["Material volume."]
+    assert statements["Why technology may be the limit"] == ["Current tooling limits retrieval."]
+    assert statements["How the work runs today"] == [
+        "It starts when: A complete case arrives. It is complete when: An approved disposition "
+        "is recorded."
+    ]
+    assert statements["Who takes part"] == ["Reviewer, Approver."]
+    assert statements["Step 1"] == [
+        "Prepare the bounded disposition. This step is not consequential. No person-required "
+        "step or absolute stop condition binds this step."
+    ]
+    assert statements["Step 2"] == [
+        "Release the approved disposition. This step is consequential. A person must perform "
+        "or confirm this step: Approve the fictional disposition before release (Fictional "
+        "approver). It stops if: The fictional disposition would be released without approval."
+    ]
 
 
-def test_a_record_without_directional_outcomes_states_that_plainly() -> None:
-    summary = build_executive_summary(_record())
-    trade_offs = next(
-        section for section in summary.sections if section.title == "Decisive Trade-offs"
+def test_every_option_carries_its_flags_in_plain_language() -> None:
+    summary = build_executive_summary(_record(_ABSTENTION_RECORD))
+    options = _statements(summary)["Option"]
+
+    assert len(options) == 2
+    assert options[0].startswith(
+        "Fictional human review. People follow the bounded review procedure using the existing "
+        "register. Kind: people do the work. Standing: ruled out. Stop flag: The recorded "
+        "evidence shows Fictional human review does not reach the required outcome Meet "
+        "required quality. The option cannot be the indicated option. Fit flag:"
     )
+    assert options[1].startswith(
+        "Fictional fixed AI workflow. Code fixes the path while a model assists within the "
+        "bounded preparation action. Kind: AI inside a fixed workflow. Standing: still open. "
+        "Gap flag: The test of Fictional fixed AI workflow against Meet required quality has "
+        "no recorded result. The result cannot be reached until this is recorded. Fit flag:"
+    )
+    # The same rule reaching the same option twice is told once.
+    assert options[1].count("Gap flag:") == 1
+    whole = _statements(summary)["The options as a whole"]
+    assert whole == [
+        "Gap flag: The comparison of Fictional fixed AI workflow with Fictional human review on "
+        "quality of the outcome has no recorded result. The result cannot be reached until this "
+        "is recorded."
+    ]
+    legend = _statements(summary)["How to read the flags"][0]
+    for flag, meaning in FLAG_MEANINGS.items():
+        assert f"{flag.capitalize()} flag: {meaning}" in legend
 
-    assert [point.label for point in trade_offs.points] == ["Directional Trade-offs"]
-    assert trade_offs.points[0].values == ("(none)",)
-    assert trade_offs.points[0].derived is True
 
-
-def test_absent_dossier_sections_are_marked_rather_than_invented() -> None:
+def test_absent_dossier_parts_are_stated_as_not_yet_recorded_rather_than_invented() -> None:
     summary = build_executive_summary(_record(_INCOMPLETE_RECORD))
-    points = [point for section in summary.sections for point in section.points]
-    by_label = {point.label: point for point in points}
+    statements = _statements(summary)
 
-    for label in ("Task Boundary", "Candidates", "Autonomy Boundary", "Trade-offs"):
-        assert by_label[label].values == ("(not provided)",), label
-        assert by_label[label].derived is True, label
-    gaps = [point.values[0] for point in points if point.label == "Unresolved Gap"]
-    assert "task-boundary-missing" in gaps
+    assert statements["The task"] == ["The task is not yet recorded."]
+    assert statements["Who decides"] == [DECISION_OWNER_STATEMENT]
+    assert [statement.label for statement in summary.parts[1].statements] == [
+        "The business case",
+        "How the work runs today",
+    ]
+    assert statements["The business case"] == ["Not yet recorded."]
+    assert statements["Options considered"] == ["No options are recorded yet."]
+    assert statements["Stop conditions and person-required steps"] == ["Not yet recorded."]
+    assert statements["Already determined"] == ["Nothing is determined yet."]
+    assert statements["The options as a whole"][0].startswith(
+        "Gap flag: The dossier does not bound the task"
+    )
+    assert len(statements["What would settle the rest"]) == 6
+    assert statements["What would settle the rest"][-1] == (
+        "A required observation is missing. Settled by: Run the required synthetic observation."
+    )
 
 
-def test_evidence_counts_and_material_gaps_come_from_the_ledger() -> None:
-    summary = build_executive_summary(_record(_INCOMPLETE_RECORD))
-    section = next(item for item in summary.sections if item.title == "Evidence State")
-    counts = {point.label: point.values[0] for point in section.points if point.derived}
+def test_a_non_decisive_gap_is_neither_a_flag_nor_something_to_settle() -> None:
+    record = _record(_ABSTENTION_RECORD)
+    baseline = _text(build_executive_summary(record))
+    cast(list[Any], record["unresolved_gaps"]).append(
+        {
+            "consequence": "The unknown comparison does not alter the verdict.",
+            "counterpart": "counterfactual verdict: conditional",
+            "effect": "non-decisive",
+            "evidence_ids": ["decision-observed"],
+            "field": "$.candidate_comparison.comparisons[0].dimensions.cost.result",
+            "message": "Every admissible value preserves the verdict under the packaged rules.",
+            "remediation": "Resolve the comparison when useful.",
+            "requirement": "FR-008/FR-009",
+            "rule_id": "comparison-result-unknown-non-decisive",
+            "source": "prerequisite",
+        }
+    )
 
-    assert counts["Observed"] == "0"
-    assert counts["Assumption"] == "1"
-    assert counts["Estimate"] == "0"
-    assert counts["Missing"] == "1"
-    gaps = [point for point in section.points if point.label == "Unresolved Gap"]
-    assert len(gaps) == 5
-    material = [point for point in section.points if point.label == "Material Gap"]
-    assert len(material) == 1 and material[0].values[0] == "a-missing"
+    assert _text(build_executive_summary(record)) == baseline
+
+
+def test_summary_speaks_only_in_fixed_text_and_record_content() -> None:
+    """FR-017: nothing is stated that the record does not contain.
+
+    Every statement is fixed vocabulary text with authored record content
+    embedded. Removing every record string, every vocabulary phrase, and the
+    fixed connective text must leave nothing behind: no invented fact, count, or
+    name. Numbers in particular can only come from the record itself.
+    """
+    for path in _ALL_RECORDS:
+        record = _record(path)
+        summary = build_executive_summary(record)
+        available = _record_strings(masked_decision_record_view(record))
+        text = _text(summary)
+        record_digits = {digit for value in available for digit in re.findall(r"\d+", value)}
+        assert set(re.findall(r"\d+", text)) <= record_digits | {"1", "2", "3"}, path.stem
+        for statement in (s for part in summary.parts for s in part.statements):
+            quoted = [value for value in available if len(value) > 3 and value in statement.text]
+            assert quoted or statement.label in {
+                "The task",
+                "Who decides",
+                "What happens next",
+                "The business case",
+                "How the work runs today",
+                "Options considered",
+                "Stop conditions and person-required steps",
+                "Already determined",
+                "What would settle the rest",
+                "How to read the flags",
+                "The result",
+            }, (statement.label, statement.text)
+
+
+def test_fixed_text_avoids_every_excluded_word() -> None:
+    """NFR-011: the register belongs to the tool; authored words are the author's."""
+    for path in _ALL_RECORDS:
+        record = _record(path)
+        summary = build_executive_summary(record)
+        fixed = _text(summary)
+        # Authored text is embedded as a sentence or a clause: capitalised, or
+        # without its closing full stop, so it is removed in either form.
+        strings = sorted(_record_strings(masked_decision_record_view(record)), key=len)
+        for value in reversed(strings):  # longest first, so a phrase is removed whole
+            if len(value) > 3:
+                fixed = re.sub(re.escape(value.rstrip(".")), " ", fixed, flags=re.IGNORECASE)
+        assert excluded_words_in(fixed) == (), (path.stem, excluded_words_in(fixed))
+        assert excluded_words_in(" ".join(PART_TITLES)) == ()
+
+
+def test_changing_an_authored_fact_changes_only_the_statements_that_quote_it() -> None:
+    record = _record(_ABSTENTION_RECORD)
+    before = build_executive_summary(record)
+    cast(dict[str, Any], record["dossier"])["task"]["operation"] = "Handle one synthetic claim."
+
+    after = build_executive_summary(record)
+
+    changed = [
+        (b.label, a.text)
+        for pb, pa in zip(before.parts, after.parts, strict=True)
+        for b, a in zip(pb.statements, pa.statements, strict=True)
+        if b != a
+    ]
+    assert changed == [("The task", "Handle one synthetic claim.")]
 
 
 def test_summary_masks_authored_values_and_is_idempotent() -> None:
     record = _record()
     dossier = cast(dict[str, Any], record["dossier"])
     dossier["case"]["title"] = "Card 4111 1111 1111 1111 and api_key: AKIAIOSFODNN7EXAMPLE"
+    dossier["task"]["operation"] = "Call 4111 1111 1111 1111 with api_key: AKIAIOSFODNN7EXAMPLE"
     record.pop("masking", None)
 
     summary = build_executive_summary(record)
+    text = summary.case_title + _text(summary)
 
-    assert "4111 1111 1111 1111" not in summary.case_title
-    assert "AKIAIOSFODNN7EXAMPLE" not in summary.case_title
+    assert "4111 1111 1111 1111" not in text
+    assert "AKIAIOSFODNN7EXAMPLE" not in text
     assert "[ARCHSIFT-MASKED:payment-card]" in summary.case_title
-    assert "[ARCHSIFT-MASKED:credential]" in summary.case_title
+    assert "[ARCHSIFT-MASKED:credential]" in _statements(summary)["The task"][0]
     assert build_executive_summary(masked_decision_record_view(record)) == summary
 
 
@@ -279,11 +392,3 @@ def test_unsupported_record_shape_fails_closed(mutate: Any, match: str) -> None:
 
     with pytest.raises(ReportRecordError, match=match):
         build_executive_summary(record)
-
-
-def test_derived_value_vocabulary_is_closed() -> None:
-    assert is_derived_value("0") and is_derived_value("12") and is_derived_value("1 of 3")
-    for marker in DERIVED_MARKERS:
-        assert is_derived_value(marker), marker
-    for quoted in ("fixed-ai-workflow", "1 of", "of 3", "", "none", "(unknown)"):
-        assert not is_derived_value(quoted), quoted

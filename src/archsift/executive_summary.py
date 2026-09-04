@@ -1,126 +1,110 @@
-"""The deterministic executive summary of one canonical decision record.
+"""The executive summary: one record told in three parts for a stakeholder (FR-017).
 
-FR-017: an executive summary states, for a stakeholder audience, the case
-identity and task boundary in brief, the verdict or abstention with its rule
-ID, the decision space, the active vetoes and mandatory human controls, the
-evidence state with its material gaps, and the trade-offs that most affect the
-verdict.
+The summary is built from the masked JSON form of a canonical record and is
+rendered identically as HTML and as a PPTX deck, so the two formats cannot
+state different facts about one record. It speaks only through the published
+vocabulary (NFR-011): every internal term is named by its phrase, every authored
+element by its authored name or description, and every finding through its
+rule's message template. It carries no internal identifier and no traceability
+appendix; the detailed report keeps the full trace.
 
-This module owns the summary itself; the HTML and PPTX renderers own only its
-presentation. Both render the same :class:`ExecutiveSummary`, so the two
-formats cannot state different facts about the same record.
+The three parts, in fixed order:
 
-**The summary introduces no fact the record does not contain.** Every value is
-either verbatim record content or one of a small, closed set of derived values
-— a count, or a fixed marker for an absent, empty, or abstaining outcome —
-marked by :attr:`SummaryPoint.derived`. Labels and section titles are fixed
-structural text and never carry record content.
+1. **Summary** — the operational task, the result, what happens next, and who
+   decides.
+2. **Business analysis** — the affected volume, the material pain, the cost of
+   an error, and the limiting factor, then a process view of the recorded task
+   boundary: start and completion conditions, actors, the ordered actions, and
+   which actions a person must perform or confirm.
+3. **Result and reasoning** — the options considered with the flags each one
+   carries, the absolute stop conditions and person-required steps that apply,
+   and, where more evidence is needed, what is already determined and what
+   specific information would settle the rest.
 
-Masking (NFR-009) is applied when the summary is built, so no rendering path
-can present an unmasked authored value.
+Nothing here selects, satisfies, or promotes anything: the parts restate facts
+the record already contains, and the decision rests with the accountable owner.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Final
 
 from archsift.canonical import JsonObject, JsonValue
+from archsift.decision import ArchitectureVerdict
+from archsift.narrative import (
+    Names,
+    ResolvedFinding,
+    finding_candidate_id,
+    resolve_finding,
+)
 from archsift.record_view import (
-    ABSENT,
-    EMPTY,
     ReportRecordError,
     masked_record_view,
-    recommendation,
     require_object,
     require_text,
 )
-
-EXECUTIVE_SUMMARY_VERSION: Final = 1
-
-#: Values a point may carry that are computed rather than quoted. A derived
-#: value is a decimal count or one of these fixed markers, and nothing else.
-DERIVED_MARKERS: Final[frozenset[str]] = frozenset(
-    {ABSENT, EMPTY, "(abstention)", "(no permissible candidate)"}
+from archsift.rules import RuleEffect
+from archsift.validation import ControlClass, EvidenceKind
+from archsift.vocabulary import (
+    DECISION_OWNER_STATEMENT,
+    DISPOSITIONS,
+    FLAG_MEANINGS,
+    VOCABULARY_VERSION,
+    phrase,
+    term,
 )
-_DERIVED_COUNT: Final = re.compile(r"\d+(?: of \d+)?")
 
-_EVIDENCE_KINDS: Final[tuple[str, ...]] = ("observed", "assumption", "estimate", "missing")
-#: Pairwise comparison dimensions, in the order FR-008 declares them.
-_DIMENSIONS: Final[tuple[str, ...]] = (
-    "outcome_quality",
-    "difficult_case_performance",
-    "cost",
-    "latency",
-    "human_effort",
-    "integration_burden",
-    "security_exposure",
-    "failure_impact",
-    "operability",
-    "evaluation_burden",
-    "maintainability",
-)
-#: A comparison outcome that states a direction. `equivalent` and `unknown`
-#: distinguish no candidate, so they cannot be a trade-off that affects the
-#: verdict.
-_DIRECTIONAL_RESULTS: Final[frozenset[str]] = frozenset({"better", "worse"})
+EXECUTIVE_SUMMARY_VERSION: Final = 2
+
+#: The three parts of every executive summary, in the order they are told.
+PART_TITLES: Final[tuple[str, str, str]] = ("Summary", "Business analysis", "Result and reasoning")
+
+_NOT_RECORDED: Final = "Not yet recorded."
+_WHOLE: Final = "The options as a whole"
 
 
 @dataclass(frozen=True, slots=True)
-class SummaryPoint:
-    """One labelled statement in the summary.
+class SummaryStatement:
+    """One labelled statement in a part.
 
-    ``label`` is fixed structural text. Each entry of ``values`` is verbatim
-    masked record content unless ``derived`` is set, in which case every entry
-    is a count or a fixed marker.
+    ``label`` is fixed vocabulary text. ``text`` is composed from fixed
+    vocabulary text and verbatim masked record content, and from nothing else.
     """
 
     label: str
-    values: tuple[str, ...]
-    derived: bool = False
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
-class SummarySection:
-    """One titled group of statements."""
+class SummaryPart:
+    """One of the three narrative parts."""
 
     title: str
-    points: tuple[SummaryPoint, ...]
+    statements: tuple[SummaryStatement, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutiveSummary:
-    """One record's complete executive summary, ready to render in any format."""
+    """One record's complete executive summary, ready to render in any format.
+
+    A rendering is addressed by ``record_content_identity`` together with
+    ``vocabulary_version``: a wording change in the vocabulary produces a
+    distinct rendering while the record stays untouched.
+    """
 
     record_content_identity: str
-    ruleset_version: str
-    tool_version: str
+    vocabulary_version: str
     case_title: str
     language: str
-    sections: tuple[SummarySection, ...]
+    parts: tuple[SummaryPart, SummaryPart, SummaryPart]
 
 
 def _text(value: JsonValue, name: str) -> str:
     return require_text(value, name)
 
 
-def _optional_text(mapping: JsonObject | None, key: str, name: str) -> SummaryPoint | None:
-    """Return one point for a field that a partial dossier may omit."""
-    if mapping is None:
-        return None
-    return SummaryPoint(_LABELS[key], (_text(mapping[key], name),))
-
-
-_LABELS: Final[dict[str, str]] = {
-    "operation": "Operation",
-    "starts_when": "Starts When",
-    "completes_when": "Completes When",
-    "accountable_owner": "Accountable Owner",
-}
-
-
-def _list_of_objects(value: JsonValue, name: str) -> tuple[JsonObject, ...]:
+def _objects(value: JsonValue, name: str) -> tuple[JsonObject, ...]:
     if type(value) is not list:
         raise ReportRecordError(f"Decision record {name} is not a JSON array.")
     return tuple(require_object(item, f"{name}[]") for item in value)
@@ -132,451 +116,513 @@ def _strings(value: JsonValue, name: str) -> tuple[str, ...]:
     return tuple(_text(item, name) for item in value)
 
 
-def _case_section(dossier: JsonObject) -> SummarySection:
-    case = require_object(dossier["case"], "$.dossier.case")
-    points = [
-        SummaryPoint("Case ID", (_text(case["id"], "$.dossier.case.id"),)),
-        SummaryPoint("Case", (_text(case["title"], "$.dossier.case.title"),)),
-        SummaryPoint("Language", (_text(dossier["language"], "$.dossier.language"),)),
-    ]
+def _sentence(text: str) -> str:
+    """Return ``text`` as a sentence: capitalised and closed with a full stop."""
+    if not text:
+        return text
+    closed = text if text[-1] in ".!?" else text + "."
+    return closed[0].upper() + closed[1:]
+
+
+def _clause(text: str) -> str:
+    """Return authored text as a clause inside a longer sentence: no closing full stop."""
+    return text[:-1] if text.endswith(".") else text
+
+
+def _join(items: list[str]) -> str:
+    return "; ".join(_clause(item) for item in items)
+
+
+# ---------------------------------------------------------------------------
+# Shared readings of the record
+
+
+def _task(dossier: JsonObject) -> JsonObject | None:
     task = dossier["task"]
-    if task is None:
-        points.append(SummaryPoint("Task Boundary", (ABSENT,), derived=True))
-        return SummarySection("Case and Task Boundary", tuple(points))
-    boundary = require_object(task, "$.dossier.task")
-    for key in ("operation", "starts_when", "completes_when", "accountable_owner"):
-        point = _optional_text(boundary, key, f"$.dossier.task.{key}")
-        if point is not None:
-            points.append(point)
-    actions = _list_of_objects(boundary["actions"], "$.dossier.task.actions")
-    consequential = sum(1 for action in actions if action["consequential"] is True)
-    points.append(
-        SummaryPoint(
-            "Consequential Actions",
-            (f"{consequential} of {len(actions)}",),
-            derived=True,
-        )
-    )
-    return SummarySection("Case and Task Boundary", tuple(points))
+    return None if task is None else require_object(task, "$.dossier.task")
 
 
-def _verdict_section(assessment: JsonObject) -> SummarySection:
-    recommended = recommendation(assessment)
-    points = [
-        SummaryPoint("Verdict", (_text(assessment["verdict"], "$.assessment.verdict"),)),
-        SummaryPoint(
-            "Verdict Rule",
-            (_text(assessment["verdict_rule_id"], "$.assessment.verdict_rule_id"),),
-        ),
-        SummaryPoint("Recommendation", (recommended,), derived=recommended in DERIVED_MARKERS),
-        SummaryPoint(
-            "Evidence State",
-            (_text(assessment["evidence_state"], "$.assessment.evidence_state"),),
-        ),
-    ]
-    conditions = _list_of_objects(assessment["unmet_conditions"], "$.assessment.unmet_conditions")
-    if not conditions:
-        points.append(SummaryPoint("Unmet Conditions", (EMPTY,), derived=True))
-    for condition in conditions:
-        points.append(
-            SummaryPoint(
-                "Unmet Condition",
-                (
-                    _text(condition["id"], "$.assessment.unmet_conditions[].id"),
-                    _text(condition["statement"], "$.assessment.unmet_conditions[].statement"),
-                ),
-            )
-        )
-    return SummarySection("Verdict", tuple(points))
-
-
-def _decision_space_section(dossier: JsonObject) -> SummarySection:
+def _comparison(dossier: JsonObject) -> JsonObject | None:
     comparison = dossier["candidate_comparison"]
-    if comparison is None:
-        return SummarySection(
-            "Decision Space", (SummaryPoint("Candidates", (ABSENT,), derived=True),)
-        )
-    candidates = _list_of_objects(
-        require_object(comparison, "$.dossier.candidate_comparison")["candidates"],
-        "$.dossier.candidate_comparison.candidates",
+    return (
+        None if comparison is None else require_object(comparison, "$.dossier.candidate_comparison")
     )
-    points = [
-        SummaryPoint(
-            "Candidate",
-            (
-                _text(candidate["id"], "$.dossier.candidate_comparison.candidates[].id"),
-                _text(candidate["name"], "$.dossier.candidate_comparison.candidates[].name"),
-                _text(
-                    candidate["control_class"],
-                    "$.dossier.candidate_comparison.candidates[].control_class",
-                ),
-                *_strings(candidate["roles"], "$.dossier.candidate_comparison.candidates[].roles"),
-            ),
-        )
-        for candidate in candidates
-    ]
-    boundary = require_object(comparison, "$.dossier.candidate_comparison").get(
-        "strongest_simpler_boundary"
-    )
-    if boundary is None:
-        points.append(SummaryPoint("Strongest Simpler Alternative", (ABSENT,), derived=True))
-    else:
-        strongest = require_object(boundary, "$.dossier.candidate_comparison.boundary")
-        points.append(
-            SummaryPoint(
-                "Strongest Simpler Alternative",
-                (
-                    _text(strongest["strongest_candidate_id"], "$.boundary.strongest_candidate_id"),
-                    _text(strongest["scope"], "$.boundary.scope"),
-                ),
-            )
-        )
-    retention = require_object(comparison, "$.dossier.candidate_comparison").get(
-        "baseline_retention"
-    )
-    if retention is not None:
-        declared = require_object(retention, "$.dossier.candidate_comparison.baseline_retention")
-        points.append(
-            SummaryPoint(
-                "Baseline Retention (Authored Decision)",
-                (
-                    _text(declared["declared_by"], "$.baseline_retention.declared_by"),
-                    _text(declared["rationale"], "$.baseline_retention.rationale"),
-                ),
-            )
-        )
-    return SummarySection("Decision Space", tuple(points))
 
 
-def _control_section(dossier: JsonObject) -> SummarySection:
+def _autonomy(dossier: JsonObject) -> JsonObject | None:
     autonomy = dossier["autonomy_permission"]
+    return None if autonomy is None else require_object(autonomy, "$.dossier.autonomy_permission")
+
+
+def _active_vetoes(autonomy: JsonObject | None) -> tuple[JsonObject, ...]:
     if autonomy is None:
-        return SummarySection(
-            "Vetoes and Mandatory Human Controls",
-            (SummaryPoint("Autonomy Boundary", (ABSENT,), derived=True),),
-        )
-    permission = require_object(autonomy, "$.dossier.autonomy_permission")
-    points: list[SummaryPoint] = []
-    for veto in _list_of_objects(
-        permission["hard_vetoes"], "$.dossier.autonomy_permission.hard_vetoes"
-    ):
-        if veto["status"] != "active":
-            continue
-        points.append(
-            SummaryPoint(
-                "Active Veto",
-                (
-                    _text(veto["id"], "$.hard_vetoes[].id"),
-                    _text(veto["condition"], "$.hard_vetoes[].condition"),
-                    _text(veto["consequence"], "$.hard_vetoes[].consequence"),
-                ),
-            )
-        )
-    for control in _list_of_objects(
-        permission["mandatory_human_controls"],
-        "$.dossier.autonomy_permission.mandatory_human_controls",
-    ):
-        points.append(
-            SummaryPoint(
-                "Mandatory Human Control",
-                (
-                    _text(control["id"], "$.mandatory_human_controls[].id"),
-                    _text(control["description"], "$.mandatory_human_controls[].description"),
-                    _text(control["control_point"], "$.mandatory_human_controls[].control_point"),
-                    _text(
-                        control["responsible_role"],
-                        "$.mandatory_human_controls[].responsible_role",
-                    ),
-                ),
-            )
-        )
-    if not points:
-        points.append(SummaryPoint("Active Vetoes and Controls", (EMPTY,), derived=True))
-    return SummarySection("Vetoes and Mandatory Human Controls", tuple(points))
-
-
-def _scope_sections(record: JsonObject) -> tuple[SummarySection, ...]:
-    """Render what an abstention already determines before what it still lacks (FR-019)."""
-    if "abstention_scope" not in record:
         return ()
-    scope = require_object(record["abstention_scope"], "$.abstention_scope")
-    points: list[SummaryPoint] = []
+    return tuple(
+        veto
+        for veto in _objects(autonomy["hard_vetoes"], "$.dossier.autonomy_permission.hard_vetoes")
+        if veto["status"] == "active"
+    )
 
-    def determinations(name: str, label: str) -> None:
-        for item in _list_of_objects(scope[name], f"$.abstention_scope.{name}"):
-            control_class = _text(item["control_class"], f"$.abstention_scope.{name}[].class")
-            rules = _strings(item["rule_ids"], f"$.abstention_scope.{name}[].rule_ids")
-            candidates = _strings(item["candidate_ids"], f"$.abstention_scope.{name}[].candidates")
-            points.append(
-                SummaryPoint(
+
+def _controls(autonomy: JsonObject | None) -> tuple[JsonObject, ...]:
+    if autonomy is None:
+        return ()
+    return _objects(
+        autonomy["mandatory_human_controls"],
+        "$.dossier.autonomy_permission.mandatory_human_controls",
+    )
+
+
+def _evidence(dossier: JsonObject) -> tuple[JsonObject, ...]:
+    """Return the evidence ledger, refusing an entry kind the vocabulary cannot name."""
+    entries = _objects(dossier["evidence"], "$.dossier.evidence")
+    kinds = {item.value for item in EvidenceKind}
+    for entry in entries:
+        kind = _text(entry["kind"], "$.dossier.evidence[].kind")
+        if kind not in kinds:
+            raise ReportRecordError(f"Decision record evidence kind {kind} is unsupported.")
+    return entries
+
+
+# ---------------------------------------------------------------------------
+# Part 1 — Summary
+
+
+def _result_text(assessment: JsonObject, names: Names) -> str:
+    verdict = ArchitectureVerdict(_text(assessment["verdict"], "$.assessment.verdict"))
+    text = _sentence(phrase(verdict))
+    recommended = assessment.get("recommended_class")
+    if type(recommended) is str:
+        option = phrase(ControlClass(recommended))
+        surviving = _strings(
+            assessment["surviving_candidate_ids"], "$.assessment.surviving_candidate_ids"
+        )
+        named = [names.candidate(x) for x in surviving if x in names.candidates]
+        text += f" The indicated option is {option}"
+        text += f": {_join(named)}." if named else "."
+    return text
+
+
+def _next_text(assessment: JsonObject) -> str:
+    verdict = ArchitectureVerdict(_text(assessment["verdict"], "$.assessment.verdict"))
+    unmet = _objects(assessment["unmet_conditions"], "$.assessment.unmet_conditions")
+    if unmet:
+        conditions = " ".join(
+            f"{_sentence(_text(c['statement'], '$.unmet_conditions[].statement'))} Settled by: "
+            f"{_sentence(_text(c['resolved_by'], '$.unmet_conditions[].resolved_by'))}"
+            for c in unmet
+        )
+        return f"Before the indicated option can be relied on: {conditions}"
+    if verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE:
+        return (
+            "Record the information listed under Result and reasoning, then run the review "
+            "again; the result stays open until then."
+        )
+    if assessment.get("recommended_class") is None:
+        return (
+            "No option considered can be indicated under the rules; any further option would "
+            "need its own recorded evidence."
+        )
+    return (
+        "The accountable owner decides whether to proceed with the indicated option; the "
+        "person-required steps and absolute stop conditions listed under Result and "
+        "reasoning stay in place."
+    )
+
+
+def _summary_part(dossier: JsonObject, assessment: JsonObject, names: Names) -> SummaryPart:
+    task = _task(dossier)
+    statements = [
+        SummaryStatement(
+            "The task",
+            _sentence(_text(task["operation"], "$.dossier.task.operation"))
+            if task is not None
+            else "The task is not yet recorded.",
+        ),
+        SummaryStatement("The result", _result_text(assessment, names)),
+        SummaryStatement("What happens next", _next_text(assessment)),
+    ]
+    decides = DECISION_OWNER_STATEMENT
+    if task is not None:
+        owner = _text(task["accountable_owner"], "$.dossier.task.accountable_owner")
+        decides += f" The accountable owner is {owner}."
+    statements.append(SummaryStatement("Who decides", decides))
+    return SummaryPart(PART_TITLES[0], tuple(statements))
+
+
+# ---------------------------------------------------------------------------
+# Part 2 — Business analysis
+
+
+_BUSINESS_STATEMENTS: Final[tuple[tuple[str, str], ...]] = (
+    ("affected_volume", "How much work is affected"),
+    ("material_pain", "What hurts today"),
+    ("error_cost", "What an error costs"),
+    ("technology_limitation", "Why technology may be the limit"),
+)
+
+
+def _person_required(
+    action_id: str, vetoes: tuple[JsonObject, ...], controls: tuple[JsonObject, ...]
+) -> tuple[list[str], list[str]]:
+    """Return the authored steps and stop conditions that bind one action to a person."""
+    steps: list[str] = []
+    for control in controls:
+        if action_id in _strings(control["action_ids"], "$.mandatory_human_controls[].action_ids"):
+            steps.append(
+                f"{_clause(_text(control['description'], '$.controls[].description'))} "
+                f"({_text(control['responsible_role'], '$.controls[].responsible_role')})"
+            )
+    stops = [
+        _text(veto["condition"], "$.hard_vetoes[].condition")
+        for veto in vetoes
+        if action_id in _strings(veto["action_ids"], "$.hard_vetoes[].action_ids")
+    ]
+    return steps, stops
+
+
+def _business_part(dossier: JsonObject) -> SummaryPart:
+    statements: list[SummaryStatement] = []
+    problem = dossier["problem_value"]
+    if problem is None:
+        statements.append(SummaryStatement("The business case", _NOT_RECORDED))
+    else:
+        problem_object = require_object(problem, "$.dossier.problem_value")
+        for key, label in _BUSINESS_STATEMENTS:
+            statement = require_object(problem_object[key], f"$.dossier.problem_value.{key}")
+            statements.append(
+                SummaryStatement(
                     label,
-                    (
-                        control_class,
-                        ("candidates: " + ", ".join(candidates)) if candidates else EMPTY,
-                        ("rules: " + ", ".join(rules)) if rules else EMPTY,
-                    ),
+                    _sentence(_text(statement["statement"], f"$.problem_value.{key}.statement")),
                 )
             )
+    task = _task(dossier)
+    if task is None:
+        statements.append(SummaryStatement("How the work runs today", _NOT_RECORDED))
+        return SummaryPart(PART_TITLES[1], tuple(statements))
+    starts = _sentence(_text(task["starts_when"], "$.dossier.task.starts_when"))
+    completes = _sentence(_text(task["completes_when"], "$.dossier.task.completes_when"))
+    statements.append(
+        SummaryStatement(
+            "How the work runs today",
+            f"It starts when: {starts} It is complete when: {completes}",
+        )
+    )
+    actors = _strings(task["actors"], "$.dossier.task.actors")
+    statements.append(
+        SummaryStatement(
+            "Who takes part", _sentence(", ".join(actors)) if actors else "None recorded."
+        )
+    )
+    statements.append(
+        SummaryStatement(
+            "Accountable owner",
+            _sentence(_text(task["accountable_owner"], "$.dossier.task.accountable_owner")),
+        )
+    )
+    autonomy = _autonomy(dossier)
+    vetoes, controls = _active_vetoes(autonomy), _controls(autonomy)
+    for number, action in enumerate(_objects(task["actions"], "$.dossier.task.actions"), start=1):
+        text = _sentence(_text(action["description"], "$.dossier.task.actions[].description"))
+        text += (
+            " This step is consequential."
+            if action["consequential"] is True
+            else " This step is not consequential."
+        )
+        steps, stops = _person_required(
+            _text(action["id"], "$.dossier.task.actions[].id"), vetoes, controls
+        )
+        if steps:
+            text += f" A person must perform or confirm this step: {_join(steps)}."
+        if stops:
+            text += f" It stops if: {_join(stops)}."
+        if not steps and not stops:
+            text += " No person-required step or absolute stop condition binds this step."
+        statements.append(SummaryStatement(f"Step {number}", text))
+    return SummaryPart(PART_TITLES[1], tuple(statements))
 
-    determinations("eliminated_classes", "Already Eliminated")
-    determinations("undetermined_classes", "Still Undetermined")
-    surviving = _strings(scope["surviving_classes"], "$.abstention_scope.surviving_classes")
-    points.append(
-        SummaryPoint("Surviving Classes", tuple(surviving) if surviving else (EMPTY,), derived=True)
-    )
-    retained = scope["human_decision_retained"]
-    points.append(
-        SummaryPoint(
-            "Human Decision Retained",
-            (
-                "no assistance envelope is recorded"
-                if retained is None
-                else ("yes" if retained is True else "no"),
-            ),
-            derived=True,
-        )
-    )
-    choice = _text(scope["remaining_choice"], "$.abstention_scope.remaining_choice")
-    points.append(
-        SummaryPoint(
-            "Remaining Choice",
-            (
-                "whether to assist at all; no candidate proposes to replace human decision-making"
-                if choice == "assist-or-not"
-                else "an unresolved autonomy question",
-            ),
-            derived=True,
-        )
-    )
-    gaps = _strings(
-        scope["outstanding_gap_rule_ids"], "$.abstention_scope.outstanding_gap_rule_ids"
-    )
-    points.append(SummaryPoint("Outstanding Gaps", tuple(gaps) if gaps else (EMPTY,), derived=True))
-    return (SummarySection("Abstention Scope", tuple(points)),)
+
+# ---------------------------------------------------------------------------
+# Part 3 — Result and reasoning
 
 
-def _envelope_sections(record: JsonObject) -> tuple[SummarySection, ...]:
-    """Render the FR-019 assistance envelope where the record carries one."""
-    if "assistance_envelope" not in record:
-        return ()
-    envelope = require_object(record["assistance_envelope"], "$.assistance_envelope")
-    points: list[SummaryPoint] = []
-    for entry in _list_of_objects(envelope["entries"], "$.assistance_envelope.entries"):
-        action = _text(entry["action_id"], "$.assistance_envelope.entries[].action_id")
-        values = [
-            "consequential" if entry["consequential"] else "not consequential",
-            "a person must perform or approve it"
-            if entry["person_required"]
-            else "no recorded control or veto binds it",
-        ]
-        controls = _strings(
-            entry["mandatory_human_control_ids"],
-            "$.assistance_envelope.entries[].mandatory_human_control_ids",
+def _findings_by_option(
+    record: JsonObject, assessment: JsonObject, names: Names
+) -> dict[str | None, list[ResolvedFinding]]:
+    """Group every decisive finding by the option it is about, in record order."""
+    grouped: dict[str | None, list[ResolvedFinding]] = {}
+    prerequisites = require_object(
+        assessment["prerequisite_evaluation"], "$.assessment.prerequisite_evaluation"
+    )
+    elimination = require_object(
+        assessment["ordered_elimination_evaluation"], "$.assessment.ordered_elimination_evaluation"
+    )
+    for source, findings in (
+        ("prerequisite", prerequisites["findings"]),
+        ("decision", elimination["findings"]),
+    ):
+        for finding in _objects(findings, f"$.assessment.{source} findings"):
+            if finding["effect"] == RuleEffect.NON_DECISIVE.value:
+                continue
+            option = finding_candidate_id(names, finding, source=source)
+            resolved = resolve_finding(record, names, finding, source=source)
+            findings_for_option = grouped.setdefault(option, [])
+            # One rule can reach the same option twice (once as a prerequisite
+            # finding, once as a decision finding); the reader is told once.
+            if resolved not in findings_for_option:
+                findings_for_option.append(resolved)
+    return grouped
+
+
+def _dispositions(assessment: JsonObject) -> dict[str, str]:
+    elimination = require_object(
+        assessment["ordered_elimination_evaluation"], "$.assessment.ordered_elimination_evaluation"
+    )
+    return {
+        _text(item["candidate_id"], "$.candidates[].candidate_id"): term(
+            DISPOSITIONS, _text(item["disposition"], "$.candidates[].disposition"), "disposition"
         )
-        vetoes = _strings(
-            entry["active_hard_veto_ids"], "$.assistance_envelope.entries[].active_hard_veto_ids"
+        for item in _objects(
+            elimination["candidates"], "$.ordered_elimination_evaluation.candidates"
         )
-        if controls:
-            values.append("mandatory human controls: " + ", ".join(controls))
-        if vetoes:
-            values.append("active hard vetoes: " + ", ".join(vetoes))
-        authorities = _list_of_objects(
-            entry["declared_authorities"], "$.assistance_envelope.entries[].declared_authorities"
-        )
-        if not authorities:
-            values.append("no represented candidate declares authority over it")
-        for authority in authorities:
-            candidate = _text(
-                authority["candidate_id"], "$.assistance_envelope.entries[].declared_authorities[]"
+    }
+
+
+def _flag_text(findings: list[ResolvedFinding]) -> str:
+    return " ".join(
+        f"{finding.flag.capitalize()} flag: {finding.message} {finding.consequence}"
+        for finding in findings
+    )
+
+
+def _options_statements(
+    record: JsonObject, dossier: JsonObject, assessment: JsonObject, names: Names
+) -> list[SummaryStatement]:
+    comparison = _comparison(dossier)
+    grouped = _findings_by_option(record, assessment, names)
+    statements: list[SummaryStatement] = []
+    if comparison is None:
+        statements.append(SummaryStatement("Options considered", "No options are recorded yet."))
+    else:
+        dispositions = _dispositions(assessment)
+        for candidate in _objects(
+            comparison["candidates"], "$.dossier.candidate_comparison.candidates"
+        ):
+            identifier = _text(candidate["id"], "$.candidates[].id")
+            name = _text(candidate["name"], "$.candidates[].name")
+            kind = phrase(ControlClass(_text(candidate["control_class"], "$.candidates[].class")))
+            description = _text(candidate["description"], "$.candidates[].description")
+            text = f"{name}. {_sentence(description)}"
+            text += f" Kind: {kind}."
+            standing = dispositions.get(identifier)
+            if standing is not None:
+                text += f" Standing: {standing}."
+            findings = grouped.pop(identifier, [])
+            text += f" {_flag_text(findings)}" if findings else " No flag is raised on this option."
+            statements.append(SummaryStatement("Option", text))
+    whole = grouped.pop(None, [])
+    for leftovers in grouped.values():
+        whole.extend(leftovers)
+    if whole:
+        statements.append(SummaryStatement(_WHOLE, _flag_text(whole)))
+    if comparison is not None:
+        statements.extend(_comparison_decisions(comparison, names))
+    return statements
+
+
+def _comparison_decisions(comparison: JsonObject, names: Names) -> list[SummaryStatement]:
+    """State the authored comparison decisions: the simplest strong option, a kept baseline."""
+    statements: list[SummaryStatement] = []
+    boundary = comparison.get("strongest_simpler_boundary")
+    if boundary is not None:
+        strongest = require_object(boundary, "$.candidate_comparison.strongest_simpler_boundary")
+        identifier = _text(strongest["strongest_candidate_id"], "$.boundary.strongest_candidate_id")
+        name = names.candidate(identifier) if identifier in names.candidates else identifier
+        statements.append(
+            SummaryStatement(
+                "Strongest simpler alternative",
+                f"{name}. {_sentence(_text(strongest['rationale'], '$.boundary.rationale'))}",
             )
-            control_class = _text(
-                authority["control_class"],
-                "$.assistance_envelope.entries[].declared_authorities[].control_class",
-            )
-            retained = _strings(
-                authority["retained_human_control_ids"], "$.assistance_envelope.retained"
-            )
-            omitted = _strings(
-                authority["omitted_human_control_ids"], "$.assistance_envelope.omitted"
-            )
-            statement = f"{candidate} ({control_class}) declares authority"
-            if retained:
-                statement += "; retains " + ", ".join(retained)
-            if omitted:
-                statement += "; does not retain " + ", ".join(omitted)
-            values.append(statement)
-        points.append(SummaryPoint(action, tuple(values)))
-    retained_decision = envelope["human_decision_retained"] is True
-    points.append(
-        SummaryPoint(
-            "Human Decision Retained",
-            (
-                "yes: no candidate proposes to replace human decision-making"
-                if retained_decision
-                else "no: at least one candidate proposes to act on a consequential action "
-                "without a retained human control, or a consequential action has no "
-                "evidenced control",
-            ),
-            derived=True,
         )
-    )
-    return (SummarySection("Assistance Envelope", tuple(points)),)
+    retention = comparison.get("baseline_retention")
+    if retention is not None:
+        declared = require_object(retention, "$.candidate_comparison.baseline_retention")
+        declared_by = _text(declared["declared_by"], "$.baseline_retention.declared_by")
+        rationale = _text(declared["rationale"], "$.baseline_retention.rationale")
+        statements.append(
+            SummaryStatement(
+                "Keeping the current way of working is intended",
+                f"Declared by {declared_by}. {_sentence(rationale)}",
+            )
+        )
+    return statements
 
 
-def _evidence_section(record: JsonObject, dossier: JsonObject) -> SummarySection:
-    evidence = _list_of_objects(dossier["evidence"], "$.dossier.evidence")
-    counts = {kind: 0 for kind in _EVIDENCE_KINDS}
-    for entry in evidence:
-        kind = _text(entry["kind"], "$.dossier.evidence[].kind")
-        if kind not in counts:
-            raise ReportRecordError(f"Decision record evidence kind {kind} is unsupported.")
-        counts[kind] += 1
-    points = [
-        SummaryPoint(kind.title(), (str(counts[kind]),), derived=True) for kind in _EVIDENCE_KINDS
+def _control_statements(dossier: JsonObject) -> list[SummaryStatement]:
+    autonomy = _autonomy(dossier)
+    if autonomy is None:
+        return [SummaryStatement("Stop conditions and person-required steps", _NOT_RECORDED)]
+    statements = [
+        SummaryStatement(
+            "Absolute stop condition",
+            f"{_sentence(_text(veto['condition'], '$.hard_vetoes[].condition'))} Then: "
+            f"{_sentence(_text(veto['consequence'], '$.hard_vetoes[].consequence'))}",
+        )
+        for veto in _active_vetoes(autonomy)
     ]
+    statements.extend(
+        SummaryStatement(
+            "Person-required step",
+            f"{_sentence(_text(control['description'], '$.controls[].description'))} When: "
+            f"{_sentence(_text(control['control_point'], '$.controls[].control_point'))} Who: "
+            f"{_sentence(_text(control['responsible_role'], '$.controls[].responsible_role'))}",
+        )
+        for control in _controls(autonomy)
+    )
+    if not statements:
+        statements.append(
+            SummaryStatement("Stop conditions and person-required steps", "None are recorded.")
+        )
+    return statements
+
+
+def _human_decision_statement(record: JsonObject) -> SummaryStatement | None:
+    scope = record.get("abstention_scope")
+    if scope is None:
+        return None
+    retained = require_object(scope, "$.abstention_scope")["human_decision_retained"]
+    if retained is True:
+        text = (
+            "Human decision-making is kept by every option; the remaining choice is whether to "
+            "assist at all."
+        )
+    elif retained is False:
+        text = (
+            "At least one option would act on a consequential step without a person-required "
+            "step, or a consequential step has no recorded person-required step; the hand-over "
+            "question is still open."
+        )
+    else:
+        text = "No person-required steps or absolute stop conditions are recorded."
+    return SummaryStatement("Human decision-making", text)
+
+
+def _determined_statements(record: JsonObject, assessment: JsonObject) -> list[SummaryStatement]:
+    """State what the rules have already determined while the result stays open."""
+    elimination = require_object(
+        assessment["ordered_elimination_evaluation"], "$.assessment.ordered_elimination_evaluation"
+    )
+    classes = _objects(
+        elimination["control_classes"], "$.ordered_elimination_evaluation.control_classes"
+    )
+    by_standing: dict[str, list[str]] = {}
+    for item in classes:
+        standing = term(
+            DISPOSITIONS,
+            _text(item["disposition"], "$.control_classes[].disposition"),
+            "disposition",
+        )
+        option = phrase(ControlClass(_text(item["control_class"], "$.control_classes[].class")))
+        by_standing.setdefault(standing, []).append(option)
+    text = (
+        " ".join(
+            _sentence(f"{standing}: {_join(options)}") for standing, options in by_standing.items()
+        )
+        if by_standing
+        else "Nothing is determined yet."
+    )
+    statements = [SummaryStatement("Already determined", text)]
+    human = _human_decision_statement(record)
+    if human is not None:
+        statements.append(human)
+    return statements
+
+
+def _settling_statements(
+    record: JsonObject, dossier: JsonObject, names: Names, *, open_result: bool
+) -> list[SummaryStatement]:
+    """State the specific information that would settle, or later change, the result.
+
+    While the result is open, the statements say what would settle the rest.
+    Once a result is reached, a decision-bearing entry still missing is what
+    would change it, and is told under that name instead.
+    """
+    needed: list[str] = []
+    for gap in _objects(record["unresolved_gaps"], "$.unresolved_gaps"):
+        if gap["effect"] == RuleEffect.NON_DECISIVE.value:
+            continue
+        resolved = resolve_finding(
+            record, names, gap, source=_text(gap["source"], "$.unresolved_gaps[].source")
+        )
+        item = f"{resolved.message} {resolved.remediation}"
+        if item not in needed:
+            needed.append(item)
     links = require_object(record["evidence_links"], "$.evidence_links")
-    gaps = 0
-    for entry in evidence:
+    for entry in _evidence(dossier):
+        if entry["kind"] != EvidenceKind.MISSING.value:
+            continue
         identifier = _text(entry["id"], "$.dossier.evidence[].id")
         link = links.get(identifier)
-        # Records before schema 3 carry no citation marker; every entry counted then.
+        # Records before schema 3 carry no citation marker; every entry bears then.
         bearing = (
             require_object(link, f"$.evidence_links.{identifier}").get("decision_bearing", True)
             if link is not None
             else True
         )
         if bearing is not True:
-            points.append(
-                SummaryPoint(
-                    "Recorded Context",
-                    (identifier, _text(entry["claim"], "$.dossier.evidence[].claim")),
-                )
-            )
             continue
-        if entry["kind"] != "missing":
-            continue
-        gaps += 1
-        points.append(
-            SummaryPoint(
-                "Material Gap",
-                (
-                    identifier,
-                    _text(entry["claim"], "$.dossier.evidence[].claim"),
-                    _text(entry["resolved_by"], "$.dossier.evidence[].resolved_by"),
-                ),
-            )
+        item = (
+            f"{_sentence(_text(entry['claim'], '$.dossier.evidence[].claim'))} Settled by: "
+            f"{_sentence(_text(entry['resolved_by'], '$.dossier.evidence[].resolved_by'))}"
         )
-    for gap in _list_of_objects(record["unresolved_gaps"], "$.unresolved_gaps"):
-        effect = _text(gap["effect"], "$.unresolved_gaps[].effect")
-        non_decisive = effect == "non-decisive"
-        if not non_decisive:
-            gaps += 1
-        points.append(
-            SummaryPoint(
-                "Non-Decisive Gap" if non_decisive else "Unresolved Gap",
-                (
-                    _text(gap["rule_id"], "$.unresolved_gaps[].rule_id"),
-                    _text(gap["message"], "$.unresolved_gaps[].message"),
-                ),
-            )
-        )
-    if not gaps:
-        points.append(SummaryPoint("Material Gaps", (EMPTY,), derived=True))
-    return SummarySection("Evidence State", tuple(points))
+        if item not in needed:
+            needed.append(item)
+    label = "What would settle the rest" if open_result else "What would change the result"
+    if not needed:
+        return [SummaryStatement(label, "Nothing further is recorded.")] if open_result else []
+    return [SummaryStatement(label, item) for item in needed]
 
 
-def _focus_candidate_ids(dossier: JsonObject, assessment: JsonObject) -> frozenset[str]:
-    """Return the candidates whose comparisons can still move the verdict.
-
-    A surviving candidate is what the verdict rests on. When nothing survives,
-    the proposed candidate is what the reader is being asked about, so its
-    comparisons are the ones that explain the outcome.
-    """
-    surviving = _strings(
-        assessment["surviving_candidate_ids"], "$.assessment.surviving_candidate_ids"
+def _reasoning_part(
+    record: JsonObject, dossier: JsonObject, assessment: JsonObject, names: Names
+) -> SummaryPart:
+    statements = _options_statements(record, dossier, assessment, names)
+    statements.extend(_control_statements(dossier))
+    verdict = ArchitectureVerdict(_text(assessment["verdict"], "$.assessment.verdict"))
+    unmet = _objects(assessment["unmet_conditions"], "$.assessment.unmet_conditions")
+    open_result = verdict is ArchitectureVerdict.INSUFFICIENT_EVIDENCE or bool(unmet)
+    if open_result:
+        statements.extend(_determined_statements(record, assessment))
+    statements.extend(_settling_statements(record, dossier, names, open_result=open_result))
+    legend = " ".join(
+        f"{flag.capitalize()} flag: {meaning}" for flag, meaning in FLAG_MEANINGS.items()
     )
-    if surviving:
-        return frozenset(surviving)
-    comparison = dossier["candidate_comparison"]
-    if comparison is None:
-        return frozenset()
-    candidates = _list_of_objects(
-        require_object(comparison, "$.dossier.candidate_comparison")["candidates"],
-        "$.dossier.candidate_comparison.candidates",
-    )
-    return frozenset(
-        _text(candidate["id"], "$.candidates[].id")
-        for candidate in candidates
-        if "proposed" in _strings(candidate["roles"], "$.candidates[].roles")
-    )
+    statements.append(SummaryStatement("How to read the flags", legend))
+    return SummaryPart(PART_TITLES[2], tuple(statements))
 
 
-def _trade_off_section(dossier: JsonObject, assessment: JsonObject) -> SummarySection:
-    comparison = dossier["candidate_comparison"]
-    if comparison is None:
-        return SummarySection(
-            "Decisive Trade-offs", (SummaryPoint("Trade-offs", (ABSENT,), derived=True),)
-        )
-    focus = _focus_candidate_ids(dossier, assessment)
-    points: list[SummaryPoint] = []
-    for pair in _list_of_objects(
-        require_object(comparison, "$.dossier.candidate_comparison")["comparisons"],
-        "$.dossier.candidate_comparison.comparisons",
-    ):
-        subject = _text(pair["subject_candidate_id"], "$.comparisons[].subject_candidate_id")
-        comparator = _text(
-            pair["comparator_candidate_id"], "$.comparisons[].comparator_candidate_id"
-        )
-        if subject not in focus and comparator not in focus:
-            continue
-        dimensions = require_object(pair["dimensions"], "$.comparisons[].dimensions")
-        for name in _DIMENSIONS:
-            dimension = require_object(dimensions[name], f"$.comparisons[].dimensions.{name}")
-            result = _text(dimension["result"], f"$.dimensions.{name}.result")
-            if result not in _DIRECTIONAL_RESULTS:
-                continue
-            points.append(
-                SummaryPoint(
-                    f"Trade-off ({name.replace('_', ' ').title()})",
-                    (
-                        subject,
-                        comparator,
-                        result,
-                        _text(dimension["rationale"], f"$.dimensions.{name}.rationale"),
-                    ),
-                )
-            )
-    if not points:
-        points.append(SummaryPoint("Directional Trade-offs", (EMPTY,), derived=True))
-    return SummarySection("Decisive Trade-offs", tuple(points))
-
-
-def is_derived_value(value: str) -> bool:
-    """Return whether ``value`` is one of the closed set of derived values."""
-    return value in DERIVED_MARKERS or _DERIVED_COUNT.fullmatch(value) is not None
+# ---------------------------------------------------------------------------
 
 
 def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
-    """Return one deterministic executive summary of a loaded canonical record."""
+    """Return one deterministic three-part executive summary of a loaded canonical record."""
     view = masked_record_view(record)
     masked, dossier, assessment = view.record, view.dossier, view.assessment
     case = require_object(dossier["case"], "$.dossier.case")
+    # The evidence ledger is read for its shape before any part is told, so a
+    # malformed record fails closed rather than producing a partial summary.
+    _evidence(dossier)
+    names = Names(dossier)
     return ExecutiveSummary(
         record_content_identity=_text(
             masked["record_content_identity"], "$.record_content_identity"
         ),
-        ruleset_version=_text(masked["ruleset_version"], "$.ruleset_version"),
-        tool_version=_text(masked["tool_version"], "$.tool_version"),
+        vocabulary_version=VOCABULARY_VERSION,
         case_title=_text(case["title"], "$.dossier.case.title"),
         language=view.language,
-        sections=(
-            _case_section(dossier),
-            _verdict_section(assessment),
-            *_scope_sections(masked),
-            _decision_space_section(dossier),
-            _control_section(dossier),
-            *_envelope_sections(masked),
-            _evidence_section(masked, dossier),
-            _trade_off_section(dossier, assessment),
+        parts=(
+            _summary_part(dossier, assessment, names),
+            _business_part(dossier),
+            _reasoning_part(masked, dossier, assessment, names),
         ),
     )
