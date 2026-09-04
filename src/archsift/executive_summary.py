@@ -22,9 +22,10 @@ The three parts, in fixed order:
    and, where more evidence is needed, what is already determined and what
    specific information would settle the rest.
 
-The three parts are followed by the reference page **How the result was
-reached**: the decision framework card (FR-020) for the framework version the
-summary was built with, rendered unchanged.
+The three parts are followed by two reference pages: **How the result was
+reached**, the decision framework card (FR-020) for the framework version the
+summary was built with, rendered unchanged; and **What the evidence says**, the
+evidence-set view (FR-021) of the record, one row per slot in profile order.
 
 Nothing here selects, satisfies, or promotes anything: the parts restate facts
 the record already contains, and the decision rests with the accountable owner.
@@ -37,6 +38,7 @@ from typing import Final
 
 from archsift.canonical import JsonObject, JsonValue
 from archsift.decision import ArchitectureVerdict
+from archsift.evidence_view import EvidenceView, build_evidence_view
 from archsift.framework import FrameworkCard, build_framework_card
 from archsift.narrative import (
     Names,
@@ -107,6 +109,8 @@ class ExecutiveSummary:
     parts: tuple[SummaryPart, SummaryPart, SummaryPart]
     #: The reference page "How the result was reached": the framework card, unchanged.
     card: FrameworkCard
+    #: The reference page "What the evidence says": the evidence-set view of the record.
+    view: EvidenceView
 
 
 def _text(value: JsonValue, name: str) -> str:
@@ -639,4 +643,5 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
             _reasoning_part(masked, dossier, assessment, names),
         ),
         card=card,
+        view=build_evidence_view(masked),
     )

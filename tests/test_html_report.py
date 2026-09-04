@@ -195,7 +195,7 @@ def test_authored_markup_scripts_and_controls_render_as_inert_text() -> None:
     }
     # The payload survives as escaped, visible, inert text.
     # The narrative restates the title, claim, operation, and name once more each.
-    assert text.count(escape(visible_text(_INJECTION_PAYLOAD), quote=True)) == 11
+    assert text.count(escape(visible_text(_INJECTION_PAYLOAD), quote=True)) == 83
     assert "\x00" not in text and "\x1b" not in text
     assert "\u200b" not in text and "\u2028" not in text and "\u202e" not in text
     assert "\\u0000" in text and "\\u001b" in text
