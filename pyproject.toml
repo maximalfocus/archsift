@@ -89,6 +89,7 @@ exclude = [
 "docs/usability-check-v2.md" = "archsift/docs/usability-check-v2.md"
 "docs/authoring-check-v1.md" = "archsift/docs/authoring-check-v1.md"
 "docs/authoring-check-v1.0.1.md" = "archsift/docs/authoring-check-v1.0.1.md"
+"docs/authoring-check-v1.1.0.md" = "archsift/docs/authoring-check-v1.1.0.md"
 "authoring-material/brief.md" = "archsift/authoring-material/brief.md"
 "authoring-material/manifest-v1.json" = "archsift/authoring-material/manifest-v1.json"
 "authoring-material/repository/required_fields.py" = "archsift/authoring-material/repository/required_fields.py"

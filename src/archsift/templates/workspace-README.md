@@ -8,6 +8,14 @@ This directory contains one local architecture-decision case.
 
 `case.yaml` declares a `language` code, defaulting to `en`. It is the language ArchSift generates this guidance and every decision-record report in, and English is the only language it currently supports; an unknown or unsupported code fails validation rather than being ignored. The language is part of the dossier bytes the record is addressed by, so changing it produces a distinct record. Writing this case's own prose and evidence in the declared language is a convention you keep; ArchSift never inspects authored text to judge what language it is written in, so a mismatch is never reported as an error.
 
+## The evidence set
+
+Every case, whatever material it comes from, is prepared into the same evidence set and read in the same order. Reduce interviews, documents, measurements, and source repositories into the slots below; do not transcribe the shape the material had. Each slot names what you answer there, the evidence kinds the rules accept for it, and the framework rules that read it (`archsift rules` prints the framework card; `archsift dossier-schema --evidence-set` prints this profile). Record the evidence an answer rests on in the `evidence` ledger and cite it from the slot; an entry no slot cites is recorded context and never bears on the result. Where the material does not support an answer, record the gap as a `missing` entry rather than inventing one.
+
+<!-- evidence-set-profile -->
+
+## Recording the case
+
 Add one operational `task` only after its boundary is known. A programme name is not enough: record observable start and completion conditions, participants, inputs, produced actions, approval boundaries, and explicit exclusions.
 
 ```yaml

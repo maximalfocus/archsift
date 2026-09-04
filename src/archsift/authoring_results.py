@@ -17,8 +17,9 @@ from jsonschema import Draft202012Validator
 from archsift.diagnostics import Diagnostic, ExitCode
 
 PROTOCOL_VERSION_1_0_0 = "1.0.0"
-PROTOCOL_VERSION = "1.0.1"
-SUPPORTED_PROTOCOL_VERSIONS = (PROTOCOL_VERSION_1_0_0, PROTOCOL_VERSION)
+PROTOCOL_VERSION_1_0_1 = "1.0.1"
+PROTOCOL_VERSION = "1.1.0"
+SUPPORTED_PROTOCOL_VERSIONS = (PROTOCOL_VERSION_1_0_0, PROTOCOL_VERSION_1_0_1, PROTOCOL_VERSION)
 RESULT_SCHEMA_VERSION = 1
 REQUIRED_SESSION_COUNT = 4
 REQUIRED_PASS_COUNT = 3
@@ -300,7 +301,7 @@ def _unsupported(payload: dict[str, object]) -> AuthoringValidationResult:
                 field,
                 (
                     f"Use schema version {RESULT_SCHEMA_VERSION} with protocol "
-                    f"{PROTOCOL_VERSION_1_0_0} or {PROTOCOL_VERSION}."
+                    f"{PROTOCOL_VERSION_1_0_0}, {PROTOCOL_VERSION_1_0_1}, or {PROTOCOL_VERSION}."
                 ),
             ),
         ),
@@ -439,6 +440,7 @@ __all__ = [
     "MATERIAL_SET_CONTENT_IDENTITY",
     "PROTOCOL_VERSION",
     "PROTOCOL_VERSION_1_0_0",
+    "PROTOCOL_VERSION_1_0_1",
     "REQUIRED_MILESTONES",
     "REQUIRED_PASS_COUNT",
     "REQUIRED_SESSION_COUNT",

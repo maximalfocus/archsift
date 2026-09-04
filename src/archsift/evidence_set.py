@@ -200,6 +200,24 @@ def profile_lines(profile: EvidenceSetProfile) -> list[str]:
     return lines
 
 
+def guidance_lines(profile: EvidenceSetProfile) -> list[str]:
+    """Render the profile as Markdown lines for the workspace guidance (FR-001)."""
+    lines: list[str] = []
+    current: DecisionArea | None = None
+    for slot in profile.slots:
+        if slot.question is not None and slot.question is not current:
+            current = slot.question
+            lines.append("")
+            lines.append(f"**{QUESTIONS[current]}**")
+            lines.append("")
+        kinds = ", ".join(slot.kind_phrases) if slot.phrases.kinds else "none"
+        lines.append(
+            f"- **{slot.phrases.name}.** {slot.phrases.sentence} Evidence: {kinds}. "
+            f"Framework rules: {', '.join(str(n) for n in slot.phrases.framework_rules)}."
+        )
+    return lines
+
+
 __all__ = [
     "EVIDENCE_SET_PROFILE_SCHEMA_VERSION",
     "EvidenceKind",
@@ -207,6 +225,7 @@ __all__ = [
     "Slot",
     "evidence_bearing_locations",
     "evidence_set_profile",
+    "guidance_lines",
     "profile_bytes",
     "profile_lines",
     "profile_payload",

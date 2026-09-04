@@ -167,6 +167,7 @@ jobs:
           assert "archsift/docs/architecture-knowledge-v5.md" in names
           assert "archsift/docs/authoring-check-v1.md" in names
           assert "archsift/docs/authoring-check-v1.0.1.md" in names
+          assert "archsift/docs/authoring-check-v1.1.0.md" in names
           assert "archsift/docs/graph-change-v1.md" in names
           assert "archsift/docs/graph-snapshot-v1.md" in names
           assert "archsift/docs/method-v1.0.0.md" in names

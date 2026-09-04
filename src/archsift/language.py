@@ -56,9 +56,25 @@ def supported_languages_text() -> str:
     return ", ".join(SUPPORTED_LANGUAGES)
 
 
-def workspace_guidance(code: str) -> str:
-    """Return the packaged workspace guidance written in ``code``."""
+#: The template line the rendered evidence-set profile replaces (FR-021).
+EVIDENCE_SET_MARKER: Final = "<!-- evidence-set-profile -->"
+
+
+def workspace_guidance(code: str, schema_version: int = 1) -> str:
+    """Return the packaged workspace guidance written in ``code``.
+
+    The guidance presents the evidence-set profile of ``schema_version`` as the
+    authoring target, rendered from the published profile at this call so the
+    guidance cannot drift from it (FR-001, FR-021).
+    """
     resource = _WORKSPACE_GUIDANCE.get(code)
     if resource is None:
         raise UnsupportedLanguageError(f"No workspace guidance exists for language {code!r}.")
-    return files("archsift").joinpath(resource).read_text(encoding="utf-8")
+    template = files("archsift").joinpath(resource).read_text(encoding="utf-8")
+    if EVIDENCE_SET_MARKER not in template:
+        return template
+    # Imported here: the evidence set reads the schema module, which reads this one.
+    from archsift.evidence_set import evidence_set_profile, guidance_lines
+
+    rendered = "\n".join(guidance_lines(evidence_set_profile(schema_version)))
+    return template.replace(EVIDENCE_SET_MARKER, rendered)
