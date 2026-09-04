@@ -46,6 +46,7 @@ from archsift.executive_summary import (
     build_executive_summary,
 )
 from archsift.masking import MASKING_POLICY_VERSION, MASKING_WARNING
+from archsift.narrative import Narrative, build_narrative
 from archsift.record_view import (
     ABSENT,
     EMPTY,
@@ -55,7 +56,7 @@ from archsift.record_view import (
 )
 from archsift.report_text import visible_text
 
-HTML_REPORT_FORMAT_VERSION: Final = 1
+HTML_REPORT_FORMAT_VERSION: Final = 2
 
 #: The fixed text joining one summary point's values in a rendered line.
 VALUE_SEPARATOR: Final = " — "
@@ -170,6 +171,29 @@ def _recorded_context_ids(masked: JsonObject) -> list[JsonValue]:
     ]
 
 
+def _demoted(lines: list[str]) -> list[str]:
+    """Push every heading one level down so the appendix nests under its own heading."""
+    demoted: list[str] = []
+    for line in lines:
+        if line.startswith("<h3>") and line.endswith("</h3>"):
+            demoted.append("<h4>" + line[4:-5] + "</h4>")
+        elif line.startswith("<h2>") and line.endswith("</h2>"):
+            demoted.append("<h3>" + line[4:-5] + "</h3>")
+        else:
+            demoted.append(line)
+    return demoted
+
+
+def _emit_narrative(lines: list[str], narrative: Narrative) -> None:
+    for section in narrative.sections:
+        lines.append(f"<h2>{_text(section.title)}</h2>")
+        lines.append("<dl>")
+        for item in section.items:
+            lines.append(f"<dt>{_text(item.label)}</dt>")
+            lines.append(f'<dd><p class="value">{_text(item.text)}</p></dd>')
+        lines.append("</dl>")
+
+
 def render_detailed_html_report(record: JsonObject) -> bytes:
     """Return one deterministic self-contained detailed HTML report.
 
@@ -181,8 +205,15 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     masked, dossier, assessment = view.record, view.dossier, view.assessment
     recommended = recommendation(assessment)
 
-    lines: list[str] = ["<h2>Record Metadata</h2>"]
+    narrative = build_narrative(masked)
+    lines: list[str] = []
+    _emit_narrative(lines, narrative)
+    lines.append("<h2>Traceability Appendix</h2>")
+    appendix: list[str] = ["<h2>Record Metadata</h2>"]
+    outer = lines
+    lines = appendix
     _emit_field(lines, "Report Format Version", HTML_REPORT_FORMAT_VERSION)
+    _emit_field(lines, "Vocabulary Version", narrative.vocabulary_version)
     _emit_field(lines, "Record Schema Version", masked["record_schema_version"])
     _emit_field(lines, "Record Content Identity", masked["record_content_identity"])
     _emit_field(lines, "Dossier Schema Version", masked["dossier_schema_version"])
@@ -251,7 +282,8 @@ def render_detailed_html_report(record: JsonObject) -> bytes:
     _emit_field(lines, "Policy Version", MASKING_POLICY_VERSION)
     _emit_field(lines, "Warning", MASKING_WARNING)
     lines.append("</section>")
-    return _document("ArchSift Decision Report", lines, language=view.language)
+    outer.extend(_demoted(appendix))
+    return _document("ArchSift Decision Report", outer, language=view.language)
 
 
 def _document(title: str, body: list[str], *, language: str) -> bytes:

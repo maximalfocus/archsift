@@ -18,8 +18,8 @@ from archsift.decision import ArchitectureVerdict, EvidenceState
 from archsift.rules import RuleEffect, list_rules
 from archsift.validation import ControlClass, DecisionArea, EvidenceKind
 
-VOCABULARY_VERSION: Final = "1.0.0"
-VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.0.0.md"
+VOCABULARY_VERSION: Final = "1.1.0"
+VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.1.0.md"
 
 # Words that present the tool as a judge. Their inflections are excluded too.
 EXCLUDED_WORDS: Final[tuple[str, ...]] = (
@@ -121,7 +121,7 @@ OPTIONS: Final[Mapping[ControlClass, str]] = MappingProxyType(
 
 EVIDENCE_KINDS: Final[Mapping[EvidenceKind, str]] = MappingProxyType(
     {
-        EvidenceKind.OBSERVED: "observed",
+        EvidenceKind.OBSERVED: "seen and recorded",
         EvidenceKind.ASSUMPTION: "assumed",
         EvidenceKind.ESTIMATE: "estimated",
         EvidenceKind.MISSING: "not yet available",
@@ -137,6 +137,96 @@ QUESTIONS: Final[Mapping[DecisionArea, str]] = MappingProxyType(
         ),
         DecisionArea.COMPARATIVE_FIT: "Which option fits best against the simpler alternatives?",
     }
+)
+
+# Reader-facing names for the structured questions, dimensions, roles, results,
+# answers, and states that a narrative presents. Keys are the dossier field or
+# token; every value is a fixed phrase in the neutral register.
+QUESTION_FIELDS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "execution_steps_predefinable": "Can the steps be fixed in advance?",
+        "step_count_or_order_predictable": "Is the number and order of steps predictable?",
+        "runtime_tool_choice_required": "Must a tool be chosen at run time?",
+        "runtime_replanning_required": "Must the plan change at run time?",
+        "environmental_feedback_available": "Does the environment give feedback to act on?",
+        "completion_independently_verifiable": "Can completion be checked independently?",
+        "effects_independently_verifiable": "Can the effects be checked independently?",
+        "fixed_workflow_sufficient": "Is a fixed sequence of steps enough?",
+        "actions_reversible": "Can the actions be undone?",
+        "failure_blast_radius_bounded": "Is the damage from a failure bounded?",
+        "regulatory_automation_permitted": "Do the rules that govern the task allow automation?",
+        "data_confidence_sufficient": "Is the data trustworthy enough?",
+        "accountable_owner_assigned": "Is an accountable owner assigned?",
+        "decision_path_auditable": "Can the decision path be audited?",
+        "timely_human_intervention_available": "Can a person step in in time?",
+        "safe_degradation_available": "Can the task degrade safely?",
+    }
+)
+
+DIMENSIONS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "outcome_quality": "quality of the outcome",
+        "difficult_case_performance": "handling of difficult cases",
+        "cost": "cost",
+        "latency": "speed",
+        "human_effort": "human effort",
+        "integration_burden": "integration effort",
+        "security_exposure": "security exposure",
+        "failure_impact": "impact of failure",
+        "operability": "ease of operation",
+        "evaluation_burden": "effort to evaluate",
+        "maintainability": "ease of maintenance",
+    }
+)
+
+ROLES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "current-baseline": "the current way of working",
+        "proposed": "the proposal",
+        "strongest-simpler": "the strongest simpler alternative",
+        "agentic-comparator": "the comparison with AI that chooses its own steps",
+    }
+)
+
+TEST_RESULTS: Final[Mapping[str, str]] = MappingProxyType(
+    {"meets": "meets it", "fails": "does not meet it", "unknown": "not yet known"}
+)
+
+COMPARISON_RESULTS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "better": "better",
+        "equivalent": "about the same",
+        "worse": "worse",
+        "unknown": "not yet known",
+    }
+)
+
+ANSWERS: Final[Mapping[str, str]] = MappingProxyType(
+    {"yes": "yes", "no": "no", "unknown": "not yet known"}
+)
+
+STOP_CONDITION_STATES: Final[Mapping[str, str]] = MappingProxyType(
+    {"active": "in force", "inactive": "not in force", "unknown": "not yet known"}
+)
+
+CONDITION_STATES: Final[Mapping[str, str]] = MappingProxyType(
+    {"met": "met", "unmet": "not yet met"}
+)
+
+AUTHORS: Final[Mapping[str, str]] = MappingProxyType(
+    {"accountable-person": "an accountable person", "assistant": "an assisting author"}
+)
+
+TARGET_KINDS: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "quantified": "a numeric target",
+        "directional": "a direction of change",
+        "no-regression": "no worse than today",
+    }
+)
+
+DISPOSITIONS: Final[Mapping[str, str]] = MappingProxyType(
+    {"eliminated": "ruled out", "undetermined": "still open", "survives": "still in play"}
 )
 
 _PROCEED = "The result cannot be reached until this is recorded."
@@ -663,12 +753,38 @@ def validate_vocabulary() -> None:
             )
         for name in ("message", "consequence", "remediation"):
             _check_phrase(f"rule {rule_id!r} {name}", getattr(phrases, name))
+    for label, mapping in (
+        ("question", QUESTION_FIELDS),
+        ("dimension", DIMENSIONS),
+        ("role", ROLES),
+        ("test result", TEST_RESULTS),
+        ("comparison result", COMPARISON_RESULTS),
+        ("answer", ANSWERS),
+        ("stop-condition state", STOP_CONDITION_STATES),
+        ("condition state", CONDITION_STATES),
+        ("author", AUTHORS),
+        ("target kind", TARGET_KINDS),
+        ("disposition", DISPOSITIONS),
+    ):
+        for key, text in mapping.items():
+            _check_phrase(f"{label} {key!r}", text)
     for context, text in (
         ("result name", RESULT_NAME),
         ("indicated option", INDICATED_OPTION),
         ("decision owner statement", DECISION_OWNER_STATEMENT),
     ):
         _check_phrase(context, text)
+
+
+def term(mapping: Mapping[str, str], key: str, label: str) -> str:
+    """Return the reader-facing phrase for one structured token, failing closed."""
+    try:
+        return mapping[key]
+    except KeyError:
+        raise VocabularyError(
+            f"No reader-facing phrase for {label} {key!r}; add it to the vocabulary before "
+            "rendering."
+        ) from None
 
 
 def rule_phrases(rule_id: str) -> RulePhrases:
@@ -704,13 +820,24 @@ def vocabulary_payload() -> dict[str, object]:
     """Return the deterministic JSON-compatible vocabulary, validated first."""
     validate_vocabulary()
     return {
+        "answers": dict(ANSWERS),
+        "authors": dict(AUTHORS),
+        "comparison_results": dict(COMPARISON_RESULTS),
+        "condition_states": dict(CONDITION_STATES),
         "decision_owner_statement": DECISION_OWNER_STATEMENT,
+        "dimensions": dict(DIMENSIONS),
+        "dispositions": dict(DISPOSITIONS),
         "decision_questions": {area.value: QUESTIONS[area] for area in DecisionArea},
         "evidence_kinds": {kind.value: EVIDENCE_KINDS[kind] for kind in EvidenceKind},
         "evidence_states": {state.value: EVIDENCE_STATES[state] for state in EvidenceState},
         "excluded_words": list(EXCLUDED_WORDS),
         "flag_meanings": dict(FLAG_MEANINGS),
         "flags": {effect.value: FLAGS[effect] for effect in RuleEffect},
+        "question_fields": dict(QUESTION_FIELDS),
+        "roles": dict(ROLES),
+        "stop_condition_states": dict(STOP_CONDITION_STATES),
+        "target_kinds": dict(TARGET_KINDS),
+        "test_results": dict(TEST_RESULTS),
         "indicated_option": INDICATED_OPTION,
         "options": {control_class.value: OPTIONS[control_class] for control_class in ControlClass},
         "result_name": RESULT_NAME,
