@@ -45,6 +45,7 @@ from archsift.executive_summary import (
     ExecutiveSummary,
     build_executive_summary,
 )
+from archsift.framework import CARD_TITLE, FrameworkCard
 from archsift.masking import MASKING_POLICY_VERSION, MASKING_WARNING
 from archsift.narrative import Narrative, build_narrative
 from archsift.record_view import (
@@ -317,9 +318,10 @@ def _document(title: str, body: list[str], *, language: str) -> bytes:
 def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
     """Return one deterministic self-contained executive summary as HTML.
 
-    The body is exactly the summary's three parts; the record identity, the
-    vocabulary version, and the masking notice follow in a footer so the
-    document is addressed and its masking is declared without a fourth part.
+    The body is the summary's three parts followed by the reference page that
+    renders the framework card unchanged; the record identity, the vocabulary
+    and framework versions, and the masking notice follow in a footer so the
+    document is addressed and its masking is declared without another part.
     """
     body: list[str] = [f'<p class="case">{_text(summary.case_title)}</p>']
     for part in summary.parts:
@@ -331,11 +333,13 @@ def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
             body.append(f'<dd><p class="value">{_text(statement.text)}</p></dd>')
         body.append("</dl>")
         body.append("</section>")
+    body.extend(_framework_card_section(summary.card))
     body.append('<footer class="notice">')
     body.append("<dl>")
     for label, value in (
         ("Record", summary.record_content_identity),
         ("Vocabulary version", summary.vocabulary_version),
+        ("Framework version", summary.framework_version),
         ("Summary format version", str(EXECUTIVE_SUMMARY_VERSION)),
         ("Masking policy version", str(MASKING_POLICY_VERSION)),
         ("Masking notice", MASKING_WARNING),
@@ -345,6 +349,38 @@ def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
     body.append("</dl>")
     body.append("</footer>")
     return _document("ArchSift Executive Summary", body, language=summary.language)
+
+
+def _framework_card_section(card: FrameworkCard) -> list[str]:
+    """Render the framework card as the reference page, in the card's fixed order."""
+    lines = ['<section class="reference">', f"<h2>{_text(CARD_TITLE)}</h2>"]
+    lines.append(f'<p class="value">Framework {_text(card.framework_version)}</p>')
+    for heading, items in (
+        ("The four questions", card.questions),
+        ("The five options, from least to most run-time freedom", card.options),
+    ):
+        lines.append(f"<h3>{heading}</h3>")
+        lines.append("<dl>")
+        for item in items:
+            lines.append(f"<dt>{_text(item.name)}</dt>")
+            lines.append(f'<dd><p class="value">{_text(item.sentence)}</p></dd>')
+        lines.append("</dl>")
+    lines.append("<h3>The flags</h3>")
+    lines.append("<dl>")
+    for item in card.flags:
+        lines.append(f"<dt>{_text(item.name)} flag</dt>")
+        lines.append(f'<dd><p class="value">{_text(item.sentence)}</p></dd>')
+    lines.append("</dl>")
+    lines.append("<h3>The framework rules</h3>")
+    for group in card.groups:
+        lines.append(f'<p class="value">{_text(group.title)}</p>')
+        lines.append(f'<ol start="{group.rules[0].number}">')
+        for rule in group.rules:
+            lines.append(f'<li><p class="value">{_text(rule.sentence)}</p></li>')
+        lines.append("</ol>")
+    lines.append(f'<p class="value">{_text(card.statement)}</p>')
+    lines.append("</section>")
+    return lines
 
 
 def render_executive_html_report(record: JsonObject) -> bytes:

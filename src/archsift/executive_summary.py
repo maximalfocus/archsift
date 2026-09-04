@@ -17,9 +17,14 @@ The three parts, in fixed order:
    boundary: start and completion conditions, actors, the ordered actions, and
    which actions a person must perform or confirm.
 3. **Result and reasoning** — the options considered with the flags each one
-   carries, the absolute stop conditions and person-required steps that apply,
+   carries and the framework rule that raised each, the absolute stop
+   conditions and person-required steps that apply,
    and, where more evidence is needed, what is already determined and what
    specific information would settle the rest.
+
+The three parts are followed by the reference page **How the result was
+reached**: the decision framework card (FR-020) for the framework version the
+summary was built with, rendered unchanged.
 
 Nothing here selects, satisfies, or promotes anything: the parts restate facts
 the record already contains, and the decision rests with the accountable owner.
@@ -32,6 +37,7 @@ from typing import Final
 
 from archsift.canonical import JsonObject, JsonValue
 from archsift.decision import ArchitectureVerdict
+from archsift.framework import FrameworkCard, build_framework_card
 from archsift.narrative import (
     Names,
     ResolvedFinding,
@@ -50,7 +56,6 @@ from archsift.vocabulary import (
     DECISION_OWNER_STATEMENT,
     DISPOSITIONS,
     FLAG_MEANINGS,
-    VOCABULARY_VERSION,
     phrase,
     term,
 )
@@ -89,15 +94,19 @@ class ExecutiveSummary:
     """One record's complete executive summary, ready to render in any format.
 
     A rendering is addressed by ``record_content_identity`` together with
-    ``vocabulary_version``: a wording change in the vocabulary produces a
-    distinct rendering while the record stays untouched.
+    ``vocabulary_version`` and ``framework_version``: a wording change in the
+    vocabulary or the framework card produces a distinct rendering while the
+    record stays untouched.
     """
 
     record_content_identity: str
     vocabulary_version: str
+    framework_version: str
     case_title: str
     language: str
     parts: tuple[SummaryPart, SummaryPart, SummaryPart]
+    #: The reference page "How the result was reached": the framework card, unchanged.
+    card: FrameworkCard
 
 
 def _text(value: JsonValue, name: str) -> str:
@@ -389,8 +398,10 @@ def _dispositions(assessment: JsonObject) -> dict[str, str]:
 
 
 def _flag_text(findings: list[ResolvedFinding]) -> str:
+    """State each flag with the framework rule that raised it (FR-017, FR-020)."""
     return " ".join(
-        f"{finding.flag.capitalize()} flag: {finding.message} {finding.consequence}"
+        f"{finding.flag.capitalize()} flag (framework rule {finding.framework_rule}): "
+        f"{finding.message} {finding.consequence}"
         for finding in findings
     )
 
@@ -613,11 +624,13 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
     # malformed record fails closed rather than producing a partial summary.
     _evidence(dossier)
     names = Names(dossier)
+    card = build_framework_card()
     return ExecutiveSummary(
         record_content_identity=_text(
             masked["record_content_identity"], "$.record_content_identity"
         ),
-        vocabulary_version=VOCABULARY_VERSION,
+        vocabulary_version=card.vocabulary_version,
+        framework_version=card.framework_version,
         case_title=_text(case["title"], "$.dossier.case.title"),
         language=view.language,
         parts=(
@@ -625,4 +638,5 @@ def build_executive_summary(record: JsonObject) -> ExecutiveSummary:
             _business_part(dossier),
             _reasoning_part(masked, dossier, assessment, names),
         ),
+        card=card,
     )

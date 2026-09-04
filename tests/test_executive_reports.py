@@ -23,6 +23,7 @@ from archsift.executive_summary import (
     SummaryStatement,
     build_executive_summary,
 )
+from archsift.framework import CARD_TITLE, build_framework_card
 from archsift.html_report import render_executive_html_report
 from archsift.masking import MASKING_WARNING
 from archsift.pptx_report import (
@@ -97,7 +98,7 @@ def test_executive_html_matches_its_exact_golden() -> None:
     assert b"\r" not in content
     text = content.decode("utf-8")
     assert "<title>ArchSift Executive Summary</title>" in text
-    assert re.findall(r"<h2>(.*?)</h2>", text) == list(PART_TITLES)
+    assert re.findall(r"<h2>(.*?)</h2>", text) == [*PART_TITLES, CARD_TITLE]
     assert "More evidence is needed before an option can be indicated." in text
     assert "The fictional disposition would be released without approval." in text
     assert "<dt>Masking notice</dt>" in text
@@ -228,6 +229,7 @@ def test_authored_markup_and_xml_render_as_inert_text_in_both_formats() -> None:
         "content",
         "lang",
         "name",
+        "start",  # the framework rules' fixed numbering
     }
     assert escape(visible_text(_INJECTION_PAYLOAD), quote=True) in html
 
@@ -286,10 +288,9 @@ def test_deck_frames_every_part_with_a_title_and_a_masking_notice() -> None:
 
     assert titles[0] == "ArchSift Executive Summary"
     assert titles[-1] == "Masking Notice"
-    assert [title for title in titles if title in PART_TITLES] == list(PART_TITLES)
-    assert all(title in PART_TITLES or title.endswith(" (continued)") for title in titles[1:-1]), (
-        titles
-    )
+    pages = (*PART_TITLES, CARD_TITLE)
+    assert [title for title in titles if title in pages] == list(pages)
+    assert all(title in pages or title.endswith(" (continued)") for title in titles[1:-1]), titles
     for slide in slides:
         # One title run plus at most a full page of bullet runs.
         assert len(slide) <= POINTS_PER_SLIDE + 1
@@ -307,6 +308,7 @@ def test_an_oversized_part_continues_onto_further_slides_without_truncation() ->
     summary = ExecutiveSummary(
         record_content_identity="sha256:" + "0" * 64,
         vocabulary_version="0.0.0-test",
+        framework_version="0.0.0-test",
         case_title="Oversized synthetic part",
         language="en",
         parts=(
@@ -314,20 +316,21 @@ def test_an_oversized_part_continues_onto_further_slides_without_truncation() ->
             SummaryPart("Business analysis", (SummaryStatement("Step 1", "Synthetic."),)),
             SummaryPart("Result and reasoning", statements),
         ),
+        card=build_framework_card(),
     )
 
     slides = _slide_text(render_executive_summary_pptx(summary))
     titles = [slide[0] for slide in slides]
 
-    assert titles == [
+    assert titles[:6] == [
         "ArchSift Executive Summary",
         "Summary",
         "Business analysis",
         "Result and reasoning",
         "Result and reasoning (continued)",
         "Result and reasoning (continued)",
-        "Masking Notice",
     ]
+    assert titles[6] == CARD_TITLE and titles[-1] == "Masking Notice"
     bullets = [run for slide in slides[3:6] for run in slide[1:]]
     assert len(bullets) == len(statements)
     for statement in statements:
