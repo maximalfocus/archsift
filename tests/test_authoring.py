@@ -112,7 +112,7 @@ def test_incomplete_worklist_preserves_generated_finding_contract_without_openin
 
     assert main(["prerequisites", str(workspace)]) == 0
     human = capsys.readouterr().out
-    assert "Assessment prerequisites incomplete" in human
+    assert human.startswith("Not yet ready for assessment: ")
     assert "Authored" not in human
 
 

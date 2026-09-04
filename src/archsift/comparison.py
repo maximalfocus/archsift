@@ -16,9 +16,11 @@ from typing import Any, cast
 from jsonschema import Draft202012Validator, FormatChecker
 
 from archsift.canonical import JsonObject, JsonValue, canonical_json_bytes
+from archsift.decision import ArchitectureVerdict
 from archsift.decision_record import RECORD_SCHEMA_VERSION
 from archsift.diagnostics import ExitCode
 from archsift.masking import MASKING_POLICY_VERSION
+from archsift.vocabulary import phrase
 
 COMPARISON_SCHEMA_VERSION = 4
 _SUPPORTED_RECORD_SCHEMAS = {1, 2, 3, 4, RECORD_SCHEMA_VERSION}
@@ -1596,14 +1598,14 @@ def render_human_comparison(comparison: Mapping[str, object]) -> str:
     graph_findings = cast(dict[str, list[object]], graph["supported_finding_rule_ids"])
     graph_nodes = cast(dict[str, list[object]], graph["finding_relevant_nodes"])
     graph_relations = cast(dict[str, list[object]], graph["finding_relevant_relations"])
+    old_result = phrase(ArchitectureVerdict(cast(str, verdict["old"])))
+    new_result = phrase(ArchitectureVerdict(cast(str, verdict["new"])))
     verdict_text = (
-        f"{verdict['old']} -> {verdict['new']}"
-        if verdict["changed"]
-        else f"{verdict['old']} (unchanged)"
+        f"{old_result} -> {new_result}" if verdict["changed"] else f"{old_result} (unchanged)"
     )
     lines = [
         f"Compared {comparison['old_record_identity']} -> {comparison['new_record_identity']}",
-        f"Verdict: {verdict_text}",
+        f"Result: {verdict_text}",
         f"Evidence: +{len(cast(Sequence[object], evidence['added']))} "
         f"-{len(cast(Sequence[object], evidence['removed']))} "
         f"~{len(cast(Sequence[object], evidence['changed']))}",

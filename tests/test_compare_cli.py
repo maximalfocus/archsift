@@ -495,7 +495,7 @@ def test_compare_json_and_human_modes_are_byte_deterministic_and_read_only(
         assert main(["compare", "old.json", "new.json"]) == ExitCode.SUCCESS
         human.append(capsys.readouterr().out)
     assert human[0] == human[1]
-    assert "Verdict:" in human[0]
+    assert "Result:" in human[0]
     assert "Graph use: absent -> absent; 0 identity changes (context)" in human[0]
     assert main(["compare", "old.json", "new.json", "--quiet"]) == ExitCode.SUCCESS
     assert capsys.readouterr() == ("", "")
