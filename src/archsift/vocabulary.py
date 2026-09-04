@@ -18,8 +18,8 @@ from archsift.decision import ArchitectureVerdict, EvidenceState
 from archsift.rules import RuleEffect, list_rules
 from archsift.validation import ControlClass, DecisionArea, EvidenceKind
 
-VOCABULARY_VERSION: Final = "1.1.0"
-VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.1.0.md"
+VOCABULARY_VERSION: Final = "1.2.0"
+VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.2.0.md"
 
 # Words that present the tool as a judge. Their inflections are excluded too.
 EXCLUDED_WORDS: Final[tuple[str, ...]] = (
@@ -703,6 +703,235 @@ RULES: Final[Mapping[str, RulePhrases]] = MappingProxyType(
 )
 
 
+# ---------------------------------------------------------------------------
+# The decision framework card (FR-020)
+
+#: The framework version. A renumbering or a change of a framework rule's
+#: sentence is a new framework version; it addresses renderings and never a record.
+FRAMEWORK_VERSION: Final = "1.0.0"
+
+#: The most framework rules a card may carry. Exceeding it is a method-design
+#: decision recorded in the PRD, never a rendering choice.
+FRAMEWORK_RULE_LIMIT: Final = 12
+
+#: Where a framework rule is grouped on the card when it serves no single question.
+RESULT_RESOLUTION: Final = "result resolution"
+
+FRAMEWORK_STATEMENT: Final = (
+    "Flags are not counted or totalled. A stop flag is never offset by fit flags. "
+    "The decision rests with the accountable owner."
+)
+
+QUESTION_SENTENCES: Final[Mapping[DecisionArea, str]] = MappingProxyType(
+    {
+        DecisionArea.PROBLEM_VALUE: (
+            "The case must name a bounded task, the required outcomes with today's baseline, "
+            "and why the problem is worth solving."
+        ),
+        DecisionArea.AGENCY_NECESSITY: (
+            "The case must show whether the steps can be fixed in advance or a model must "
+            "choose them while the work runs."
+        ),
+        DecisionArea.AUTONOMY_PERMISSION: (
+            "The case must record which actions may be handed over, which a person must keep, "
+            "and the conditions under which nothing may proceed."
+        ),
+        DecisionArea.COMPARATIVE_FIT: (
+            "The options must be tested against the same outcomes and constraints and compared "
+            "with the simpler alternatives on the same points."
+        ),
+    }
+)
+
+OPTION_SENTENCES: Final[Mapping[ControlClass, str]] = MappingProxyType(
+    {
+        ControlClass.HUMAN_OWNED_WORK: "People carry out the work as they do today.",
+        ControlClass.PROCESS_REDESIGN: (
+            "The process is changed first, without new technology carrying the work."
+        ),
+        ControlClass.DETERMINISTIC_AUTOMATION: (
+            "Software follows fixed rules; no model takes part."
+        ),
+        ControlClass.FIXED_AI_WORKFLOW: (
+            "Code fixes the steps and a model works inside one or more of them."
+        ),
+        ControlClass.AGENTIC_CONTROL: (
+            "A model decides which steps to take, and in what order, while the work runs."
+        ),
+    }
+)
+
+
+@dataclass(frozen=True, slots=True)
+class FrameworkRule:
+    """One numbered rule of the decision framework card."""
+
+    number: int
+    group: DecisionArea | str
+    sentence: str
+
+
+FRAMEWORK_RULES: Final[tuple[FrameworkRule, ...]] = (
+    FrameworkRule(
+        1,
+        DecisionArea.PROBLEM_VALUE,
+        "Until the case records a bounded task, measurable required outcomes with today's "
+        "baseline, and the four value statements, a gap flag is raised on the options as a whole.",
+    ),
+    FrameworkRule(
+        2,
+        DecisionArea.PROBLEM_VALUE,
+        "An option that credibly does not reach a required outcome or does not meet a required "
+        "constraint carries a stop flag; one that credibly does carries a fit flag; a test with "
+        "no recorded result or without acceptable evidence carries a gap flag.",
+    ),
+    FrameworkRule(
+        3,
+        DecisionArea.AGENCY_NECESSITY,
+        "Every run-time question, and every case a fixed sequence cannot handle, must have a "
+        "known answer with acceptable evidence; otherwise a gap flag is raised.",
+    ),
+    FrameworkRule(
+        4,
+        DecisionArea.AGENCY_NECESSITY,
+        "The option in which AI chooses its own steps carries a stop flag when a fixed sequence "
+        "of steps is credibly sufficient, when no run-time tool choice or replanning is needed, "
+        "or when the environment gives no feedback; it carries a fit flag when the evidence "
+        "credibly shows the opposite.",
+    ),
+    FrameworkRule(
+        5,
+        DecisionArea.AUTONOMY_PERMISSION,
+        "Every hand-over question, absolute stop condition, person-required step, and claim of "
+        "authority over an action must be recorded with a known answer or status and acceptable "
+        "evidence; otherwise a gap flag is raised.",
+    ),
+    FrameworkRule(
+        6,
+        DecisionArea.AUTONOMY_PERMISSION,
+        "An option that would act where an absolute stop condition is in force, or that drops a "
+        "person-required step, carries a stop flag; an option that keeps the step carries a "
+        "condition flag.",
+    ),
+    FrameworkRule(
+        7,
+        DecisionArea.COMPARATIVE_FIT,
+        "The options must include today's way of working, the strongest simpler alternative, and "
+        "the proposal, each in its place; a missing option, role, boundary, or comparison raises "
+        "a gap flag.",
+    ),
+    FrameworkRule(
+        8,
+        DecisionArea.COMPARATIVE_FIT,
+        "A comparison with no recorded result, without acceptable evidence, or contradicting its "
+        "counterpart raises a gap flag, unless every admissible value leaves the result "
+        "unchanged, which is noted.",
+    ),
+    FrameworkRule(
+        9,
+        RESULT_RESOLUTION,
+        "Options are read in order from least to most run-time freedom; when every gap is "
+        "settled, the least free option that carries no stop flag is the indicated option, "
+        "subject to any condition flags it carries.",
+    ),
+    FrameworkRule(
+        10,
+        RESULT_RESOLUTION,
+        "While a gap flag remains on an option that could still be indicated, or on the options "
+        "as a whole, the result is that more evidence is needed.",
+    ),
+    FrameworkRule(
+        11,
+        RESULT_RESOLUTION,
+        "When every option carries a stop flag, no option can be indicated.",
+    ),
+)
+
+#: Every packaged rule maps to exactly one framework rule number.
+FRAMEWORK_MAPPING: Final[Mapping[str, int]] = MappingProxyType(
+    {
+        # 1 — the bounded task and the problem worth solving
+        "task-boundary-missing": 1,
+        "problem-value-missing": 1,
+        "binding-outcome-missing": 1,
+        "baseline-reference-unresolved": 1,
+        "credible-baseline-missing": 1,
+        "elicited-baseline-quantified-target": 1,
+        "candidate-problem-value-missing": 1,
+        "non-discriminating-binding-set": 1,
+        "baseline-retention-contradiction": 1,
+        # 2 — options against outcomes and constraints
+        "binding-outcome-failed": 2,
+        "binding-constraint-failed": 2,
+        "binding-outcome-met": 2,
+        "binding-constraint-met": 2,
+        "candidate-outcome-test-missing": 2,
+        "candidate-constraint-test-missing": 2,
+        "candidate-test-result-unknown": 2,
+        "credible-candidate-test-evidence-missing": 2,
+        # 3 — run-time questions answered with evidence
+        "agency-necessity-missing": 3,
+        "agency-answer-unknown": 3,
+        "credible-agency-evidence-missing": 3,
+        "agency-necessity-contradiction": 3,
+        "fixed-workflow-residual-contradiction": 3,
+        "credible-residual-case-evidence-missing": 3,
+        "agentic-agency-necessity-missing": 3,
+        "agentic-agency-answer-unknown": 3,
+        "agentic-credible-agency-evidence-missing": 3,
+        "agentic-residual-case-missing": 3,
+        "agentic-credible-residual-evidence-missing": 3,
+        # 4 — when AI choosing its own steps is or is not needed
+        "agentic-fixed-workflow-sufficient-blocks-candidate": 4,
+        "agentic-runtime-adaptation-missing": 4,
+        "agentic-feedback-unavailable-blocks-candidate": 4,
+        "agentic-dynamic-execution-supports-agency": 4,
+        "agentic-feedback-supports-agency": 4,
+        "agentic-fixed-workflow-insufficiency-supports-agency": 4,
+        "agentic-residual-case-supports-agency": 4,
+        "agentic-runtime-adaptation-supports-agency": 4,
+        "agentic-agency-fact-non-decisive": 4,
+        # 5 — hand-over questions, stop conditions, steps, and authority with evidence
+        "autonomy-permission-missing": 5,
+        "autonomy-answer-unknown": 5,
+        "credible-autonomy-evidence-missing": 5,
+        "hard-veto-status-unknown": 5,
+        "overlapping-veto-status-unknown": 5,
+        "active-veto-applicability-missing": 5,
+        "credible-hard-veto-evidence-missing": 5,
+        "credible-human-control-evidence-missing": 5,
+        "automation-authority-missing": 5,
+        "credible-authority-evidence-missing": 5,
+        "candidate-authority-class-contradiction": 5,
+        # 6 — acting past a stop condition or a person-required step
+        "active-veto-blocks-candidate": 6,
+        "mandatory-human-control-omitted": 6,
+        "mandatory-human-control-retained": 6,
+        "autonomy-boundary-non-decisive": 6,
+        # 7 — the set of options and their places
+        "candidate-comparison-missing": 7,
+        "candidate-role-incompatible": 7,
+        "required-candidate-role-missing": 7,
+        "required-comparison-missing": 7,
+        "strongest-simpler-boundary-missing": 7,
+        "strongest-simpler-boundary-coverage-missing": 7,
+        "strongest-simpler-boundary-incompatible": 7,
+        "credible-strongest-simpler-evidence-missing": 7,
+        # 8 — pairwise comparisons
+        "comparison-result-unknown": 8,
+        "credible-comparison-evidence-missing": 8,
+        "comparison-reciprocity-contradiction": 8,
+        "comparison-result-unknown-non-decisive": 8,
+        # 9, 10, 11 — how the result follows from the flags
+        "verdict-supported": 9,
+        "verdict-no-technology-change": 9,
+        "verdict-conditional": 9,
+        "verdict-insufficient-evidence": 10,
+        "verdict-no-permissible-candidate": 11,
+    }
+)
+
+
 def excluded_words_in(text: str) -> tuple[str, ...]:
     """Return the excluded words found in text, lowercased, in order of appearance."""
     return tuple(match.group(0).lower() for match in _EXCLUDED_PATTERN.finditer(text))
@@ -772,8 +1001,59 @@ def validate_vocabulary() -> None:
         ("result name", RESULT_NAME),
         ("indicated option", INDICATED_OPTION),
         ("decision owner statement", DECISION_OWNER_STATEMENT),
+        ("framework statement", FRAMEWORK_STATEMENT),
     ):
         _check_phrase(context, text)
+    _validate_framework(catalog)
+
+
+def _validate_framework(catalog: Mapping[str, object]) -> None:
+    """Fail closed unless the framework card is total, single-valued, and bounded (FR-020)."""
+    if len(FRAMEWORK_RULES) > FRAMEWORK_RULE_LIMIT:
+        raise VocabularyError(
+            f"The framework card carries {len(FRAMEWORK_RULES)} rules; at most "
+            f"{FRAMEWORK_RULE_LIMIT} are allowed, and exceeding it is a PRD decision."
+        )
+    numbers = [rule.number for rule in FRAMEWORK_RULES]
+    if numbers != list(range(1, len(FRAMEWORK_RULES) + 1)):
+        raise VocabularyError("Framework rules must be numbered 1..n in order.")
+    for rule in FRAMEWORK_RULES:
+        _check_phrase(f"framework rule {rule.number}", rule.sentence)
+        if not isinstance(rule.group, DecisionArea) and rule.group != RESULT_RESOLUTION:
+            raise VocabularyError(f"Framework rule {rule.number} has an unknown group.")
+    for area in DecisionArea:
+        if area not in QUESTION_SENTENCES:
+            raise VocabularyError(f"No framework sentence for decision area {area.value!r}.")
+        _check_phrase(f"question sentence {area.value!r}", QUESTION_SENTENCES[area])
+    for control_class in ControlClass:
+        if control_class not in OPTION_SENTENCES:
+            raise VocabularyError(f"No framework sentence for option {control_class.value!r}.")
+        _check_phrase(f"option sentence {control_class.value!r}", OPTION_SENTENCES[control_class])
+    for rule_id in catalog:
+        if rule_id not in FRAMEWORK_MAPPING:
+            raise VocabularyError(
+                f"Rule {rule_id!r} maps to no framework rule; map it or add a framework rule in "
+                "the same change."
+            )
+    mapped = set(FRAMEWORK_MAPPING.values())
+    for rule_id, number in FRAMEWORK_MAPPING.items():
+        if rule_id not in catalog:
+            raise VocabularyError(f"Framework mapping names unknown rule {rule_id!r}.")
+        if number not in set(numbers):
+            raise VocabularyError(f"Rule {rule_id!r} maps to unknown framework rule {number}.")
+    for number in numbers:
+        if number not in mapped:
+            raise VocabularyError(f"Framework rule {number} maps to no internal rule.")
+
+
+def framework_rule_number(rule_id: str) -> int:
+    """Return the framework rule number an internal rule belongs to, failing closed."""
+    try:
+        return FRAMEWORK_MAPPING[rule_id]
+    except KeyError:
+        raise VocabularyError(
+            f"Rule {rule_id!r} maps to no framework rule; add the mapping before rendering."
+        ) from None
 
 
 def term(mapping: Mapping[str, str], key: str, label: str) -> str:
@@ -833,6 +1113,24 @@ def vocabulary_payload() -> dict[str, object]:
         "excluded_words": list(EXCLUDED_WORDS),
         "flag_meanings": dict(FLAG_MEANINGS),
         "flags": {effect.value: FLAGS[effect] for effect in RuleEffect},
+        "framework": {
+            "mapping": dict(sorted(FRAMEWORK_MAPPING.items())),
+            "option_sentences": {c.value: OPTION_SENTENCES[c] for c in ControlClass},
+            "question_sentences": {a.value: QUESTION_SENTENCES[a] for a in DecisionArea},
+            "rule_limit": FRAMEWORK_RULE_LIMIT,
+            "rules": [
+                {
+                    "group": rule.group.value
+                    if isinstance(rule.group, DecisionArea)
+                    else rule.group,
+                    "number": rule.number,
+                    "sentence": rule.sentence,
+                }
+                for rule in FRAMEWORK_RULES
+            ],
+            "statement": FRAMEWORK_STATEMENT,
+            "version": FRAMEWORK_VERSION,
+        },
         "question_fields": dict(QUESTION_FIELDS),
         "roles": dict(ROLES),
         "stop_condition_states": dict(STOP_CONDITION_STATES),
