@@ -189,15 +189,15 @@ def test_record_separates_decision_bearing_evidence_from_recorded_context(
     assert "context-observed" in html and "context-missing" in html
 
     summary = build_executive_summary(record)
-    points = [
-        (point.label, point.values)
-        for section in summary.sections
-        for point in section.points
-        if point.label in {"Recorded Context", "Material Gap"}
-    ]
-    labels = [label for label, _ in points]
-    assert labels.count("Recorded Context") == 2
-    assert "Material Gap" not in labels
+    text = "\n".join(statement.text for part in summary.parts for statement in part.statements)
+    # A reached result lists nothing to settle, and an uncited known gap is not
+    # presented as something that would change the result.
+    labels = [statement.label for part in summary.parts for statement in part.statements]
+    assert "What would settle the rest" not in labels
+    assert "What would change the result" not in labels
+    for entry in record["dossier"]["evidence"]:
+        if entry["id"] in {"context-observed", "context-missing"}:
+            assert entry["claim"].rstrip(".") not in text
 
 
 def test_cited_missing_entry_keeps_its_blocking_treatment(
@@ -219,8 +219,17 @@ def test_cited_missing_entry_keeps_its_blocking_treatment(
     )
     assert trigger["decision_bearing"] is True
     summary = build_executive_summary(record)
-    labels = [point.label for section in summary.sections for point in section.points]
-    assert "Material Gap" in labels
+    settling = [
+        statement.text
+        for statement in summary.parts[2].statements
+        if statement.label == "What would change the result"
+    ]
+    claim = next(
+        entry["claim"]
+        for entry in record["dossier"]["evidence"]
+        if entry["id"] == "context-missing"
+    )
+    assert any(claim in text for text in settling)
 
 
 @pytest.mark.parametrize(
@@ -241,10 +250,18 @@ def test_earlier_record_schemas_remain_readable_and_comparable(
     # Rendering treats every pre-schema-3 entry as decision-bearing, as before.
     assert render_detailed_html_report(old)
     summary = build_executive_summary(old)
-    if old["record_schema_version"] < 3:
-        assert "Recorded Context" not in [
-            point.label for section in summary.sections for point in section.points
-        ]
+    # Every missing entry of a pre-schema-3 record is treated as decision-bearing
+    # and told as something to settle; from schema 3 on, only a cited one is.
+    settling = "\n".join(
+        statement.text
+        for statement in summary.parts[2].statements
+        if statement.label in {"What would settle the rest", "What would change the result"}
+    )
+    for entry in old["dossier"]["evidence"]:
+        if entry["kind"] != "missing":
+            continue
+        bearing = old["evidence_links"][entry["id"]].get("decision_bearing", True)
+        assert (entry["claim"].rstrip(".") in settling) is bearing, entry["id"]
 
     new = json.loads((GOLDEN / "decision-record-positive-v5.json").read_bytes())
     (tmp_path / "old.json").write_bytes((GOLDEN / golden).read_bytes())

@@ -96,7 +96,7 @@ def _yes_no(value: JsonValue) -> str:
     return "yes" if value is True else "no"
 
 
-class _Names:
+class Names:
     """Authored names for the elements a finding can cite, keyed as the record keys them."""
 
     def __init__(self, dossier: JsonObject) -> None:
@@ -153,7 +153,7 @@ class _Names:
         return _str(table[identifier][key], f"{key} of {identifier}")
 
 
-def _resolve_path(names: _Names, path: str, values: dict[str, str]) -> None:
+def _resolve_path(names: Names, path: str, values: dict[str, str]) -> None:
     """Fill placeholders from a diagnostic field path such as $.problem_value.outcomes[0]."""
     segments = path.removeprefix("$.").split(".")
     node: JsonValue = names.dossier
@@ -222,7 +222,7 @@ def _resolve_path(names: _Names, path: str, values: dict[str, str]) -> None:
         values.setdefault("candidate", _str(candidate["name"], path))
 
 
-def _resolve_decision_finding(names: _Names, finding: JsonObject, values: dict[str, str]) -> None:
+def _resolve_decision_finding(names: Names, finding: JsonObject, values: dict[str, str]) -> None:
     candidate_id = finding.get("candidate_id")
     if type(candidate_id) is str and candidate_id in names.candidates:
         values.setdefault("candidate", names.candidate(candidate_id))
@@ -256,7 +256,7 @@ def _resolve_decision_finding(names: _Names, finding: JsonObject, values: dict[s
         values.setdefault("residual", names.described(names.residuals, criterion, "description"))
 
 
-def _resolve_verdict(record: JsonObject, names: _Names, values: dict[str, str]) -> None:
+def _resolve_verdict(record: JsonObject, names: Names, values: dict[str, str]) -> None:
     assessment = _obj(record["assessment"], "$.assessment")
     recommended = assessment.get("recommended_class")
     if type(recommended) is str:
@@ -273,9 +273,25 @@ def _option_phrases() -> dict[str, str]:
     return {control_class.value: OPTIONS[control_class] for control_class in ControlClass}
 
 
-def _render_finding(
-    record: JsonObject, names: _Names, finding: JsonObject, *, source: str
-) -> NarrativeItem:
+@dataclass(frozen=True, slots=True)
+class ResolvedFinding:
+    """One finding rendered through its rule's vocabulary entry, placeholders resolved."""
+
+    flag: str
+    message: str
+    consequence: str
+    remediation: str
+
+
+def resolve_finding(
+    record: JsonObject, names: Names, finding: JsonObject, *, source: str
+) -> ResolvedFinding:
+    """Render one finding's phrases with every placeholder resolved to an authored element.
+
+    ``source`` is ``"prerequisite"`` for a finding that cites a field path and
+    ``"decision"`` for one that cites a candidate and criterion. A rule without
+    phrases, or a placeholder this finding does not resolve, fails closed.
+    """
     rule_id = _str(finding["rule_id"], "finding rule_id")
     phrases: RulePhrases = rule_phrases(rule_id)
     values: dict[str, str] = {}
@@ -301,11 +317,37 @@ def _render_finding(
                 f"Rule {rule_id!r} message names {{{placeholder}}}, which this finding does not "
                 "resolve to an authored element; extend the narrative resolver before rendering."
             )
-        text = text.replace("{" + placeholder + "}", values[placeholder])
-    flag = phrases.flag
+        # An authored description is a sentence of its own; inside the template it
+        # reads as a clause, so its closing full stop is dropped.
+        text = text.replace("{" + placeholder + "}", values[placeholder].removesuffix("."))
+    return ResolvedFinding(phrases.flag, text, phrases.consequence, phrases.remediation)
+
+
+def finding_candidate_id(names: Names, finding: JsonObject, *, source: str) -> str | None:
+    """Return the option a finding is about, or None when it is about the options as a whole."""
+    if source != "prerequisite":
+        candidate_id = finding.get("candidate_id")
+        return candidate_id if type(candidate_id) is str else None
+    for path in (finding.get("field"), finding.get("counterpart")):
+        if type(path) is not str:
+            continue
+        match = re.search(r"\.candidates\[(\d+)\]", path)
+        if match is None:
+            continue
+        index = int(match.group(1))
+        identifiers = list(names.candidates)
+        if index < len(identifiers):
+            return identifiers[index]
+    return None
+
+
+def _render_finding(
+    record: JsonObject, names: Names, finding: JsonObject, *, source: str
+) -> NarrativeItem:
+    resolved = resolve_finding(record, names, finding, source=source)
     return NarrativeItem(
-        f"{flag} flag",
-        f"{text} {phrases.consequence} What would settle it: {phrases.remediation}",
+        f"{resolved.flag} flag",
+        f"{resolved.message} {resolved.consequence} What would settle it: {resolved.remediation}",
     )
 
 
@@ -338,7 +380,7 @@ def _result_section(record: JsonObject) -> NarrativeSection:
     return NarrativeSection("The result", tuple(items))
 
 
-def _scope_section(record: JsonObject, names: _Names) -> NarrativeSection | None:
+def _scope_section(record: JsonObject, names: Names) -> NarrativeSection | None:
     scope = record.get("abstention_scope")
     if scope is None:
         return None
@@ -423,7 +465,7 @@ def _task_section(dossier: JsonObject) -> NarrativeSection:
     return NarrativeSection("The task", tuple(items))
 
 
-def _problem_section(dossier: JsonObject, names: _Names) -> NarrativeSection:
+def _problem_section(dossier: JsonObject, names: Names) -> NarrativeSection:
     title = QUESTIONS[DecisionArea.PROBLEM_VALUE]
     problem = dossier.get("problem_value")
     if problem is None:
@@ -526,7 +568,7 @@ def _question_section(
     return NarrativeSection(title, tuple(items))
 
 
-def _options_section(dossier: JsonObject, names: _Names) -> NarrativeSection:
+def _options_section(dossier: JsonObject, names: Names) -> NarrativeSection:
     title = QUESTIONS[DecisionArea.COMPARATIVE_FIT]
     comparison = dossier.get("candidate_comparison")
     if comparison is None:
@@ -610,7 +652,7 @@ def _options_section(dossier: JsonObject, names: _Names) -> NarrativeSection:
     return NarrativeSection(title, tuple(items))
 
 
-def _findings_section(record: JsonObject, names: _Names) -> NarrativeSection:
+def _findings_section(record: JsonObject, names: Names) -> NarrativeSection:
     assessment = _obj(record["assessment"], "$.assessment")
     items: list[NarrativeItem] = []
     prerequisites = _obj(assessment["prerequisite_evaluation"], "prerequisite_evaluation")
@@ -638,7 +680,7 @@ def _findings_section(record: JsonObject, names: _Names) -> NarrativeSection:
     return NarrativeSection("What the rules found", tuple(items))
 
 
-def _envelope_section(record: JsonObject, names: _Names) -> NarrativeSection | None:
+def _envelope_section(record: JsonObject, names: Names) -> NarrativeSection | None:
     envelope = record.get("assistance_envelope")
     if envelope is None:
         return None
@@ -707,7 +749,7 @@ def _envelope_section(record: JsonObject, names: _Names) -> NarrativeSection | N
     return NarrativeSection("Who may act, action by action", tuple(items))
 
 
-def _evidence_section(record: JsonObject, names: _Names) -> NarrativeSection:
+def _evidence_section(record: JsonObject, names: Names) -> NarrativeSection:
     links = _obj(record["evidence_links"], "$.evidence_links")
     items: list[NarrativeItem] = []
     for identifier, entry in sorted(names.evidence.items()):
@@ -749,7 +791,7 @@ def _evidence_section(record: JsonObject, names: _Names) -> NarrativeSection:
     return NarrativeSection("The evidence", tuple(items))
 
 
-def _gaps_section(record: JsonObject, names: _Names) -> NarrativeSection:
+def _gaps_section(record: JsonObject, names: Names) -> NarrativeSection:
     items: list[NarrativeItem] = []
     for gap in _objs(record["unresolved_gaps"], "$.unresolved_gaps"):
         if gap["effect"] == RuleEffect.NON_DECISIVE.value:
@@ -776,7 +818,7 @@ def _gaps_section(record: JsonObject, names: _Names) -> NarrativeSection:
 def build_narrative(masked_record: JsonObject) -> Narrative:
     """Build the plain-language narrative of one masked canonical record."""
     dossier = _obj(masked_record["dossier"], "$.dossier")
-    names = _Names(dossier)
+    names = Names(dossier)
     sections: list[NarrativeSection] = [_result_section(masked_record)]
     scope = _scope_section(masked_record, names)
     if scope is not None:

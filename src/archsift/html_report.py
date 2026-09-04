@@ -88,6 +88,8 @@ ol { margin: 0; padding-left: 1.5rem; }
 p { margin: 0.25rem 0; }
 p.value { white-space: pre-wrap; overflow-wrap: anywhere; }
 p.empty { opacity: 0.7; }
+p.case { font-size: 1.15rem; font-weight: 600; }
+.part dd { margin-bottom: 0.5rem; }
 .notice { margin-top: 2.5rem; padding: 0.75rem 1rem; border: 1px solid currentColor; }
 """
 
@@ -313,26 +315,35 @@ def _document(title: str, body: list[str], *, language: str) -> bytes:
 
 
 def render_executive_summary_html(summary: ExecutiveSummary) -> bytes:
-    """Return one deterministic self-contained executive summary as HTML."""
-    body: list[str] = ["<h2>Summary Metadata</h2>"]
-    _emit_field(body, "Report Format Version", EXECUTIVE_SUMMARY_VERSION)
-    _emit_field(body, "Record Content Identity", summary.record_content_identity)
-    _emit_field(body, "Ruleset Version", summary.ruleset_version)
-    _emit_field(body, "Tool Version", summary.tool_version)
-    for section in summary.sections:
-        body.append(f"<h2>{_text(section.title)}</h2>")
+    """Return one deterministic self-contained executive summary as HTML.
+
+    The body is exactly the summary's three parts; the record identity, the
+    vocabulary version, and the masking notice follow in a footer so the
+    document is addressed and its masking is declared without a fourth part.
+    """
+    body: list[str] = [f'<p class="case">{_text(summary.case_title)}</p>']
+    for part in summary.parts:
+        body.append('<section class="part">')
+        body.append(f"<h2>{_text(part.title)}</h2>")
         body.append("<dl>")
-        for point in section.points:
-            body.append(f"<dt>{_text(point.label)}</dt>")
-            rendered = VALUE_SEPARATOR.join(_text(value) for value in point.values)
-            style = "empty" if point.derived else "value"
-            body.append(f'<dd><p class="{style}">{rendered}</p></dd>')
+        for statement in part.statements:
+            body.append(f"<dt>{_text(statement.label)}</dt>")
+            body.append(f'<dd><p class="value">{_text(statement.text)}</p></dd>')
         body.append("</dl>")
-    body.append('<section class="notice">')
-    body.append("<h2>Masking Notice</h2>")
-    _emit_field(body, "Policy Version", MASKING_POLICY_VERSION)
-    _emit_field(body, "Warning", MASKING_WARNING)
-    body.append("</section>")
+        body.append("</section>")
+    body.append('<footer class="notice">')
+    body.append("<dl>")
+    for label, value in (
+        ("Record", summary.record_content_identity),
+        ("Vocabulary version", summary.vocabulary_version),
+        ("Summary format version", str(EXECUTIVE_SUMMARY_VERSION)),
+        ("Masking policy version", str(MASKING_POLICY_VERSION)),
+        ("Masking notice", MASKING_WARNING),
+    ):
+        body.append(f"<dt>{_text(label)}</dt>")
+        body.append(f'<dd><p class="value">{_text(value)}</p></dd>')
+    body.append("</dl>")
+    body.append("</footer>")
     return _document("ArchSift Executive Summary", body, language=summary.language)
 
 

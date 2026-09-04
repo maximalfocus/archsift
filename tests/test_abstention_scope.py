@@ -106,18 +106,16 @@ def test_abstention_states_what_is_determined_and_frames_the_remaining_choice(
     html = render_detailed_html_report(record).decode("utf-8")
     assert "Abstention Scope" in html and "credible-baseline-missing" in html
     summary = build_executive_summary(record)
-    titles = [section.title for section in summary.sections]
-    assert titles.index("Abstention Scope") == titles.index("Verdict") + 1
-    section = summary.sections[titles.index("Abstention Scope")]
-    labels = [point.label for point in section.points]
-    assert labels == [
-        "Already Eliminated",
-        "Surviving Classes",
-        "Human Decision Retained",
-        "Remaining Choice",
-        "Outstanding Gaps",
-    ]
-    assert section.points[3].values[0].startswith("whether to assist at all")
+    reasoning = summary.parts[2]
+    statements = {statement.label: statement.text for statement in reasoning.statements}
+    assert statements["Already determined"] == (
+        "Ruled out: people do the work. Still in play: AI inside a fixed workflow."
+    )
+    assert statements["Human decision-making"].endswith(
+        "the remaining choice is whether to assist at all."
+    )
+    labels = [statement.label for statement in reasoning.statements]
+    assert labels.index("Already determined") < labels.index("What would settle the rest")
 
 
 def test_abstention_frames_an_unresolved_autonomy_question_when_a_control_would_be_replaced(
@@ -136,9 +134,12 @@ def test_abstention_frames_an_unresolved_autonomy_question_when_a_control_would_
     assert scope["human_decision_retained"] is False
     assert scope["remaining_choice"] == "autonomy-unresolved"
     summary = build_executive_summary(record)
-    section = next(item for item in summary.sections if item.title == "Abstention Scope")
-    choice = next(point for point in section.points if point.label == "Remaining Choice")
-    assert choice.values == ("an unresolved autonomy question",)
+    human = next(
+        statement
+        for statement in summary.parts[2].statements
+        if statement.label == "Human decision-making"
+    )
+    assert human.text.endswith("the hand-over question is still open.")
 
 
 def test_abstention_without_an_envelope_reports_no_retention(
@@ -163,8 +164,10 @@ def test_determined_verdict_carries_no_scope(
 
     assert record["assessment"]["verdict"] == "supported"
     assert "abstention_scope" not in record
-    assert "Abstention Scope" not in [
-        section.title for section in build_executive_summary(record).sections
+    assert "Human decision-making" not in [
+        statement.label
+        for part in build_executive_summary(record).parts
+        for statement in part.statements
     ]
 
 

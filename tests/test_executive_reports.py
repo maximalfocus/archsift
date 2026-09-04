@@ -17,12 +17,13 @@ from pptx import Presentation
 
 from archsift.canonical import JsonObject
 from archsift.executive_summary import (
+    PART_TITLES,
     ExecutiveSummary,
-    SummaryPoint,
-    SummarySection,
+    SummaryPart,
+    SummaryStatement,
     build_executive_summary,
 )
-from archsift.html_report import VALUE_SEPARATOR, render_executive_html_report
+from archsift.html_report import render_executive_html_report
 from archsift.masking import MASKING_WARNING
 from archsift.pptx_report import (
     POINTS_PER_SLIDE,
@@ -82,9 +83,9 @@ def _slide_text(deck: bytes) -> list[list[str]]:
 def _summary_lines(record: JsonObject) -> list[str]:
     summary = build_executive_summary(record)
     return [
-        f"{point.label}: {VALUE_SEPARATOR.join(point.values)}"
-        for section in summary.sections
-        for point in section.points
+        f"{statement.label}: {statement.text}"
+        for part in summary.parts
+        for statement in part.statements
     ]
 
 
@@ -96,18 +97,10 @@ def test_executive_html_matches_its_exact_golden() -> None:
     assert b"\r" not in content
     text = content.decode("utf-8")
     assert "<title>ArchSift Executive Summary</title>" in text
-    for heading in (
-        "<h2>Case and Task Boundary</h2>",
-        "<h2>Verdict</h2>",
-        "<h2>Decision Space</h2>",
-        "<h2>Vetoes and Mandatory Human Controls</h2>",
-        "<h2>Evidence State</h2>",
-        "<h2>Decisive Trade-offs</h2>",
-        "<h2>Masking Notice</h2>",
-    ):
-        assert heading in text, heading
-    assert "(abstention)" in text
-    assert "human-release-required" in text
+    assert re.findall(r"<h2>(.*?)</h2>", text) == list(PART_TITLES)
+    assert "More evidence is needed before an option can be indicated." in text
+    assert "The fictional disposition would be released without approval." in text
+    assert "<dt>Masking notice</dt>" in text
 
 
 def test_executive_pptx_matches_its_exact_golden() -> None:
@@ -137,6 +130,9 @@ def test_both_executive_formats_state_the_same_facts() -> None:
         assert f"<dt>{escape(visible_text(label), quote=True)}</dt>" in html, label
         assert escape(visible_text(values), quote=True) in html, line
         assert f"{label}: {visible_text(values)}" in deck_text, line
+    for title in PART_TITLES:
+        assert f"<h2>{title}</h2>" in html
+        assert title in deck_text
 
 
 def test_pptx_package_is_a_complete_offline_presentation() -> None:
@@ -283,50 +279,17 @@ def test_both_formats_restate_the_record_identity_and_derive_no_other() -> None:
     assert set(re.findall(r"sha256:[0-9a-f]{64}", deck_text)) == {identity}
 
 
-def test_non_decisive_gap_is_visible_without_counting_as_material() -> None:
-    record = _record(_POSITIVE_RECORD)
-    baseline = build_executive_summary(record)
-    baseline_evidence = next(
-        section for section in baseline.sections if section.title == "Evidence State"
-    )
-    record["unresolved_gaps"] = [
-        {
-            "consequence": "The unknown comparison does not alter the verdict.",
-            "counterpart": "counterfactual verdict: conditional",
-            "effect": "non-decisive",
-            "evidence_ids": ["decision-observed"],
-            "field": "$.candidate_comparison.comparisons[0].dimensions.cost.result",
-            "message": "Every admissible value preserves the verdict under the packaged rules.",
-            "remediation": "Resolve the comparison when useful.",
-            "requirement": "FR-008/FR-009",
-            "rule_id": "comparison-result-unknown-non-decisive",
-            "source": "prerequisite",
-        }
-    ]
-
-    summary = build_executive_summary(record)
-    evidence = next(section for section in summary.sections if section.title == "Evidence State")
-
-    assert any(
-        point.label == "Non-Decisive Gap"
-        and point.values[0] == "comparison-result-unknown-non-decisive"
-        for point in evidence.points
-    )
-    assert [point for point in evidence.points if point.label == "Material Gap"] == [
-        point for point in baseline_evidence.points if point.label == "Material Gap"
-    ]
-    assert not any(point.label == "Unresolved Gap" for point in evidence.points)
-
-
-def test_deck_frames_every_section_with_a_title_and_a_masking_notice() -> None:
+def test_deck_frames_every_part_with_a_title_and_a_masking_notice() -> None:
     record = _record()
     slides = _slide_text(render_executive_pptx_report(record))
     titles = [slide[0] for slide in slides]
 
     assert titles[0] == "ArchSift Executive Summary"
     assert titles[-1] == "Masking Notice"
-    for section in build_executive_summary(record).sections:
-        assert section.title in titles, section.title
+    assert [title for title in titles if title in PART_TITLES] == list(PART_TITLES)
+    assert all(title in PART_TITLES or title.endswith(" (continued)") for title in titles[1:-1]), (
+        titles
+    )
     for slide in slides:
         # One title run plus at most a full page of bullet runs.
         assert len(slide) <= POINTS_PER_SLIDE + 1
@@ -336,18 +299,21 @@ def test_deck_frames_every_section_with_a_title_and_a_masking_notice() -> None:
         assert f"{label}: {visible_text(values)}" in rendered, line
 
 
-def test_an_oversized_section_continues_onto_further_slides_without_truncation() -> None:
-    points = tuple(
-        SummaryPoint("Unresolved Gap", (f"rule-{index:02d}", f"Synthetic gap {index}."))
+def test_an_oversized_part_continues_onto_further_slides_without_truncation() -> None:
+    statements = tuple(
+        SummaryStatement("Option", f"Synthetic option {index}. No flag is raised on this option.")
         for index in range(POINTS_PER_SLIDE * 2 + 1)
     )
     summary = ExecutiveSummary(
         record_content_identity="sha256:" + "0" * 64,
-        ruleset_version="1.8.0",
-        tool_version="0.1.0-test",
-        case_title="Oversized synthetic section",
+        vocabulary_version="0.0.0-test",
+        case_title="Oversized synthetic part",
         language="en",
-        sections=(SummarySection("Evidence State", points),),
+        parts=(
+            SummaryPart("Summary", (SummaryStatement("The task", "Synthetic."),)),
+            SummaryPart("Business analysis", (SummaryStatement("Step 1", "Synthetic."),)),
+            SummaryPart("Result and reasoning", statements),
+        ),
     )
 
     slides = _slide_text(render_executive_summary_pptx(summary))
@@ -355,15 +321,17 @@ def test_an_oversized_section_continues_onto_further_slides_without_truncation()
 
     assert titles == [
         "ArchSift Executive Summary",
-        "Evidence State",
-        "Evidence State (continued)",
-        "Evidence State (continued)",
+        "Summary",
+        "Business analysis",
+        "Result and reasoning",
+        "Result and reasoning (continued)",
+        "Result and reasoning (continued)",
         "Masking Notice",
     ]
-    bullets = [run for slide in slides[1:4] for run in slide[1:]]
-    assert len(bullets) == len(points)
-    for point in points:
-        assert f"{point.label}: {VALUE_SEPARATOR.join(point.values)}" in bullets
+    bullets = [run for slide in slides[3:6] for run in slide[1:]]
+    assert len(bullets) == len(statements)
+    for statement in statements:
+        assert f"{statement.label}: {statement.text}" in bullets
 
 
 def test_executive_renderers_fail_closed_on_an_unusable_record() -> None:

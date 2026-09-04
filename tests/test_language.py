@@ -252,7 +252,7 @@ def test_every_generated_representation_declares_the_case_language() -> None:
     assert detailed.startswith('<!DOCTYPE html>\n<html lang="en">')
     assert executive.startswith('<!DOCTYPE html>\n<html lang="en">')
     assert "<dt>Case Language</dt>" in detailed
-    assert "<dt>Language</dt>" in executive
+    assert "<dt>Record</dt>" in executive
     with zipfile.ZipFile(BytesIO(deck)) as archive:
         slides = [
             archive.read(name).decode("utf-8")

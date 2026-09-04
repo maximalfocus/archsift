@@ -14,7 +14,7 @@ from archsift.cli import main
 from archsift.decision import evaluate_assessment
 from archsift.decision_record import _assessment_dict
 from archsift.diagnostics import ExitCode
-from archsift.executive_summary import build_executive_summary
+from archsift.executive_summary import PART_TITLES, build_executive_summary
 from archsift.html_report import render_detailed_html_report
 from archsift.validation import validate_workspace
 
@@ -127,10 +127,14 @@ def test_envelope_states_the_boundary_for_every_task_action(
     html = render_detailed_html_report(record).decode("utf-8")
     assert "Assistance Envelope" in html and "release-disposition" in html
     summary = build_executive_summary(record)
-    section = next(item for item in summary.sections if item.title == "Assistance Envelope")
-    labels = [point.label for point in section.points]
-    assert labels == ["prepare-disposition", "release-disposition", "Human Decision Retained"]
-    assert section.points[-1].values[0].startswith("yes")
+    steps = [
+        statement.text
+        for statement in summary.parts[1].statements
+        if statement.label[:5] == "Step "
+    ]
+    assert len(steps) == 2
+    assert "No person-required step or absolute stop condition binds this step." in steps[0]
+    assert "A person must perform or confirm this step:" in steps[1]
 
 
 def test_envelope_reports_a_candidate_that_would_replace_a_retained_control(
@@ -160,8 +164,14 @@ def test_envelope_reports_a_candidate_that_would_replace_a_retained_control(
         }
     ]
     summary = build_executive_summary(record)
-    section = next(item for item in summary.sections if item.title == "Assistance Envelope")
-    assert section.points[-1].values[0].startswith("no")
+    steps = [
+        statement.text
+        for statement in summary.parts[1].statements
+        if statement.label[:5] == "Step "
+    ]
+    # The process view reads the recorded controls: the step stays person-required
+    # even though this option proposes to carry it out without the control.
+    assert "A person must perform or confirm this step:" in steps[1]
 
 
 def test_envelope_reports_a_candidate_that_retains_the_control(
@@ -190,7 +200,7 @@ def test_envelope_is_absent_without_bound_controls_or_vetoes(
 
     assert "assistance_envelope" not in record
     assert record["record_schema_version"] == 5
-    assert build_executive_summary(record).sections[3].title != "Assistance Envelope"
+    assert [part.title for part in build_executive_summary(record).parts] == list(PART_TITLES)
 
 
 def test_envelope_never_changes_the_assessment(
