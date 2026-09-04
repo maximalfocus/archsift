@@ -104,14 +104,29 @@ Human mode confirms `Valid case file: case.yaml (format <n>)` with the declared
 schema version. A valid but incomplete dossier validates successfully; the
 assessment may then abstain with `insufficient-evidence`.
 
-### `archsift dossier-schema` [`--schema-version` 1|2|3|4|5]
+### `archsift dossier-schema` [`--schema-version` 1|2|3|4|5] [`--evidence-set`]
 
 Emits one complete packaged dossier JSON Schema. The default is the latest
-supported version, currently 3; `--schema-version` selects an earlier supported
+supported version, currently 5; `--schema-version` selects an earlier supported
 contract. `--json` writes exact deterministic canonical schema bytes. Human
 mode reports the version, schema content identity, and structural inventory;
 quiet mode emits nothing. The command reads no workspace and performs no
 network operation.
+
+With `--evidence-set`, the command emits the **evidence-set profile** (FR-021)
+of the selected schema version instead of the schema: the ordered list of
+decision-bearing slots — every schema location that carries evidence references
+— with the task boundary first and the slots grouped under the four decision
+questions. Each slot carries its location, a fixed reader-facing name, one
+plain sentence stating what the author answers there, the evidence kinds the
+rules that read it accept, the question it serves, and the framework rule
+numbers that read it. `--json` writes a deterministic canonical payload
+addressed by the dossier schema version, the vocabulary version, and the
+framework version (`evidence_set_profile_schema_version` 1); human mode prints
+the slot list grouped by question; quiet mode emits nothing. The profile is a
+rendering of the schema and the vocabulary: it never participates in
+validation or assessment, and a location that carries evidence references
+without a slot fails closed as a schema defect. The plain emission is unchanged.
 
 ### `archsift prerequisites <case>`
 
@@ -275,7 +290,7 @@ reached**: the decision framework card (FR-020) for the framework version the
 summary was built with, rendered unchanged, so a stakeholder can read the
 framework a result was reached under without the method in hand. No other part
 or page appears. The summary speaks through the published vocabulary
-(`docs/vocabulary-v1.2.0.md`): it names every concept by its phrase and every
+(`docs/vocabulary-v1.3.0.md`): it names every concept by its phrase and every
 authored element by its authored name or description, and carries no rule
 identifier, evidence identifier, requirement identifier, field path, or internal
 token, and no traceability appendix; the detailed report keeps the full trace.
@@ -343,7 +358,7 @@ Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
 method specification reference and the versioned
-[plain-language vocabulary](vocabulary-v1.2.0.md) under `vocabulary`: the
+[plain-language vocabulary](vocabulary-v1.3.0.md) under `vocabulary`: the
 flag each finding effect renders as (stop, gap, condition, fit, noted), the
 reader-facing phrase for every verdict, evidence state, option, evidence kind,
 and decision question, the reader-facing message template, consequence, and
