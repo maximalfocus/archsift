@@ -402,7 +402,7 @@ def test_authored_markdown_and_controls_stay_in_one_inert_visible_code_line() ->
     # The narrative restates the authored title, claim, operation, and name, so the
     # hostile payload appears more often than in the appendix alone; every
     # occurrence is on an indented code line (asserted above).
-    assert text.count("# forged heading") == 11
+    assert text.count("# forged heading") == 103
     assert "\n| forged | table |" not in text
 
 

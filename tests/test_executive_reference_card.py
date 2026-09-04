@@ -18,6 +18,7 @@ import pytest
 from archsift import vocabulary
 from archsift.cli import main
 from archsift.diagnostics import ExitCode
+from archsift.evidence_view import VIEW_TITLE
 from archsift.executive_summary import PART_TITLES, build_executive_summary
 from archsift.framework import CARD_TITLE, build_framework_card, card_lines
 from archsift.html_report import render_executive_html_report
@@ -99,10 +100,12 @@ def test_the_card_page_follows_the_three_parts_unchanged_in_both_formats(
 
     html = render_executive_html_report(record).decode("utf-8")
     body = html.split("<body>", 1)[1]
-    assert re.findall(r"<h2>(.*?)</h2>", body) == [*PART_TITLES, CARD_TITLE]
+    assert re.findall(r"<h2>(.*?)</h2>", body) == [*PART_TITLES, CARD_TITLE, VIEW_TITLE]
     _, _, rest = body.partition('<section class="reference">')
-    page, _, footer = rest.partition("</section>")
-    assert footer.lstrip().startswith('<footer class="notice">')
+    page, _, remainder = rest.partition("</section>")
+    # The evidence-set view page follows the card; the footer closes the document.
+    assert remainder.lstrip().startswith('<section class="reference">')
+    footer = remainder.split('<footer class="notice">', 1)[1]
     page_text = unescape(re.sub(r"<[^>]+>", "\n", page))
     for item in (*card.questions, *card.options, *card.flags):
         assert item.name in page_text and item.sentence in page_text, item

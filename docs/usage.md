@@ -291,11 +291,26 @@ business language, for a stakeholder without the method in hand:
    apply, and, where more evidence is needed, what is already determined and
    the specific information that would settle the rest.
 
-The three parts are followed by the reference page **How the result was
-reached**: the decision framework card (FR-020) for the framework version the
-summary was built with, rendered unchanged, so a stakeholder can read the
-framework a result was reached under without the method in hand. No other part
-or page appears. The summary speaks through the published vocabulary
+The three parts are followed by exactly two reference pages: **How the result
+was reached**, the decision framework card (FR-020) for the framework version
+the summary was built with, rendered unchanged; and **What the evidence says**,
+the evidence-set view (FR-021) of the record. No other part or page appears.
+
+The evidence-set view reads the record back through the evidence-set profile
+of its dossier schema version: one row per slot, in profile order, headed by
+the slot's reader-facing name. Each row lists every authored item recorded at
+the slot by its authored name or description and, for every cited
+decision-bearing evidence entry, its state in the neutral register (seen and
+recorded from a named source, estimated by a stated method, assumed, or not yet
+available) and whether an accountable person has confirmed it; where a gap
+flag is raised for the slot, or a cited entry is missing or of a kind the
+slot's rules do not accept, the row states what would settle it. A slot with
+nothing recorded says so, so two cases under one schema version always render
+the same rows in the same order. The view lists and never tallies (no counts,
+scores, or completeness percentages), introduces no fact absent from the
+record, and carries no internal identifier. The same view is the last
+narrative section of the Markdown record and the detailed HTML report, before
+their traceability appendix. The summary speaks through the published vocabulary
 (`docs/vocabulary-v1.3.0.md`): it names every concept by its phrase and every
 authored element by its authored name or description, and carries no rule
 identifier, evidence identifier, requirement identifier, field path, or internal

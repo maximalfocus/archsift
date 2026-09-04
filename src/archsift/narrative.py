@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass
 from typing import Final
 
+from archsift import evidence_set as _evidence_set  # noqa: F401  (loads slot tables early)
 from archsift.canonical import JsonObject, JsonValue
 from archsift.decision import ArchitectureVerdict, EvidenceState
 from archsift.rules import RuleEffect
@@ -856,4 +857,17 @@ def build_narrative(masked_record: JsonObject) -> Narrative:
     if envelope is not None:
         sections.append(envelope)
     sections.extend((_evidence_section(masked_record, names), _gaps_section(masked_record, names)))
+    sections.append(_view_section(masked_record))
     return Narrative(vocabulary_version=VOCABULARY_VERSION, sections=tuple(sections))
+
+
+def _view_section(masked_record: JsonObject) -> NarrativeSection:
+    """The evidence-set view (FR-021): one item per slot, in profile order."""
+    # Imported here: the view reads this module's resolver.
+    from archsift.evidence_view import VIEW_TITLE, build_evidence_view
+
+    view = build_evidence_view(masked_record)
+    return NarrativeSection(
+        VIEW_TITLE,
+        tuple(NarrativeItem(row.name, " ".join(row.texts)) for row in view.rows),
+    )

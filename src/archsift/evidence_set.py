@@ -72,8 +72,8 @@ class EvidenceSetProfile:
     slots: tuple[Slot, ...]
 
 
-def evidence_bearing_locations(schema_version: int) -> tuple[str, ...]:
-    """Return every location of a packaged schema that carries evidence references.
+def _walk_locations(schema_version: int) -> tuple[str, ...]:
+    """Walk one packaged schema for every location that carries evidence references.
 
     The walk follows the schema's own property order, so the profile order is
     the schema order and needs no separate list to keep in step.
@@ -105,6 +105,21 @@ def evidence_bearing_locations(schema_version: int) -> tuple[str, ...]:
 
     walk(schema, "$", frozenset())
     return tuple(found)
+
+
+#: The evidence-bearing locations of every supported schema, read once at import
+#: so that rendering a report never touches the filesystem (NFR-003 purity).
+_LOCATIONS: Final[Mapping[int, tuple[str, ...]]] = {
+    version: _walk_locations(version) for version in SUPPORTED_DOSSIER_SCHEMA_VERSIONS
+}
+
+
+def evidence_bearing_locations(schema_version: int) -> tuple[str, ...]:
+    """Return every location of a packaged schema that carries evidence references."""
+    try:
+        return _LOCATIONS[schema_version]
+    except KeyError:
+        raise VocabularyError(f"Unsupported dossier schema version {schema_version}.") from None
 
 
 def _question_of(location: str) -> DecisionArea:

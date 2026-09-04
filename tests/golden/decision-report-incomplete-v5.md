@@ -108,6 +108,180 @@
 
     The dossier does not compare the options. The result cannot be reached until this is recorded. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.
 
+## What the evidence says
+
+**The task boundary**
+
+    Gap flag (framework rule 1): The dossier does not bound the task: what it is, when it starts and ends, who acts, and which actions matter. What would settle it: Record the task boundary.
+
+**Required outcomes**
+
+    Gap flag (framework rule 1): The dossier does not say what problem is worth solving. What would settle it: Record the required outcomes, the current state, the constraints, and the four value statements.
+
+**Today's baseline**
+
+    Nothing is recorded at this slot.
+
+**Required constraints**
+
+    Nothing is recorded at this slot.
+
+**How much work is affected**
+
+    Nothing is recorded at this slot.
+
+**What hurts today**
+
+    Nothing is recorded at this slot.
+
+**What an error costs**
+
+    Nothing is recorded at this slot.
+
+**Why technology may be the limit**
+
+    Nothing is recorded at this slot.
+
+**Can the steps be fixed in advance?**
+
+    Gap flag (framework rule 3): The dossier does not answer whether a model must choose the steps at run time. What would settle it: Record the run-time questions with their evidence.
+
+**Is the number and order of steps predictable?**
+
+    Nothing is recorded at this slot.
+
+**Must a tool be chosen at run time?**
+
+    Nothing is recorded at this slot.
+
+**Must the plan change at run time?**
+
+    Nothing is recorded at this slot.
+
+**Does the environment give feedback to act on?**
+
+    Nothing is recorded at this slot.
+
+**Can completion be checked independently?**
+
+    Nothing is recorded at this slot.
+
+**Can the effects be checked independently?**
+
+    Nothing is recorded at this slot.
+
+**Is a fixed sequence of steps enough?**
+
+    Nothing is recorded at this slot.
+
+**Cases a fixed sequence cannot handle**
+
+    Nothing is recorded at this slot.
+
+**Can the actions be undone?**
+
+    Gap flag (framework rule 5): The dossier does not answer which actions may be handed over and which a person must keep. What would settle it: Record the hand-over questions, stop conditions, and person-required steps with their evidence.
+
+**Is the damage from a failure bounded?**
+
+    Nothing is recorded at this slot.
+
+**Do the rules that govern the task allow automation?**
+
+    Nothing is recorded at this slot.
+
+**Is the data trustworthy enough?**
+
+    Nothing is recorded at this slot.
+
+**Is an accountable owner assigned?**
+
+    Nothing is recorded at this slot.
+
+**Can the decision path be audited?**
+
+    Nothing is recorded at this slot.
+
+**Can a person step in in time?**
+
+    Nothing is recorded at this slot.
+
+**Can the task degrade safely?**
+
+    Nothing is recorded at this slot.
+
+**Absolute stop conditions**
+
+    Nothing is recorded at this slot.
+
+**Person-required steps**
+
+    Nothing is recorded at this slot.
+
+**Each option against each required outcome**
+
+    Gap flag (framework rule 7): The dossier does not compare the options. What would settle it: Record the options, their roles, their tests, and their pairwise comparisons.
+
+**Each option against each required constraint**
+
+    Nothing is recorded at this slot.
+
+**What each option would carry out**
+
+    Nothing is recorded at this slot.
+
+**Comparison on quality of the outcome**
+
+    Nothing is recorded at this slot.
+
+**Comparison on handling of difficult cases**
+
+    Nothing is recorded at this slot.
+
+**Comparison on cost**
+
+    Nothing is recorded at this slot.
+
+**Comparison on speed**
+
+    Nothing is recorded at this slot.
+
+**Comparison on human effort**
+
+    Nothing is recorded at this slot.
+
+**Comparison on integration effort**
+
+    Nothing is recorded at this slot.
+
+**Comparison on security exposure**
+
+    Nothing is recorded at this slot.
+
+**Comparison on impact of failure**
+
+    Nothing is recorded at this slot.
+
+**Comparison on ease of operation**
+
+    Nothing is recorded at this slot.
+
+**Comparison on effort to evaluate**
+
+    Nothing is recorded at this slot.
+
+**Comparison on ease of maintenance**
+
+    Nothing is recorded at this slot.
+
+**The strongest simpler alternative**
+
+    Nothing is recorded at this slot.
+
+**Conditions on the result**
+
+    Nothing is recorded at this slot.
+
 ## Traceability Appendix
 
 ### Record Metadata

@@ -16,6 +16,7 @@ import pytest
 from pptx import Presentation
 
 from archsift.canonical import JsonObject
+from archsift.evidence_view import VIEW_TITLE, build_evidence_view
 from archsift.executive_summary import (
     PART_TITLES,
     ExecutiveSummary,
@@ -98,7 +99,7 @@ def test_executive_html_matches_its_exact_golden() -> None:
     assert b"\r" not in content
     text = content.decode("utf-8")
     assert "<title>ArchSift Executive Summary</title>" in text
-    assert re.findall(r"<h2>(.*?)</h2>", text) == [*PART_TITLES, CARD_TITLE]
+    assert re.findall(r"<h2>(.*?)</h2>", text) == [*PART_TITLES, CARD_TITLE, VIEW_TITLE]
     assert "More evidence is needed before an option can be indicated." in text
     assert "The fictional disposition would be released without approval." in text
     assert "<dt>Masking notice</dt>" in text
@@ -288,7 +289,7 @@ def test_deck_frames_every_part_with_a_title_and_a_masking_notice() -> None:
 
     assert titles[0] == "ArchSift Executive Summary"
     assert titles[-1] == "Masking Notice"
-    pages = (*PART_TITLES, CARD_TITLE)
+    pages = (*PART_TITLES, CARD_TITLE, VIEW_TITLE)
     assert [title for title in titles if title in pages] == list(pages)
     assert all(title in pages or title.endswith(" (continued)") for title in titles[1:-1]), titles
     for slide in slides:
@@ -317,6 +318,7 @@ def test_an_oversized_part_continues_onto_further_slides_without_truncation() ->
             SummaryPart("Result and reasoning", statements),
         ),
         card=build_framework_card(),
+        view=build_evidence_view(_record()),
     )
 
     slides = _slide_text(render_executive_summary_pptx(summary))
@@ -330,7 +332,7 @@ def test_an_oversized_part_continues_onto_further_slides_without_truncation() ->
         "Result and reasoning (continued)",
         "Result and reasoning (continued)",
     ]
-    assert titles[6] == CARD_TITLE and titles[-1] == "Masking Notice"
+    assert titles[6] == CARD_TITLE and VIEW_TITLE in titles and titles[-1] == "Masking Notice"
     bullets = [run for slide in slides[3:6] for run in slide[1:]]
     assert len(bullets) == len(statements)
     for statement in statements:
