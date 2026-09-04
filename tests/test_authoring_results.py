@@ -13,6 +13,7 @@ from archsift.authoring_results import (
     MATERIAL_SET_CONTENT_IDENTITY,
     PROTOCOL_VERSION,
     PROTOCOL_VERSION_1_0_0,
+    PROTOCOL_VERSION_1_0_1,
     REQUIRED_MILESTONES,
     REQUIRED_PASS_COUNT,
     REQUIRED_SESSION_COUNT,
@@ -77,6 +78,7 @@ def test_packaged_schema_and_frozen_material_manifest_are_consistent() -> None:
     assert schema["properties"]["schema_version"]["const"] == RESULT_SCHEMA_VERSION
     assert schema["properties"]["protocol_version"]["enum"] == [
         PROTOCOL_VERSION_1_0_0,
+        PROTOCOL_VERSION_1_0_1,
         PROTOCOL_VERSION,
     ]
     assert schema["properties"]["sessions"]["minItems"] == REQUIRED_SESSION_COUNT
@@ -285,7 +287,7 @@ def test_cli_human_json_quiet_and_failure_modes(
 
     assert main(["authoring-results", "results.json"]) == ExitCode.SUCCESS
     assert capsys.readouterr().out == (
-        "Assisted-authoring criterion met: 3 of 4 sessions passed (protocol 1.0.1)\n"
+        f"Assisted-authoring criterion met: 3 of 4 sessions passed (protocol {PROTOCOL_VERSION})\n"
     )
 
     assert main(["authoring-results", "results.json", "--json"]) == ExitCode.SUCCESS
@@ -295,7 +297,7 @@ def test_cli_human_json_quiet_and_failure_modes(
         "diagnostics": [],
         "exit_code": 0,
         "passed_session_count": 3,
-        "protocol_version": "1.0.1",
+        "protocol_version": PROTOCOL_VERSION,
         "session_count": 4,
         "status": "criterion-met",
     }
@@ -337,7 +339,7 @@ def test_committed_fourth_cohort_meets_the_frozen_criterion(
     result = validate_authoring_results(Path("authoring-results.json"))
 
     assert result.exit_code is ExitCode.SUCCESS
-    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.protocol_version == PROTOCOL_VERSION_1_0_1
     assert result.session_count == 4
     assert result.passed_session_count == 3
     assert result.criterion_met is True
@@ -353,7 +355,7 @@ def test_preserved_first_cohort_remains_valid_historical_evidence(
     result = validate_authoring_results(Path("authoring-results-1-criterion-not-met.json"))
 
     assert result.exit_code is ExitCode.VALIDATION_FAILED
-    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.protocol_version == PROTOCOL_VERSION_1_0_1
     assert result.session_count == 4
     assert result.passed_session_count == 1
     assert result.criterion_met is False
@@ -369,7 +371,7 @@ def test_preserved_second_cohort_remains_valid_historical_evidence(
     result = validate_authoring_results(Path("authoring-results-2-criterion-not-met.json"))
 
     assert result.exit_code is ExitCode.VALIDATION_FAILED
-    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.protocol_version == PROTOCOL_VERSION_1_0_1
     assert result.session_count == 4
     assert result.passed_session_count == 1
     assert result.criterion_met is False
@@ -385,7 +387,7 @@ def test_preserved_third_cohort_remains_valid_historical_evidence(
     result = validate_authoring_results(Path("authoring-results-3-criterion-not-met.json"))
 
     assert result.exit_code is ExitCode.VALIDATION_FAILED
-    assert result.protocol_version == PROTOCOL_VERSION
+    assert result.protocol_version == PROTOCOL_VERSION_1_0_1
     assert result.session_count == 4
     assert result.passed_session_count == 0
     assert result.criterion_met is False

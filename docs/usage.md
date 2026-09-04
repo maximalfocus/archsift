@@ -77,7 +77,13 @@ Creates a versioned case workspace at the given directory. The target must not
 exist or must be empty. `init` writes `case.yaml` (schema version 1) declaring
 `language: en`, a workspace README with human-readable guidance rendered in that
 language, and empty `evidence/` and `output/` directories. It never overwrites
-existing files, and identical inputs produce byte-identical output.
+existing files, and identical inputs produce byte-identical output. The guidance
+presents the evidence-set profile (FR-021) of the workspace's schema version as
+the authoring target — every slot by its reader-facing name, in profile order,
+grouped by decision question with the task boundary first, with what the author
+answers there and the evidence kinds the rules accept — rendered from the
+published profile at initialisation so the guidance cannot drift from it; the
+section-by-section walk with worked examples follows.
 
 ### `archsift validate <case>`
 
@@ -476,7 +482,10 @@ errors are not accepted cohort evidence.
 ### `archsift authoring-results <results>`
 
 Validates one completed simulated assisted-authoring cohort against
-[protocol 1.0.1](authoring-check-v1.0.1.md) and the packaged privacy-bounded result schema. Exactly four
+[protocol 1.1.0](authoring-check-v1.1.0.md) (or the frozen earlier protocols) and the packaged
+privacy-bounded result schema. Protocol 1.1.0 adds one instruction: the session inspects the
+evidence-set profile (`archsift dossier-schema --schema-version 3 --evidence-set --json`) and
+authors the dossier by filling its slots; no cohort has run under it yet. Exactly four
 fresh sessions from four distinct agent products are required. A session passes only when material
 registration, schema inspection, dossier authoring, prerequisite completion, validation, and
 assessment all pass without maintainer intervention. Three or four passing sessions exit `0` with
@@ -492,8 +501,8 @@ fields; `--quiet` returns only the exit status.
 Protocol 1.0.1 requires outbound sockets to be blocked for ArchSift and every local milestone. The
 external authoring product may use its ordinary user-controlled model transport outside ArchSift,
 but may not browse, search, retrieve network sources, load plugins or private context, or continue a
-prior session. The superseded pre-cohort [protocol 1.0.0](authoring-check-v1.md) remains frozen and
-its result version remains supported.
+prior session. The superseded [protocol 1.0.1](authoring-check-v1.0.1.md) and pre-cohort
+[protocol 1.0.0](authoring-check-v1.md) remain frozen and their result versions remain supported.
 
 Four protocol-1.0.1 cohort results are committed. The current `authoring-results.json` contains
 three of four passing sessions and returns exit `0` with status `criterion-met`. Preserved

@@ -120,7 +120,7 @@ three pass. The initial simulated cohort has run and its committed
 run and no human-participant claim is made. A completed cohort is checked offline with exactly
 `archsift usability-results usability-results.json`.
 
-The [simulated assisted-authoring protocol 1.0.1](docs/authoring-check-v1.0.1.md) freezes a synthetic material
+The [simulated assisted-authoring protocol 1.1.0](docs/authoring-check-v1.1.0.md) (which fills the published evidence-set profile; no cohort has run under it) and the frozen [protocol 1.0.1](docs/authoring-check-v1.0.1.md) freeze a synthetic material
 set, six objective CLI milestones, exactly four fresh sessions using distinct agent products, and a
 three-of-four success threshold. The protocol publishes no answer dossier or expected verdict and
 retains only privacy-bounded outcome metadata. ArchSift and every CLI milestone remain offline with
