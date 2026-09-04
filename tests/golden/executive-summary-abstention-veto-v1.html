@@ -71,11 +71,11 @@ p.case { font-size: 1.15rem; font-weight: 600; }
 <h2>Result and reasoning</h2>
 <dl>
 <dt>Option</dt>
-<dd><p class="value">Fictional human review. People follow the bounded review procedure using the existing register. Kind: people do the work. Standing: ruled out. Stop flag: The recorded evidence shows Fictional human review does not reach the required outcome Meet required quality. The option cannot be the indicated option. Fit flag: The recorded evidence shows Fictional human review meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
+<dd><p class="value">Fictional human review. People follow the bounded review procedure using the existing register. Kind: people do the work. Standing: ruled out. Stop flag (framework rule 2): The recorded evidence shows Fictional human review does not reach the required outcome Meet required quality. The option cannot be the indicated option. Fit flag (framework rule 2): The recorded evidence shows Fictional human review meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
 <dt>Option</dt>
-<dd><p class="value">Fictional fixed AI workflow. Code fixes the path while a model assists within the bounded preparation action. Kind: AI inside a fixed workflow. Standing: still open. Gap flag: The test of Fictional fixed AI workflow against Meet required quality has no recorded result. The result cannot be reached until this is recorded. Fit flag: The recorded evidence shows Fictional fixed AI workflow meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
+<dd><p class="value">Fictional fixed AI workflow. Code fixes the path while a model assists within the bounded preparation action. Kind: AI inside a fixed workflow. Standing: still open. Gap flag (framework rule 2): The test of Fictional fixed AI workflow against Meet required quality has no recorded result. The result cannot be reached until this is recorded. Fit flag (framework rule 2): The recorded evidence shows Fictional fixed AI workflow meets the binding constraint Human approval is required. This supports the option; it never outweighs a stop or a gap.</p></dd>
 <dt>The options as a whole</dt>
-<dd><p class="value">Gap flag: The comparison of Fictional fixed AI workflow with Fictional human review on quality of the outcome has no recorded result. The result cannot be reached until this is recorded.</p></dd>
+<dd><p class="value">Gap flag (framework rule 8): The comparison of Fictional fixed AI workflow with Fictional human review on quality of the outcome has no recorded result. The result cannot be reached until this is recorded.</p></dd>
 <dt>Strongest simpler alternative</dt>
 <dd><p class="value">Fictional human review. The selected candidate is the strongest represented simpler option.</p></dd>
 <dt>Absolute stop condition</dt>
@@ -92,12 +92,83 @@ p.case { font-size: 1.15rem; font-weight: 600; }
 <dd><p class="value">Stop flag: The option cannot be the indicated option under the rules. Gap flag: Material evidence is missing; the option stays open until it is recorded. Condition flag: The option stays open only with the named person-required step kept. Fit flag: The evidence supports the option on this point; it never outweighs a stop or a gap. Noted flag: Recorded for completeness; it does not change the option&#x27;s standing.</p></dd>
 </dl>
 </section>
+<section class="reference">
+<h2>How the result was reached</h2>
+<p class="value">Framework 1.0.0</p>
+<h3>The four questions</h3>
+<dl>
+<dt>Is there a problem worth solving?</dt>
+<dd><p class="value">The case must name a bounded task, the required outcomes with today&#x27;s baseline, and why the problem is worth solving.</p></dd>
+<dt>Must a model choose the steps at run time?</dt>
+<dd><p class="value">The case must show whether the steps can be fixed in advance or a model must choose them while the work runs.</p></dd>
+<dt>Which actions may be handed over, and which must a person keep?</dt>
+<dd><p class="value">The case must record which actions may be handed over, which a person must keep, and the conditions under which nothing may proceed.</p></dd>
+<dt>Which option fits best against the simpler alternatives?</dt>
+<dd><p class="value">The options must be tested against the same outcomes and constraints and compared with the simpler alternatives on the same points.</p></dd>
+</dl>
+<h3>The five options, from least to most run-time freedom</h3>
+<dl>
+<dt>people do the work</dt>
+<dd><p class="value">People carry out the work as they do today.</p></dd>
+<dt>redesign the process first</dt>
+<dd><p class="value">The process is changed first, without new technology carrying the work.</p></dd>
+<dt>rule-based automation</dt>
+<dd><p class="value">Software follows fixed rules; no model takes part.</p></dd>
+<dt>AI inside a fixed workflow</dt>
+<dd><p class="value">Code fixes the steps and a model works inside one or more of them.</p></dd>
+<dt>AI that chooses its own steps</dt>
+<dd><p class="value">A model decides which steps to take, and in what order, while the work runs.</p></dd>
+</dl>
+<h3>The flags</h3>
+<dl>
+<dt>stop flag</dt>
+<dd><p class="value">The option cannot be the indicated option under the rules.</p></dd>
+<dt>gap flag</dt>
+<dd><p class="value">Material evidence is missing; the option stays open until it is recorded.</p></dd>
+<dt>condition flag</dt>
+<dd><p class="value">The option stays open only with the named person-required step kept.</p></dd>
+<dt>fit flag</dt>
+<dd><p class="value">The evidence supports the option on this point; it never outweighs a stop or a gap.</p></dd>
+<dt>noted flag</dt>
+<dd><p class="value">Recorded for completeness; it does not change the option&#x27;s standing.</p></dd>
+</dl>
+<h3>The framework rules</h3>
+<p class="value">Is there a problem worth solving?</p>
+<ol start="1">
+<li><p class="value">Until the case records a bounded task, measurable required outcomes with today&#x27;s baseline, and the four value statements, a gap flag is raised on the options as a whole.</p></li>
+<li><p class="value">An option that credibly does not reach a required outcome or does not meet a required constraint carries a stop flag; one that credibly does carries a fit flag; a test with no recorded result or without acceptable evidence carries a gap flag.</p></li>
+</ol>
+<p class="value">Must a model choose the steps at run time?</p>
+<ol start="3">
+<li><p class="value">Every run-time question, and every case a fixed sequence cannot handle, must have a known answer with acceptable evidence; otherwise a gap flag is raised.</p></li>
+<li><p class="value">The option in which AI chooses its own steps carries a stop flag when a fixed sequence of steps is credibly sufficient, when no run-time tool choice or replanning is needed, or when the environment gives no feedback; it carries a fit flag when the evidence credibly shows the opposite.</p></li>
+</ol>
+<p class="value">Which actions may be handed over, and which must a person keep?</p>
+<ol start="5">
+<li><p class="value">Every hand-over question, absolute stop condition, person-required step, and claim of authority over an action must be recorded with a known answer or status and acceptable evidence; otherwise a gap flag is raised.</p></li>
+<li><p class="value">An option that would act where an absolute stop condition is in force, or that drops a person-required step, carries a stop flag; an option that keeps the step carries a condition flag.</p></li>
+</ol>
+<p class="value">Which option fits best against the simpler alternatives?</p>
+<ol start="7">
+<li><p class="value">The options must include today&#x27;s way of working, the strongest simpler alternative, and the proposal, each in its place; a missing option, role, boundary, or comparison raises a gap flag.</p></li>
+<li><p class="value">A comparison with no recorded result, without acceptable evidence, or contradicting its counterpart raises a gap flag, unless every admissible value leaves the result unchanged, which is noted.</p></li>
+</ol>
+<p class="value">How the result follows from the flags</p>
+<ol start="9">
+<li><p class="value">Options are read in order from least to most run-time freedom; when every gap is settled, the least free option that carries no stop flag is the indicated option, subject to any condition flags it carries.</p></li>
+<li><p class="value">While a gap flag remains on an option that could still be indicated, or on the options as a whole, the result is that more evidence is needed.</p></li>
+<li><p class="value">When every option carries a stop flag, no option can be indicated.</p></li>
+</ol>
+<p class="value">Flags are not counted or totalled. A stop flag is never offset by fit flags. The decision rests with the accountable owner.</p>
+</section>
 <footer class="notice">
 <dl>
 <dt>Record</dt>
 <dd><p class="value">sha256:8791aeda29e64e088499a7af0d3c53a772432738ae5c5885ebf20dfd284c4bf0</p></dd>
 <dt>Vocabulary version</dt>
 <dd><p class="value">1.2.0</p></dd>
+<dt>Framework version</dt>
+<dd><p class="value">1.0.0</p></dd>
 <dt>Summary format version</dt>
 <dd><p class="value">2</p></dd>
 <dt>Masking policy version</dt>

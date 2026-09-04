@@ -37,6 +37,7 @@ from archsift.vocabulary import (
     VOCABULARY_VERSION,
     RulePhrases,
     VocabularyError,
+    framework_rule_number,
     phrase,
     rule_phrases,
     term,
@@ -281,6 +282,8 @@ class ResolvedFinding:
     message: str
     consequence: str
     remediation: str
+    #: The framework rule (FR-020) that raised the flag; a reader-facing number.
+    framework_rule: int
 
 
 def resolve_finding(
@@ -320,7 +323,13 @@ def resolve_finding(
         # An authored description is a sentence of its own; inside the template it
         # reads as a clause, so its closing full stop is dropped.
         text = text.replace("{" + placeholder + "}", values[placeholder].removesuffix("."))
-    return ResolvedFinding(phrases.flag, text, phrases.consequence, phrases.remediation)
+    return ResolvedFinding(
+        phrases.flag,
+        text,
+        phrases.consequence,
+        phrases.remediation,
+        framework_rule_number(rule_id),
+    )
 
 
 def finding_candidate_id(names: Names, finding: JsonObject, *, source: str) -> str | None:

@@ -25,6 +25,7 @@ from archsift.cli import main
 from archsift.decision import ArchitectureVerdict
 from archsift.diagnostics import ExitCode
 from archsift.executive_summary import PART_TITLES, build_executive_summary
+from archsift.framework import CARD_TITLE
 from archsift.html_report import render_executive_html_report
 from archsift.pptx_report import render_executive_pptx_report
 from archsift.rules import list_rules
@@ -163,8 +164,9 @@ def test_both_formats_tell_exactly_three_parts_with_no_identifier_and_no_appendi
     body = html.split("<body>", 1)[1]
     narrative, _, footer = body.partition('<footer class="notice">')
     assert footer, "the executive HTML has no footer"
-    assert re.findall(r"<h2>(.*?)</h2>", body) == list(PART_TITLES)
+    assert re.findall(r"<h2>(.*?)</h2>", body) == [*PART_TITLES, CARD_TITLE]
     assert body.count('<section class="part">') == 3
+    assert body.count('<section class="reference">') == 1
     assert _forbidden(record, narrative) == []
     assert "Traceability" not in body
     assert record["record_content_identity"] in footer
@@ -173,10 +175,9 @@ def test_both_formats_tell_exactly_three_parts_with_no_identifier_and_no_appendi
     slides = _slides(render_executive_pptx_report(record))
     titles = [slide[0] for slide in slides]
     assert titles[0] == "ArchSift Executive Summary" and titles[-1] == "Masking Notice"
-    assert [title for title in titles if title in PART_TITLES] == list(PART_TITLES)
-    assert all(title in PART_TITLES or title.endswith(" (continued)") for title in titles[1:-1]), (
-        titles
-    )
+    pages = (*PART_TITLES, CARD_TITLE)
+    assert [title for title in titles if title in pages] == list(pages)
+    assert all(title in pages or title.endswith(" (continued)") for title in titles[1:-1]), titles
     deck_text = "\n".join(run for slide in slides[1:-1] for run in slide)
     assert _forbidden(record, deck_text) == []
 
@@ -194,10 +195,11 @@ def test_both_formats_state_identical_facts(
         for statement in part.statements:
             assert f"<dt>{statement.label}</dt>" in html, statement.label
             assert f"{statement.label}: {statement.text}" in deck_runs, statement.label
-    # The HTML paragraph text and the deck runs are the same statements.
-    paragraphs = re.findall(r'<dd><p class="value">(.*?)</p></dd>', html)
+    # The HTML paragraph text of the three parts is exactly the statements.
+    parts_html = html.split('<section class="reference">', 1)[0]
+    paragraphs = re.findall(r'<dd><p class="value">(.*?)</p></dd>', parts_html)
     statements = [statement.text for part in summary.parts for statement in part.statements]
-    assert len(paragraphs) == len(statements) + 5  # five footer values
+    assert len(paragraphs) == len(statements)
 
 
 def test_rendering_fails_closed_on_an_unmapped_rule(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -232,7 +234,7 @@ def test_rendering_is_addressed_by_the_record_identity_and_the_vocabulary_versio
     assert html_before == render_executive_html_report(record)
     assert deck_before == render_executive_pptx_report(record)
 
-    monkeypatch.setattr("archsift.executive_summary.VOCABULARY_VERSION", "9.9.9-test")
+    monkeypatch.setattr(vocabulary, "VOCABULARY_VERSION", "9.9.9-test")
 
     html_after = render_executive_html_report(record)
     deck_after = render_executive_pptx_report(record)

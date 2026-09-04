@@ -207,21 +207,24 @@ def test_every_option_carries_its_flags_in_plain_language() -> None:
     assert len(options) == 2
     assert options[0].startswith(
         "Fictional human review. People follow the bounded review procedure using the existing "
-        "register. Kind: people do the work. Standing: ruled out. Stop flag: The recorded "
+        "register. Kind: people do the work. Standing: ruled out. Stop flag (framework rule 2): "
+        "The recorded "
         "evidence shows Fictional human review does not reach the required outcome Meet "
-        "required quality. The option cannot be the indicated option. Fit flag:"
+        "required quality. The option cannot be the indicated option. Fit flag (framework rule 2):"
     )
     assert options[1].startswith(
         "Fictional fixed AI workflow. Code fixes the path while a model assists within the "
         "bounded preparation action. Kind: AI inside a fixed workflow. Standing: still open. "
-        "Gap flag: The test of Fictional fixed AI workflow against Meet required quality has "
-        "no recorded result. The result cannot be reached until this is recorded. Fit flag:"
+        "Gap flag (framework rule 2): The test of Fictional fixed AI workflow against Meet "
+        "required quality has no recorded result. The result cannot be reached until this is "
+        "recorded. Fit flag (framework rule 2):"
     )
     # The same rule reaching the same option twice is told once.
-    assert options[1].count("Gap flag:") == 1
+    assert options[1].count("Gap flag (framework rule 2):") == 1
     whole = _statements(summary)["The options as a whole"]
     assert whole == [
-        "Gap flag: The comparison of Fictional fixed AI workflow with Fictional human review on "
+        "Gap flag (framework rule 8): The comparison of Fictional fixed AI workflow with Fictional "
+        "human review on "
         "quality of the outcome has no recorded result. The result cannot be reached until this "
         "is recorded."
     ]
@@ -245,7 +248,7 @@ def test_absent_dossier_parts_are_stated_as_not_yet_recorded_rather_than_invente
     assert statements["Stop conditions and person-required steps"] == ["Not yet recorded."]
     assert statements["Already determined"] == ["Nothing is determined yet."]
     assert statements["The options as a whole"][0].startswith(
-        "Gap flag: The dossier does not bound the task"
+        "Gap flag (framework rule 1): The dossier does not bound the task"
     )
     assert len(statements["What would settle the rest"]) == 6
     assert statements["What would settle the rest"][-1] == (

@@ -265,11 +265,16 @@ business language, for a stakeholder without the method in hand:
    when it starts and completes, who takes part, the accountable owner, and the
    ordered steps with which of them a person must perform or confirm.
 3. **Result and reasoning** — each option considered with the flags it carries
-   (`stop`, `gap`, `condition`, `fit`), the absolute stop conditions and
-   person-required steps that apply, and, where more evidence is needed, what is
-   already determined and the specific information that would settle the rest.
+   (`stop`, `gap`, `condition`, `fit`), each citing the framework rule number
+   that raised it, the absolute stop conditions and person-required steps that
+   apply, and, where more evidence is needed, what is already determined and
+   the specific information that would settle the rest.
 
-No other part appears. The summary speaks through the published vocabulary
+The three parts are followed by the reference page **How the result was
+reached**: the decision framework card (FR-020) for the framework version the
+summary was built with, rendered unchanged, so a stakeholder can read the
+framework a result was reached under without the method in hand. No other part
+or page appears. The summary speaks through the published vocabulary
 (`docs/vocabulary-v1.2.0.md`): it names every concept by its phrase and every
 authored element by its authored name or description, and carries no rule
 identifier, evidence identifier, requirement identifier, field path, or internal
@@ -277,8 +282,9 @@ token, and no traceability appendix; the detailed report keeps the full trace.
 The HTML and PPTX forms render one summary, so they cannot state different facts
 about the same record, and the summary introduces nothing the record does not
 contain. A rendering is addressed by the record content identity together with
-the vocabulary version, stated in the HTML footer and on the deck's title slide,
-so a wording change produces a distinct rendering while the record is untouched.
+the vocabulary version and the framework version, stated in the HTML footer and
+on the deck's title slide, so a wording change in either produces a distinct
+rendering while the record is untouched.
 Nothing is truncated; a part longer than one slide continues onto the next.
 
 Every report is written beside the record it renders and is an output of that

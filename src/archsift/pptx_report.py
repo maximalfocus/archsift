@@ -34,6 +34,7 @@ from typing import Final
 
 from archsift.canonical import JsonObject
 from archsift.executive_summary import ExecutiveSummary, build_executive_summary
+from archsift.framework import CARD_TITLE, card_lines
 from archsift.masking import MASKING_POLICY_VERSION, MASKING_WARNING
 from archsift.report_text import visible_text
 
@@ -331,8 +332,9 @@ def _app_properties(slide_count: int) -> str:
 def _rendered_lines(summary: ExecutiveSummary) -> list[tuple[str, tuple[str, ...]]]:
     """Return every slide's title and bullet lines, paginating without truncating.
 
-    The deck is a title slide, the three parts (each continuing onto further
-    slides rather than truncating), and a closing masking notice.
+    The deck is a title slide, the three parts, the reference page carrying the
+    framework card unchanged (each continuing onto further slides rather than
+    truncating), and a closing masking notice.
     """
     slides: list[tuple[str, tuple[str, ...]]] = [
         (
@@ -341,15 +343,20 @@ def _rendered_lines(summary: ExecutiveSummary) -> list[tuple[str, tuple[str, ...
                 summary.case_title,
                 f"Record: {summary.record_content_identity}",
                 f"Vocabulary: {summary.vocabulary_version}",
+                f"Framework: {summary.framework_version}",
             ),
         )
     ]
-    for part in summary.parts:
-        lines = [f"{statement.label}: {statement.text}" for statement in part.statements]
+    pages: list[tuple[str, list[str]]] = [
+        (part.title, [f"{statement.label}: {statement.text}" for statement in part.statements])
+        for part in summary.parts
+    ]
+    pages.append((CARD_TITLE, card_lines(summary.card)[1:]))
+    for title, lines in pages:
         for start in range(0, max(len(lines), 1), POINTS_PER_SLIDE):
             page = lines[start : start + POINTS_PER_SLIDE]
-            title = part.title if start == 0 else f"{part.title} (continued)"
-            slides.append((title, tuple(page)))
+            slide_title = title if start == 0 else f"{title} (continued)"
+            slides.append((slide_title, tuple(page)))
     slides.append(
         (
             "Masking Notice",
