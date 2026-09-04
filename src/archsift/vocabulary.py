@@ -18,8 +18,8 @@ from archsift.decision import ArchitectureVerdict, EvidenceState
 from archsift.rules import RuleEffect, list_rules
 from archsift.validation import ControlClass, DecisionArea, EvidenceKind
 
-VOCABULARY_VERSION: Final = "1.2.0"
-VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.2.0.md"
+VOCABULARY_VERSION: Final = "1.3.0"
+VOCABULARY_SPECIFICATION: Final = "docs/vocabulary-v1.3.0.md"
 
 # Words that present the tool as a judge. Their inflections are excluded too.
 EXCLUDED_WORDS: Final[tuple[str, ...]] = (
@@ -932,6 +932,260 @@ FRAMEWORK_MAPPING: Final[Mapping[str, int]] = MappingProxyType(
 )
 
 
+# ---------------------------------------------------------------------------
+# The standard evidence set (FR-021): reader-facing slot vocabulary
+
+TASK_BOUNDARY_LOCATION: Final = "$.task"
+
+
+@dataclass(frozen=True, slots=True)
+class SlotPhrases:
+    """Reader-facing form of one evidence-set slot.
+
+    ``kinds`` are the evidence-entry kinds the rules that read the slot accept
+    as support; an empty tuple means the slot carries no evidence references.
+    ``framework_rules`` are the framework rule numbers (FR-020) that read it.
+    """
+
+    name: str
+    sentence: str
+    kinds: tuple[EvidenceKind, ...]
+    framework_rules: tuple[int, ...]
+
+
+#: Kinds the credible-support rules accept: an observation, or an estimate with a method.
+_CREDIBLE: Final = (EvidenceKind.OBSERVED, EvidenceKind.ESTIMATE)
+#: Kinds a slot without a credible-support rule records; a missing entry marks a gap.
+_ANY_KIND: Final = tuple(EvidenceKind)
+
+
+def _question_slot(field: str, rules: tuple[int, ...]) -> SlotPhrases:
+    return SlotPhrases(
+        QUESTION_FIELDS[field],
+        "Answer yes, no, or not yet known, with the reason and the evidence it rests on.",
+        _CREDIBLE,
+        rules,
+    )
+
+
+def _dimension_slot(field: str) -> SlotPhrases:
+    return SlotPhrases(
+        f"Comparison on {DIMENSIONS[field]}",
+        "State whether the option is better, about the same, worse, or not yet known on this "
+        "point against each alternative, with the reason and the evidence.",
+        _CREDIBLE,
+        (8,),
+    )
+
+
+#: Every schema location that carries evidence references, by its location.
+SLOTS: Final[Mapping[str, SlotPhrases]] = MappingProxyType(
+    {
+        TASK_BOUNDARY_LOCATION: SlotPhrases(
+            "The task boundary",
+            "State what is done, when it starts and completes, who is accountable, who takes "
+            "part, the ordered actions with their consequences, and what is out of scope.",
+            (),
+            (1,),
+        ),
+        "$.problem_value.affected_volume": SlotPhrases(
+            "How much work is affected",
+            "State the volume of work the task covers, with the evidence.",
+            _ANY_KIND,
+            (1,),
+        ),
+        "$.problem_value.material_pain": SlotPhrases(
+            "What hurts today",
+            "State the material problem with the way the work runs today, with the evidence.",
+            _ANY_KIND,
+            (1,),
+        ),
+        "$.problem_value.error_cost": SlotPhrases(
+            "What an error costs",
+            "State what a wrong result costs, with the evidence.",
+            _ANY_KIND,
+            (1,),
+        ),
+        "$.problem_value.technology_limitation": SlotPhrases(
+            "Why technology may be the limit",
+            "State why the current technology, rather than the process, limits the work, with "
+            "the evidence.",
+            _ANY_KIND,
+            (1,),
+        ),
+        "$.problem_value.outcomes[]": SlotPhrases(
+            "Required outcomes",
+            "Record each outcome the work must reach, how it is measured, its target, and "
+            "whether it is required or for comparison only.",
+            _ANY_KIND,
+            (1, 2),
+        ),
+        "$.problem_value.baselines[]": SlotPhrases(
+            "Today's baseline",
+            "Record today's value for each measured outcome, with the evidence it rests on.",
+            _CREDIBLE,
+            (1,),
+        ),
+        "$.problem_value.constraints[]": SlotPhrases(
+            "Required constraints",
+            "Record each constraint every option must meet, how it is checked, and the result "
+            "it must show.",
+            _ANY_KIND,
+            (1, 2),
+        ),
+        "$.agency_necessity.execution_steps_predefinable": _question_slot(
+            "execution_steps_predefinable", (3, 4)
+        ),
+        "$.agency_necessity.step_count_or_order_predictable": _question_slot(
+            "step_count_or_order_predictable", (3, 4)
+        ),
+        "$.agency_necessity.runtime_tool_choice_required": _question_slot(
+            "runtime_tool_choice_required", (3, 4)
+        ),
+        "$.agency_necessity.runtime_replanning_required": _question_slot(
+            "runtime_replanning_required", (3, 4)
+        ),
+        "$.agency_necessity.environmental_feedback_available": _question_slot(
+            "environmental_feedback_available", (3, 4)
+        ),
+        "$.agency_necessity.completion_independently_verifiable": _question_slot(
+            "completion_independently_verifiable", (3,)
+        ),
+        "$.agency_necessity.effects_independently_verifiable": _question_slot(
+            "effects_independently_verifiable", (3,)
+        ),
+        "$.agency_necessity.fixed_workflow_sufficient": _question_slot(
+            "fixed_workflow_sufficient", (3, 4)
+        ),
+        "$.agency_necessity.residual_cases[]": SlotPhrases(
+            "Cases a fixed sequence cannot handle",
+            "Record each case in which a fixed sequence of steps fails, and how, with the "
+            "evidence.",
+            _CREDIBLE,
+            (3, 4),
+        ),
+        "$.autonomy_permission.actions_reversible": _question_slot("actions_reversible", (5,)),
+        "$.autonomy_permission.failure_blast_radius_bounded": _question_slot(
+            "failure_blast_radius_bounded", (5,)
+        ),
+        "$.autonomy_permission.regulatory_automation_permitted": _question_slot(
+            "regulatory_automation_permitted", (5,)
+        ),
+        "$.autonomy_permission.data_confidence_sufficient": _question_slot(
+            "data_confidence_sufficient", (5,)
+        ),
+        "$.autonomy_permission.accountable_owner_assigned": _question_slot(
+            "accountable_owner_assigned", (5,)
+        ),
+        "$.autonomy_permission.decision_path_auditable": _question_slot(
+            "decision_path_auditable", (5,)
+        ),
+        "$.autonomy_permission.timely_human_intervention_available": _question_slot(
+            "timely_human_intervention_available", (5,)
+        ),
+        "$.autonomy_permission.safe_degradation_available": _question_slot(
+            "safe_degradation_available", (5,)
+        ),
+        "$.autonomy_permission.hard_vetoes[]": SlotPhrases(
+            "Absolute stop conditions",
+            "Record each condition under which nothing may proceed, what then happens, whether "
+            "it is in force, and the actions it binds, with the evidence.",
+            _CREDIBLE,
+            (5, 6),
+        ),
+        "$.autonomy_permission.mandatory_human_controls[]": SlotPhrases(
+            "Person-required steps",
+            "Record each step a person must perform or confirm, when, by whom, and the actions "
+            "it binds, with the evidence.",
+            _CREDIBLE,
+            (5, 6),
+        ),
+        "$.candidate_comparison.candidates[].outcome_tests[]": SlotPhrases(
+            "Each option against each required outcome",
+            "Record whether the option meets, does not meet, or has not yet been tested against "
+            "each outcome, with the reason and the evidence.",
+            _CREDIBLE,
+            (2,),
+        ),
+        "$.candidate_comparison.candidates[].constraint_tests[]": SlotPhrases(
+            "Each option against each required constraint",
+            "Record whether the option meets, does not meet, or has not yet been tested against "
+            "each constraint, with the reason and the evidence.",
+            _CREDIBLE,
+            (2,),
+        ),
+        "$.candidate_comparison.candidates[].authority": SlotPhrases(
+            "What each option would carry out",
+            "Record the actions an automated option would carry out and the person-required "
+            "steps it keeps, with the evidence.",
+            _CREDIBLE,
+            (5, 6),
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.outcome_quality": _dimension_slot(
+            "outcome_quality"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.difficult_case_performance": (
+            _dimension_slot("difficult_case_performance")
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.cost": _dimension_slot("cost"),
+        "$.candidate_comparison.comparisons[].dimensions.latency": _dimension_slot("latency"),
+        "$.candidate_comparison.comparisons[].dimensions.human_effort": _dimension_slot(
+            "human_effort"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.integration_burden": _dimension_slot(
+            "integration_burden"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.security_exposure": _dimension_slot(
+            "security_exposure"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.failure_impact": _dimension_slot(
+            "failure_impact"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.operability": _dimension_slot(
+            "operability"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.evaluation_burden": _dimension_slot(
+            "evaluation_burden"
+        ),
+        "$.candidate_comparison.comparisons[].dimensions.maintainability": _dimension_slot(
+            "maintainability"
+        ),
+        "$.candidate_comparison.strongest_simpler_boundary": SlotPhrases(
+            "The strongest simpler alternative",
+            "Name the strongest option simpler than the proposal, what it covers, and why, with "
+            "the evidence.",
+            _CREDIBLE,
+            (7,),
+        ),
+        "$.candidate_comparison.baseline_retention": SlotPhrases(
+            "Keeping the current way of working",
+            "Where keeping the current way of working is the intended result, record who "
+            "declared it and why, with the evidence.",
+            _ANY_KIND,
+            (1,),
+        ),
+        "$.decision_conditions[]": SlotPhrases(
+            "Conditions on the result",
+            "Record each condition an indicated option must still meet, what settles it, and "
+            "whether it is met, with the evidence.",
+            _ANY_KIND,
+            (9,),
+        ),
+    }
+)
+
+
+def slot_phrases(location: str) -> SlotPhrases:
+    """Return the reader-facing form of one evidence-set slot, failing closed."""
+    try:
+        return SLOTS[location]
+    except KeyError:
+        raise VocabularyError(
+            f"Schema location {location!r} carries evidence references but has no evidence-set "
+            "slot; add the slot to the vocabulary in the same change as the schema."
+        ) from None
+
+
 def excluded_words_in(text: str) -> tuple[str, ...]:
     """Return the excluded words found in text, lowercased, in order of appearance."""
     return tuple(match.group(0).lower() for match in _EXCLUDED_PATTERN.finditer(text))
@@ -1005,6 +1259,15 @@ def validate_vocabulary() -> None:
     ):
         _check_phrase(context, text)
     _validate_framework(catalog)
+    numbers = {rule.number for rule in FRAMEWORK_RULES}
+    for location, slot in SLOTS.items():
+        _check_phrase(f"slot {location!r} name", slot.name)
+        _check_phrase(f"slot {location!r} sentence", slot.sentence)
+        for number in slot.framework_rules:
+            if number not in numbers:
+                raise VocabularyError(f"Slot {location!r} cites unknown framework rule {number}.")
+        if not slot.framework_rules:
+            raise VocabularyError(f"Slot {location!r} is read by no framework rule.")
 
 
 def _validate_framework(catalog: Mapping[str, object]) -> None:
@@ -1132,6 +1395,15 @@ def vocabulary_payload() -> dict[str, object]:
             "version": FRAMEWORK_VERSION,
         },
         "question_fields": dict(QUESTION_FIELDS),
+        "slots": {
+            location: {
+                "framework_rules": list(slot.framework_rules),
+                "kinds": [kind.value for kind in slot.kinds],
+                "name": slot.name,
+                "sentence": slot.sentence,
+            }
+            for location, slot in sorted(SLOTS.items())
+        },
         "roles": dict(ROLES),
         "stop_condition_states": dict(STOP_CONDITION_STATES),
         "target_kinds": dict(TARGET_KINDS),

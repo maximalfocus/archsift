@@ -32,6 +32,12 @@ from archsift.corpus import packaged_corpus_bytes, packaged_corpus_snapshot
 from archsift.decision import ArchitectureVerdict, evaluate_assessment
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.evidence_set import (
+    evidence_set_profile,
+    profile_bytes,
+    profile_lines,
+    validate_slot_coverage,
+)
 from archsift.framework import build_framework_card, card_lines
 from archsift.graph_change import (
     GraphChangeError,
@@ -133,6 +139,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=SUPPORTED_DOSSIER_SCHEMA_VERSIONS,
         default=LATEST_DOSSIER_SCHEMA_VERSION,
         help="supported dossier schema version; defaults to the latest",
+    )
+    schema_parser.add_argument(
+        "--evidence-set",
+        action="store_true",
+        help="emit the evidence-set profile of the selected schema version instead of the schema",
     )
     _output_options(schema_parser)
 
@@ -466,9 +477,12 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
 def _run_dossier_schema(
     schema_version: int,
     *,
+    evidence_set: bool = False,
     json_output: bool,
     quiet: bool,
 ) -> int:
+    if evidence_set:
+        return _run_evidence_set_profile(schema_version, json_output=json_output, quiet=quiet)
     try:
         surface = dossier_schema_surface(schema_version)
     except Exception as error:  # defensive CLI boundary
@@ -484,6 +498,25 @@ def _run_dossier_schema(
         f"{surface.definition_count} definitions",
         stream=sys.stdout,
     )
+    return int(ExitCode.SUCCESS)
+
+
+def _run_evidence_set_profile(schema_version: int, *, json_output: bool, quiet: bool) -> int:
+    """Emit the evidence-set profile (FR-021) of one supported dossier schema version."""
+    try:
+        validate_slot_coverage()
+        profile = evidence_set_profile(schema_version)
+        content = profile_bytes(profile)
+        lines = profile_lines(profile)
+    except Exception as error:  # a packaging defect, never a case defect
+        return _internal_error(error, json_output=json_output, quiet=quiet)
+    if quiet:
+        return int(ExitCode.SUCCESS)
+    if json_output:
+        _write_canonical_stdout(content)
+        return int(ExitCode.SUCCESS)
+    for line in lines:
+        _print(line, stream=sys.stdout)
     return int(ExitCode.SUCCESS)
 
 
@@ -1413,6 +1446,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "dossier-schema":
         return _run_dossier_schema(
             args.schema_version,
+            evidence_set=args.evidence_set,
             json_output=args.json_output,
             quiet=args.quiet,
         )
