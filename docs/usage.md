@@ -270,7 +270,7 @@ business language, for a stakeholder without the method in hand:
    already determined and the specific information that would settle the rest.
 
 No other part appears. The summary speaks through the published vocabulary
-(`docs/vocabulary-v1.1.0.md`): it names every concept by its phrase and every
+(`docs/vocabulary-v1.2.0.md`): it names every concept by its phrase and every
 authored element by its authored name or description, and carries no rule
 identifier, evidence identifier, requirement identifier, field path, or internal
 token, and no traceability appendix; the detailed report keeps the full trace.
@@ -337,13 +337,20 @@ Lists the immutable packaged decision rules: rule IDs, versions, descriptions,
 effects, and their public rationale and source mappings. No case workspace is
 required. `--json` emits the stable ruleset catalog including the versioned
 method specification reference and the versioned
-[plain-language vocabulary](vocabulary-v1.1.0.md) under `vocabulary`: the
+[plain-language vocabulary](vocabulary-v1.2.0.md) under `vocabulary`: the
 flag each finding effect renders as (stop, gap, condition, fit, noted), the
 reader-facing phrase for every verdict, evidence state, option, evidence kind,
 and decision question, the reader-facing message template, consequence, and
-remediation of every rule, and the excluded words no phrase may contain. Human
-mode prints each rule's flag and reader-facing consequence beside its
-identifier. The vocabulary is a rendering input: it never changes a record or
+remediation of every rule, the excluded words no phrase may contain, and, under
+`vocabulary.framework`, the decision framework card (FR-020): the framework
+version, one sentence per question and per option, the numbered framework
+rules (at most twelve) with the question each serves, the no-tally statement,
+and the mapping from every internal rule to exactly one framework rule. Human
+mode prints the card after the version lines, then each rule's flag,
+reader-facing consequence, and framework rule number beside its identifier.
+The card is a rendering of the ruleset, never a second ruleset: it never runs,
+presents no score, total, weight, or ranking, and a wording change in it
+produces a distinct payload while no record, identity, or verdict changes. The vocabulary is a rendering input: it never changes a record or
 its identity, and an unmapped term or an excluded word fails closed.
 
 ### `archsift graph-corpus`

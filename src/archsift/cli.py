@@ -32,6 +32,7 @@ from archsift.corpus import packaged_corpus_bytes, packaged_corpus_snapshot
 from archsift.decision import ArchitectureVerdict, evaluate_assessment
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
+from archsift.framework import build_framework_card, card_lines
 from archsift.graph_change import (
     GraphChangeError,
     load_graph_change_proposal,
@@ -85,6 +86,7 @@ from archsift.vocabulary import (
     VOCABULARY_SPECIFICATION,
     VOCABULARY_VERSION,
     VocabularyError,
+    framework_rule_number,
     phrase,
     rule_phrases,
     vocabulary_payload,
@@ -1346,6 +1348,8 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
     rules = list_rules()
     try:
         vocabulary = vocabulary_payload()
+        card = card_lines(build_framework_card())
+        numbers = {rule.id: framework_rule_number(rule.id) for rule in rules}
     except VocabularyError as error:  # a packaging defect, never a case defect
         return _internal_error(error, json_output=json_output, quiet=quiet)
     if quiet:
@@ -1373,13 +1377,16 @@ def _run_rules(*, json_output: bool, quiet: bool) -> int:
         "findings read as flags: stop, gap, condition, fit, noted",
         stream=sys.stdout,
     )
+    for line in card:
+        _print(line, stream=sys.stdout)
     for rule in rules:
         phrases = rule_phrases(rule.id)
         _print(
             f"{rule.id} [{rule.effect.value}; {rule.requirement}] {rule.description} "
             f"Consequence: {rule.consequence} Rationale: {rule.source_rationale} "
             f"Method: {rule.rationale_id} Sources: {','.join(rule.source_ids)} "
-            f"Flag: {phrases.flag}. Reads: {phrases.consequence}",
+            f"Flag: {phrases.flag}. Reads: {phrases.consequence} "
+            f"Framework rule {numbers[rule.id]}.",
             stream=sys.stdout,
         )
     return int(ExitCode.SUCCESS)
