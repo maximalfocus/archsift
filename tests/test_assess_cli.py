@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -94,13 +95,15 @@ def test_assess_human_and_quiet_modes_never_render_authored_or_host_text(
     human = capsys.readouterr()
 
     assert human.err == ""
-    assert human.out.startswith("Assessment insufficient-evidence: sha256:")
+    assert human.out.startswith(
+        "Result: More evidence is needed before an option can be indicated. Record sha256:"
+    )
     assert " -> output/sha256-" in human.out
     assert ".json; report -> output/sha256-" in human.out
     assert human.out.rstrip().endswith(".md")
     assert "authored-title-is-private" not in human.out
     assert str(tmp_path) not in human.out
-    human_identity = human.out.split()[2]
+    human_identity = re.search(r"sha256:[0-9a-f]{64}", human.out).group(0)  # type: ignore[union-attr]
 
     assert main(["assess", str(workspace), "--json"]) == ExitCode.SUCCESS
     machine = capsys.readouterr()

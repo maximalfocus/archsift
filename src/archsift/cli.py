@@ -29,7 +29,7 @@ from archsift.comparison import (
     resolve_record_path,
 )
 from archsift.corpus import packaged_corpus_bytes, packaged_corpus_snapshot
-from archsift.decision import evaluate_assessment
+from archsift.decision import ArchitectureVerdict, evaluate_assessment
 from archsift.decision_record import DecisionRecordError, compose_decision_record
 from archsift.diagnostics import Diagnostic, ExitCode
 from archsift.graph_change import (
@@ -85,6 +85,7 @@ from archsift.vocabulary import (
     VOCABULARY_SPECIFICATION,
     VOCABULARY_VERSION,
     VocabularyError,
+    phrase,
     rule_phrases,
     vocabulary_payload,
 )
@@ -446,13 +447,14 @@ def _run_validate(path: Path, *, json_output: bool, quiet: bool) -> int:
         details["schema_version"] = result.dossier.schema_version
         details["task_defined"] = result.dossier.task is not None
     details["advisories"] = [advisory.to_dict() for advisory in result.advisories]
+    declared = result.dossier.schema_version if result.dossier is not None else None
     _emit(
         status=status,
         exit_code=result.exit_code,
         diagnostics=result.diagnostics,
         json_output=json_output,
         quiet=quiet,
-        success_message="Valid ArchSift dossier: case.yaml (schema 1)",
+        success_message=f"Valid case file: case.yaml (format {declared})",
         details=details,
         advisories=result.advisories,
     )
@@ -499,6 +501,9 @@ def _run_prerequisites(path: Path, *, json_output: bool, quiet: bool) -> int:
             return int(result.exit_code)
         worklist = prerequisite_worklist(result.dossier)
         content = canonical_json_bytes(worklist)
+        # The machine-readable worklist never depends on the vocabulary; only
+        # the human rendering does, and it fails closed on an unmapped rule.
+        human = [] if json_output or quiet else _human_worklist(worklist)
     except Exception as error:  # defensive CLI boundary
         return _internal_error(error, json_output=json_output, quiet=quiet)
     if quiet:
@@ -506,15 +511,35 @@ def _run_prerequisites(path: Path, *, json_output: bool, quiet: bool) -> int:
     if json_output:
         _write_canonical_stdout(content)
         return int(ExitCode.SUCCESS)
-    findings = cast(list[object], worklist["findings"])
-    state = "complete" if worklist["complete"] else "incomplete"
-    _print(
-        f"Assessment prerequisites {state}: {len(findings)} outstanding; "
-        f"dossier schema {worklist['dossier_schema_version']}; "
-        f"ruleset {worklist['ruleset_version']}",
-        stream=sys.stdout,
-    )
+    for line in human:
+        _print(line, stream=sys.stdout)
     return int(ExitCode.SUCCESS)
+
+
+def _human_worklist(worklist: JsonObject) -> list[str]:
+    """Render the outstanding worklist in the plain-language register (NFR-011).
+
+    The readiness line and each gap speak through the vocabulary: the flag and
+    what would settle it. Human mode never renders authored text, so a gap
+    names no element; its rule identifier and field path follow as the FR-012
+    trace, clearly separated, so the gap stays locatable.
+    """
+    findings = cast(list[JsonObject], worklist["findings"])
+    versions = (
+        f"case file format {worklist['dossier_schema_version']}; "
+        f"rules {worklist['ruleset_version']}"
+    )
+    if not findings:
+        return [f"Ready for assessment: no gaps outstanding ({versions})."]
+    count = "1 gap" if len(findings) == 1 else f"{len(findings)} gaps"
+    lines = [f"Not yet ready for assessment: {count} outstanding ({versions})."]
+    for finding in findings:
+        rule_id = cast(str, finding["rule_id"])
+        phrases = rule_phrases(rule_id)
+        lines.append(
+            f"{phrases.flag} flag: {phrases.remediation} [trace: {rule_id} {finding['field']}]"
+        )
+    return lines
 
 
 _REGISTRATION_UNAVAILABLE = {
@@ -750,6 +775,7 @@ def _run_assess(
         content = masked_canonical_decision_record_bytes(record)
         report = render_markdown_decision_report(record)
         persisted = persist_decision_outputs(path, record, content, report)
+        result_line = _human_result(record.assessment.verdict, record.assessment.recommended_class)
     except (EvidenceArtefactError, RecordPersistenceError) as error:
         return _emit_assess_failure(error, json_output=json_output, quiet=quiet)
     except Exception as error:  # defensive CLI boundary
@@ -761,11 +787,20 @@ def _run_assess(
         _write_canonical_stdout(content)
         return int(ExitCode.SUCCESS)
     _print(
-        f"Assessment {record.assessment.verdict.value}: {record.record_content_identity} "
+        f"{result_line} Record {record.record_content_identity} "
         f"-> {persisted.json.relative_path}; report -> {persisted.markdown.relative_path}",
         stream=sys.stdout,
     )
     return int(ExitCode.SUCCESS)
+
+
+def _human_result(verdict: ArchitectureVerdict, recommended: object) -> str:
+    """Return the result, and the indicated option when there is one, as vocabulary phrases."""
+    text = phrase(verdict)
+    line = f"Result: {text[0].upper()}{text[1:]}."
+    if recommended is not None:
+        line += f" Indicated option: {phrase(recommended)}."
+    return line
 
 
 def _emit_record_input_failure(

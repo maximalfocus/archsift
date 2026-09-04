@@ -100,8 +100,9 @@ field, requirement, and remediation shape. `--json` lists them under
 `advisory:`; `--quiet` prints nothing. An advisory is never emitted in place
 of a failure a rule requires.
 
-A valid but incomplete dossier validates successfully; the assessment may then
-abstain with `insufficient-evidence`.
+Human mode confirms `Valid case file: case.yaml (format <n>)` with the declared
+schema version. A valid but incomplete dossier validates successfully; the
+assessment may then abstain with `insufficient-evidence`.
 
 ### `archsift dossier-schema` [`--schema-version` 1|2|3|4|5]
 
@@ -126,8 +127,13 @@ The command is read-only and never opens evidence artefact paths, hashes
 material, assesses a verdict, or writes a record. Structural failures retain
 the same FR-012 diagnostics and exit classification as `validate`; those
 diagnostics repair dossier structure, while this worklist repairs decision
-completeness. Human mode reports only generated counts and versions, never
-dossier-authored prose.
+completeness. Human mode speaks the plain-language register (NFR-011): one
+readiness line (`Ready for assessment` or `Not yet ready for assessment` with
+the gap count, case file format, and rules version), then one line per
+outstanding gap giving its flag and what would settle it from the vocabulary,
+followed by a clearly separated `[trace: <rule-id> <field>]` suffix. Human mode
+never renders dossier-authored prose, so a gap names no authored element; the
+trace keeps it locatable.
 
 ### `archsift register-document <case> <registration-id> <declared-type> <source>` [`--external-material-root` <dir>]
 
@@ -193,8 +199,10 @@ satisfy a prerequisite, change confidence, eliminate a class, or alter the
 verdict. Omitting both graph options emits the exact legacy no-graph bytes and
 identity.
 
-`--json` emits exactly the canonical JSON record bytes. Human and quiet modes
-never render dossier-authored text.
+`--json` emits exactly the canonical JSON record bytes. Human mode prints one
+line: the result and, when there is one, the indicated option as their
+vocabulary phrases, then the record content identity and the two output paths.
+Human and quiet modes never render dossier-authored text.
 
 ### `archsift report <record>` [`--format` html|pptx] [`--level` detailed|executive]
 
@@ -319,7 +327,9 @@ verdict fields also changed; otherwise they remain reassessment context. This
 classification never lets graph knowledge independently alter a verdict,
 satisfy case evidence, or infer causality. The command is offline and read-only;
 `--json` emits the stable canonical comparison payload and quiet mode emits
-nothing.
+nothing. Human mode prints the two record identities, a `Result:` line giving
+the old and new result as their vocabulary phrases, and generated count lines;
+it renders no authored text.
 
 ### `archsift rules` [--json]
 

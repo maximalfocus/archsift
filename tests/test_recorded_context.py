@@ -117,7 +117,7 @@ def test_validate_advises_on_uncited_entries_without_changing_the_exit_status(
     human = capsys.readouterr()
     assert human.err == ""
     lines = human.out.splitlines()
-    assert lines[0].startswith("Valid ArchSift dossier")
+    assert lines[0] == "Valid case file: case.yaml (format 1)"
     assert [line for line in lines[1:] if line.startswith("advisory: uncited-evidence-entry")] == (
         lines[1:]
     )
